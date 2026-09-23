@@ -2,20 +2,168 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spesen</title>
 <style>
-  body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
-         font-family: Calibri, "Segoe UI", system-ui, sans-serif; background:#215aa8; color:#fff; }
-  div { text-align:center; }
-  h1 { margin:0 0 8px; font-size:28px; }
-  p  { margin:0; opacity:.8; }
+  :root { --blau:#215aa8; --dunkel:#1b3d6b; --grau:#5A6478; --rand:#E1E4EC; --bg:#F4F5F8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--dunkel);
+         font-family: Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
+  .kopf { background:var(--blau); color:#fff; padding:calc(env(safe-area-inset-top) + 24px) 20px 18px; }
+  .kopf h1 { margin:0 0 3px; font-size:24px; }
+  .kopf .sub { font-size:14px; color:#BDD1EA; }
+  .inhalt { padding:16px 20px 40px; max-width:900px; margin:0 auto; }
+  .karte { background:#fff; border:1px solid var(--rand); border-radius:12px; padding:16px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
+  input { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
+          border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
+  button { font-family:inherit; cursor:pointer; }
+  .knopf { width:100%; min-height:52px; border:0; border-radius:12px; background:var(--blau);
+           color:#fff; font-size:17px; font-weight:600; }
+  .knopf:disabled { background:#AEB6C6; }
+  .klein { background:none; border:1px solid #C9D6E8; border-radius:9px; min-height:40px;
+           padding:0 14px; color:var(--blau); font-size:14px; }
+  .fehler { background:#FCEEED; border:1px solid #E9C3C0; color:#8E201B;
+            border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:12px; }
+  .ok { background:#E9F3ED; border:1px solid #BCDAC8; color:#124F32;
+        border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:12px; }
+  .mitte { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .mitte .karte { width:100%; max-width:380px; }
+  .zeile { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .leer { text-align:center; color:var(--grau); font-size:15px; padding:30px 10px; }
 </style>
 </head>
 <body>
-  <div>
-    <h1>Spesen</h1>
-    <p>Aufbau läuft</p>
-  </div>
+<div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ===== HIER EINTRAGEN (Supabase → Project Settings → API) =====
+const SUPABASE_URL = "HIER_PROJECT_URL";
+const SUPABASE_KEY = "HIER_PUBLISHABLE_KEY";
+// ==============================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const app = document.getElementById("app");
+
+const monatJetzt = () => new Date().toISOString().slice(0, 7);
+const monatName = (m) => {
+  const n = ["Januar","Februar","März","April","Mai","Juni",
+             "Juli","August","September","Oktober","November","Dezember"];
+  const [j, mm] = m.split("-");
+  return n[parseInt(mm, 10) - 1] + " " + j;
+};
+
+async function start() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) { zeigeApp(data.session); } else { zeigeLogin(); }
+}
+
+function zeigeLogin(meldung) {
+  app.innerHTML = `
+    <div class="mitte">
+      <div class="karte">
+        <h1 style="margin:0 0 4px; font-size:24px;">Spesen</h1>
+        <p style="margin:0 0 18px; color:var(--grau); font-size:14px;">Bitte anmelden</p>
+        ${meldung ? `<div class="fehler">${meldung}</div>` : ""}
+        <form id="f">
+          <label for="mail">E-Mail</label>
+          <input id="mail" type="email" autocomplete="username" required
+                 style="margin-bottom:12px" inputmode="email">
+          <label for="pw">Passwort</label>
+          <input id="pw" type="password" autocomplete="current-password" required
+                 style="margin-bottom:18px">
+          <button class="knopf" id="btn" type="submit">Anmelden</button>
+        </form>
+      </div>
+    </div>`;
+  document.getElementById("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btn");
+    btn.disabled = true; btn.textContent = "Moment …";
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: document.getElementById("mail").value.trim(),
+      password: document.getElementById("pw").value
+    });
+    if (error) { zeigeLogin("Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht."); return; }
+    zeigeApp(data.session);
+  });
+}
+
+async function zeigeApp(session) {
+  const geraet = session.user.email;
+  const monat = monatJetzt();
+
+  app.innerHTML = `
+    <div class="kopf">
+      <div class="zeile">
+        <div>
+          <h1>Meine Spesen</h1>
+          <div class="sub">${geraet} · ${monatName(monat)}</div>
+        </div>
+        <button class="klein" id="abmelden"
+                style="background:#2f6cbd; border-color:#2f6cbd; color:#fff;">Abmelden</button>
+      </div>
+    </div>
+    <div class="inhalt" id="inhalt">
+      <div class="karte">Lade …</div>
+    </div>`;
+
+  document.getElementById("abmelden").addEventListener("click", async () => {
+    await sb.auth.signOut();
+    zeigeLogin();
+  });
+
+  const inhalt = document.getElementById("inhalt");
+
+  const { data: konten, error: fehlerKonten } =
+    await sb.from("spesen_konto").select("nummer, bezeichnung, mwst")
+      .eq("aktiv", true).order("sortierung");
+
+  const { data: belege, error: fehlerBelege } =
+    await sb.from("spesen_beleg").select("*")
+      .eq("monat", monat).order("beleg_datum", { ascending: false });
+
+  if (fehlerKonten || fehlerBelege) {
+    inhalt.innerHTML = `<div class="fehler">Daten konnten nicht geladen werden:
+      ${(fehlerKonten || fehlerBelege).message}</div>`;
+    return;
+  }
+
+  const summe = (belege || []).reduce((t, b) => t + parseFloat(b.betrag), 0);
+
+  inhalt.innerHTML = `
+    <div class="ok">Verbindung steht — ${konten.length} Konten geladen.</div>
+
+    <div class="karte zeile">
+      <div>
+        <div style="font-size:13px; color:var(--grau);">Erfasst diesen Monat</div>
+        <div style="font-size:22px; font-weight:700;">${belege.length}
+          ${belege.length === 1 ? "Beleg" : "Belege"}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px; color:var(--grau);">Total</div>
+        <div style="font-size:22px; font-weight:700;">CHF ${summe.toFixed(2)}</div>
+      </div>
+    </div>
+
+    <button class="knopf" disabled style="margin-bottom:12px;">Spesen erfassen (folgt)</button>
+
+    ${belege.length === 0
+      ? `<div class="karte leer">Noch keine Belege in diesem Monat.</div>`
+      : belege.map(b => `
+        <div class="karte zeile">
+          <div>
+            <div style="font-weight:600;">${b.konto_nummer} · ${b.auftrag_nr}</div>
+            <div style="font-size:13px; color:var(--grau);">
+              ${new Date(b.beleg_datum).toLocaleDateString("de-CH")} · MwSt ${b.mwst} %</div>
+          </div>
+          <div style="font-size:17px; font-weight:700;">${parseFloat(b.betrag).toFixed(2)}</div>
+        </div>`).join("")}
+  `;
+}
+
+start();
+</script>
 </body>
 </html>
