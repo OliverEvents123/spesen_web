@@ -5,35 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spesen</title>
 <style>
-  :root { --blau:#215aa8; --dunkel:#1b3d6b; --grau:#5A6478; --rand:#E1E4EC; --bg:#F4F5F8; }
+  :root { --blau:#215aa8; --hell:#2f6cbd; --dunkel:#1b3d6b; --grau:#5A6478;
+          --rand:#E1E4EC; --bg:#F4F5F8; --warn:#A08040; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--dunkel);
          font-family: Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
-  .kopf { background:var(--blau); color:#fff; padding:calc(env(safe-area-inset-top) + 24px) 20px 18px; }
-  .kopf h1 { margin:0 0 3px; font-size:24px; }
-  .kopf .sub { font-size:14px; color:#BDD1EA; }
-  .inhalt { padding:16px 20px 40px; max-width:900px; margin:0 auto; }
-  .karte { background:#fff; border:1px solid var(--rand); border-radius:12px; padding:16px; margin-bottom:12px; }
-  label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
-  input { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
-          border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
+  .kopf { background:var(--blau); color:#fff; padding:calc(env(safe-area-inset-top) + 22px) 20px 16px;
+          display:flex; align-items:center; gap:12px; }
+  .kopf h1 { margin:0 0 2px; font-size:22px; }
+  .kopf .sub { font-size:13px; color:#BDD1EA; }
+  .kopf .wachs { flex-grow:1; }
+  .inhalt { padding:14px 20px 40px; max-width:760px; margin:0 auto; }
+  .karte { background:#fff; border:1px solid var(--rand); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
   button { font-family:inherit; cursor:pointer; }
-  .knopf { width:100%; min-height:52px; border:0; border-radius:12px; background:var(--blau);
+  .knopf { width:100%; min-height:54px; border:0; border-radius:12px; background:var(--blau);
            color:#fff; font-size:17px; font-weight:600; }
-  .knopf:disabled { background:#AEB6C6; }
-  .klein { background:none; border:1px solid #C9D6E8; border-radius:9px; min-height:40px;
-           padding:0 14px; color:var(--blau); font-size:14px; }
+  .knopf[disabled] { background:#AEB6C6; font-size:15px; }
+  .rund { width:40px; height:40px; border:0; border-radius:10px; background:var(--hell);
+          color:#fff; font-size:19px; line-height:1; }
   .fehler { background:#FCEEED; border:1px solid #E9C3C0; color:#8E201B;
-            border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:12px; }
+            border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:10px; }
   .ok { background:#E9F3ED; border:1px solid #BCDAC8; color:#124F32;
-        border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:12px; }
+        border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:10px; }
   .mitte { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
   .mitte .karte { width:100%; max-width:380px; }
   .zeile { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .leer { text-align:center; color:var(--grau); font-size:15px; padding:30px 10px; }
-  details { font-size:13px; color:var(--grau); margin-top:6px; }
-  pre { white-space:pre-wrap; word-break:break-all; font-size:12px; background:#F7F8FA;
-        padding:10px; border-radius:8px; margin:8px 0 0; }
+  .leer { text-align:center; color:var(--grau); font-size:15px; padding:26px 10px; }
+  label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
+  input { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
+          border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
+  .wahl { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
+          border-radius:11px; min-height:58px; padding:8px 15px; display:flex;
+          align-items:center; gap:12px; margin-bottom:10px; }
+  .wahl.offen { border-color:#E8CFAE; }
+  .wahl .titel { font-size:13px; color:var(--grau); width:60px; flex-shrink:0; }
+  .wahl .wert { flex-grow:1; font-size:17px; font-weight:700; }
+  .wahl .pfeil { color:#7D89A0; font-size:18px; }
+  .block { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:10px; }
+  .taste { min-height:52px; border:1px solid #D5D9E3; border-radius:10px; background:#fff;
+           color:var(--dunkel); font-size:21px; font-weight:600; }
+  .mwst { display:flex; gap:8px; margin-bottom:10px; }
+  .mwst button { flex-grow:1; min-height:46px; border-radius:9px; border:1px solid #D5D9E3;
+                 background:#fff; color:#3f5a80; font-size:15px; }
+  .mwst button.an { background:var(--blau); border-color:var(--blau); color:#fff; font-weight:700; }
+  .eintrag { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
+             border-radius:11px; min-height:54px; padding:8px 15px; display:flex;
+             align-items:center; gap:14px; margin-bottom:8px; }
+  .eintrag.an { border:2px solid var(--blau); background:#EAF1FA; }
+  .eintrag .nr { font-size:18px; font-weight:700; width:70px; flex-shrink:0; }
+  .eintrag .nm { flex-grow:1; font-size:15px; color:#3f5a80; }
+  .marke { font-size:11px; background:#EDEFF5; color:#3f5a80; border-radius:4px; padding:2px 6px; }
 </style>
 </head>
 <body>
@@ -44,146 +65,275 @@
 const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb  = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById("app");
 
-const monatJetzt = () => new Date().toISOString().slice(0, 7);
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const heute = () => new Date().toLocaleDateString("sv-SE");   // ergibt JJJJ-MM-TT
 const monatName = (m) => {
   const n = ["Januar","Februar","März","April","Mai","Juni",
              "Juli","August","September","Oktober","November","Dezember"];
   const [j, mm] = m.split("-");
-  return n[parseInt(mm, 10) - 1] + " " + j;
+  return n[parseInt(mm,10)-1] + " " + j;
+};
+const chf = (z) => Number(z).toFixed(2);
+
+let S = {
+  session:null, konten:[], auftraege:[], belege:[],
+  monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null
 };
 
+const leererBeleg = () => ({ konto:null, auftrag:null, mwst:"8.1", roh:"", datum: heute() });
+const betragVon = (roh) => parseInt(roh || "0", 10) / 100;
+
+// ---------- Start ----------
 async function start() {
   const { data } = await sb.auth.getSession();
-  if (data.session) { zeigeApp(data.session); } else { zeigeLogin(); }
+  if (!data.session) { zeigeLogin(); return; }
+  S.session = data.session;
+  await ladeAlles();
+  render();
 }
 
 function zeigeLogin(meldung) {
   app.innerHTML = `
-    <div class="mitte">
-      <div class="karte">
-        <h1 style="margin:0 0 4px; font-size:24px;">Spesen</h1>
-        <p style="margin:0 0 18px; color:var(--grau); font-size:14px;">Bitte anmelden</p>
-        ${meldung ? `<div class="fehler">${meldung}</div>` : ""}
-        <form id="f">
-          <label for="mail">E-Mail</label>
-          <input id="mail" type="email" autocomplete="username" required
-                 style="margin-bottom:12px" inputmode="email">
-          <label for="pw">Passwort</label>
-          <input id="pw" type="password" autocomplete="current-password" required
-                 style="margin-bottom:18px">
-          <button class="knopf" id="btn" type="submit">Anmelden</button>
-        </form>
-      </div>
-    </div>`;
+    <div class="mitte"><div class="karte">
+      <h1 style="margin:0 0 4px; font-size:24px;">Spesen</h1>
+      <p style="margin:0 0 18px; color:var(--grau); font-size:14px;">Bitte anmelden</p>
+      ${meldung ? `<div class="fehler">${esc(meldung)}</div>` : ""}
+      <form id="f">
+        <label for="mail">E-Mail</label>
+        <input id="mail" type="email" inputmode="email" autocomplete="username" required style="margin-bottom:12px">
+        <label for="pw">Passwort</label>
+        <input id="pw" type="password" autocomplete="current-password" required style="margin-bottom:18px">
+        <button class="knopf" id="btn" type="submit">Anmelden</button>
+      </form>
+    </div></div>`;
   document.getElementById("f").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const btn = document.getElementById("btn");
-    btn.disabled = true; btn.textContent = "Moment …";
+    const b = document.getElementById("btn"); b.disabled = true; b.textContent = "Moment …";
     const { data, error } = await sb.auth.signInWithPassword({
       email: document.getElementById("mail").value.trim(),
-      password: document.getElementById("pw").value
-    });
+      password: document.getElementById("pw").value });
     if (error) { zeigeLogin("Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht."); return; }
-    zeigeApp(data.session);
+    S.session = data.session; await ladeAlles(); render();
   });
 }
 
-// Auftragsnummern über die Edge Function aus FileMaker holen
-async function ladeAuftragsnummern(session) {
-  const jahr = new Date().getFullYear();
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${jahr}`, {
-    headers: { Authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_KEY }
-  });
-  return await r.json();
+// ---------- Daten ----------
+async function ladeAlles() {
+  const [k, b] = await Promise.all([
+    sb.from("spesen_konto").select("nummer,bezeichnung,mwst").eq("aktiv",true).order("sortierung"),
+    sb.from("spesen_beleg").select("*").eq("monat", S.monat).order("beleg_datum",{ascending:false}).order("id",{ascending:false})
+  ]);
+  S.konten = k.data || [];
+  S.belege = b.data || [];
+  if (!S.auftraege.length) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${new Date().getFullYear()}`,
+        { headers:{ Authorization:`Bearer ${S.session.access_token}`, apikey: SUPABASE_KEY } });
+      const j = await r.json();
+      if (j.ok) S.auftraege = j.auftragsnummern;
+    } catch (e) { /* Liste bleibt leer, Hinweis erscheint bei der Auswahl */ }
+  }
 }
 
-async function zeigeApp(session) {
-  const geraet = session.user.email;
-  const monat = monatJetzt();
+// ---------- Ansichten ----------
+function render() {
+  if (S.ansicht === "liste")      return renderListe();
+  if (S.ansicht === "erfassen")   return renderErfassen();
+  if (S.ansicht === "kontoWahl")  return renderKontoWahl();
+  if (S.ansicht === "auftragWahl")return renderAuftragWahl();
+}
 
-  app.innerHTML = `
-    <div class="kopf">
-      <div class="zeile">
-        <div>
-          <h1>Meine Spesen</h1>
-          <div class="sub">${geraet} · ${monatName(monat)}</div>
-        </div>
-        <button class="klein" id="abmelden"
-                style="background:#2f6cbd; border-color:#2f6cbd; color:#fff;">Abmelden</button>
+function kopf(titel, sub, zurueck) {
+  return `<div class="kopf">
+    ${zurueck ? `<button class="rund" data-akt="zurueck" aria-label="Zurück">‹</button>` : ""}
+    <div class="wachs"><h1>${esc(titel)}</h1><div class="sub">${esc(sub)}</div></div>
+    ${zurueck ? "" : `<button class="rund" data-akt="abmelden" aria-label="Abmelden" style="width:auto;padding:0 12px;font-size:14px;">Abmelden</button>`}
+  </div>`;
+}
+
+function renderListe() {
+  const summe = S.belege.reduce((t,b) => t + parseFloat(b.betrag), 0);
+  app.innerHTML = kopf("Meine Spesen", `${S.session.user.email} · ${monatName(S.monat)}`) + `
+    <div class="inhalt">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
+      <div class="karte zeile">
+        <div><div style="font-size:13px;color:var(--grau);">Erfasst diesen Monat</div>
+             <div style="font-size:22px;font-weight:700;">${S.belege.length} ${S.belege.length===1?"Beleg":"Belege"}</div></div>
+        <div style="text-align:right;"><div style="font-size:13px;color:var(--grau);">Total</div>
+             <div style="font-size:22px;font-weight:700;">CHF ${chf(summe)}</div></div>
       </div>
-    </div>
-    <div class="inhalt" id="inhalt"><div class="karte">Lade …</div></div>`;
+      <button class="knopf" data-akt="neu" style="margin-bottom:14px;">Spesen erfassen</button>
+      ${S.belege.length === 0
+        ? `<div class="karte leer">Noch keine Belege in diesem Monat.</div>`
+        : S.belege.map(b => `
+          <div class="karte zeile">
+            <div>
+              <div style="font-weight:600;">${esc(b.konto_nummer)} · ${esc(b.auftrag_nr)}</div>
+              <div style="font-size:13px;color:var(--grau);">
+                ${new Date(b.beleg_datum).toLocaleDateString("de-CH")} · MwSt ${b.mwst} %</div>
+            </div>
+            <div style="font-size:17px;font-weight:700;">${chf(b.betrag)}</div>
+          </div>`).join("")}
+    </div>`;
+  S.meldung = null;
+}
 
-  document.getElementById("abmelden").addEventListener("click", async () => {
-    await sb.auth.signOut();
-    zeigeLogin();
-  });
+function renderErfassen() {
+  const n = S.neu;
+  const betrag = betragVon(n.roh);
+  const fertig = betrag > 0 && n.konto && n.auftrag;
+  const tasten = ["1","2","3","4","5","6","7","8","9","00","0","⌫"];
 
-  const inhalt = document.getElementById("inhalt");
+  app.innerHTML = kopf("Beleg erfassen", "Angaben prüfen und speichern", true) + `
+    <div class="inhalt">
+      <button class="wahl ${n.konto ? "" : "offen"}" data-akt="kontoWahl">
+        <span class="titel">Konto</span>
+        <span class="wert" style="color:${n.konto ? "var(--dunkel)" : "var(--warn)"}">
+          ${n.konto ? esc(n.konto.nummer + "  " + n.konto.bezeichnung) : "wählen"}</span>
+        <span class="pfeil">›</span>
+      </button>
 
-  const { data: konten, error: fehlerKonten } =
-    await sb.from("spesen_konto").select("nummer, bezeichnung, mwst")
-      .eq("aktiv", true).order("sortierung");
+      <button class="wahl ${n.auftrag ? "" : "offen"}" data-akt="auftragWahl">
+        <span class="titel">Auftrag</span>
+        <span class="wert" style="color:${n.auftrag ? "var(--dunkel)" : "var(--warn)"}">
+          ${n.auftrag ? esc(n.auftrag.id + (n.auftrag.name ? "  " + n.auftrag.name : "")) : "wählen"}</span>
+        <span class="pfeil">›</span>
+      </button>
 
-  const { data: belege, error: fehlerBelege } =
-    await sb.from("spesen_beleg").select("*")
-      .eq("monat", monat).order("beleg_datum", { ascending: false });
+      <div class="karte">
+        <label for="datum">Belegdatum</label>
+        <input id="datum" type="date" value="${n.datum}" data-feld="datum">
+      </div>
 
-  if (fehlerKonten || fehlerBelege) {
-    inhalt.innerHTML = `<div class="fehler">Daten konnten nicht geladen werden:
-      ${(fehlerKonten || fehlerBelege).message}</div>`;
+      <div class="karte zeile">
+        <span style="font-size:14px;color:var(--grau);">Betrag CHF</span>
+        <span style="font-size:34px;font-weight:700;line-height:1.1;
+                     color:${betrag>0 ? "var(--dunkel)" : "#AEB6C6"};">${chf(betrag)}</span>
+      </div>
+
+      <div class="block">
+        ${tasten.map(t => `<button class="taste" data-akt="ziffer" data-z="${t}">${t}</button>`).join("")}
+      </div>
+
+      <div class="mwst">
+        ${["8.1","2.6","3.8","0"].map(m =>
+          `<button class="${n.mwst===m?"an":""}" data-akt="mwst" data-v="${m}">${m}&nbsp;%</button>`).join("")}
+      </div>
+
+      <button class="knopf" data-akt="speichern" ${fertig ? "" : "disabled"}>
+        ${fertig ? "Speichern" : "Konto, Auftrag und Betrag fehlen noch"}</button>
+    </div>`;
+}
+
+function renderKontoWahl() {
+  app.innerHTML = kopf("Konto wählen", `${S.konten.length} Konten`, true) + `
+    <div class="inhalt">
+      ${S.konten.map(k => `
+        <button class="eintrag ${S.neu.konto && S.neu.konto.nummer===k.nummer ? "an":""}"
+                data-akt="kontoSet" data-nr="${esc(k.nummer)}">
+          <span class="nr">${esc(k.nummer)}</span>
+          <span class="nm">${esc(k.bezeichnung)}</span>
+          <span class="marke">${k.mwst} %</span>
+        </button>`).join("")}
+    </div>`;
+}
+
+function renderAuftragWahl() {
+  app.innerHTML = kopf("Auftrag wählen", `${S.auftraege.length} Nummern`, true) + `
+    <div class="inhalt">
+      <input id="suche" type="search" placeholder="Nummer oder Name suchen"
+             value="${esc(S.suche)}" style="margin-bottom:12px;">
+      <div id="treffer"></div>
+    </div>`;
+  const feld = document.getElementById("suche");
+  feld.addEventListener("input", () => { S.suche = feld.value; zeichneTreffer(); });
+  zeichneTreffer();
+  if (S.suche) { feld.focus(); }
+}
+
+function zeichneTreffer() {
+  const q = S.suche.trim().toLowerCase();
+  const liste = (q
+    ? S.auftraege.filter(a => a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q))
+    : S.auftraege).slice(0, 60);
+  const ziel = document.getElementById("treffer");
+  if (!ziel) return;
+  if (!S.auftraege.length) {
+    ziel.innerHTML = `<div class="fehler">Die Auftragsnummern konnten nicht aus FileMaker
+      geladen werden. Seite neu laden oder später nochmal versuchen.</div>`;
     return;
   }
-
-  let auftraege = null, auftragFehler = null;
-  try { auftraege = await ladeAuftragsnummern(session); }
-  catch (e) { auftragFehler = String(e); }
-
-  const auftragBlock = auftragFehler
-    ? `<div class="fehler">Auftragsnummern: Netzwerkfehler — ${auftragFehler}</div>`
-    : auftraege && auftraege.ok
-      ? `<div class="ok">Auftragsnummern: ${auftraege.anzahl} geladen
-           (davon ${auftraege.uebergreifend} übergreifend).</div>`
-      : `<div class="fehler">Auftragsnummern konnten nicht geladen werden.
-           <details><summary>Details</summary><pre>${
-             JSON.stringify(auftraege, null, 2)}</pre></details></div>`;
-
-  const summe = (belege || []).reduce((t, b) => t + parseFloat(b.betrag), 0);
-
-  inhalt.innerHTML = `
-    <div class="ok">Datenbank: ${konten.length} Konten geladen.</div>
-    ${auftragBlock}
-
-    <div class="karte zeile">
-      <div>
-        <div style="font-size:13px; color:var(--grau);">Erfasst diesen Monat</div>
-        <div style="font-size:22px; font-weight:700;">${belege.length}
-          ${belege.length === 1 ? "Beleg" : "Belege"}</div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:13px; color:var(--grau);">Total</div>
-        <div style="font-size:22px; font-weight:700;">CHF ${summe.toFixed(2)}</div>
-      </div>
-    </div>
-
-    <button class="knopf" disabled style="margin-bottom:12px;">Spesen erfassen (folgt)</button>
-
-    ${belege.length === 0
-      ? `<div class="karte leer">Noch keine Belege in diesem Monat.</div>`
-      : belege.map(b => `
-        <div class="karte zeile">
-          <div>
-            <div style="font-weight:600;">${b.konto_nummer} · ${b.auftrag_nr}</div>
-            <div style="font-size:13px; color:var(--grau);">
-              ${new Date(b.beleg_datum).toLocaleDateString("de-CH")} · MwSt ${b.mwst} %</div>
-          </div>
-          <div style="font-size:17px; font-weight:700;">${parseFloat(b.betrag).toFixed(2)}</div>
-        </div>`).join("")}
-  `;
+  ziel.innerHTML = liste.length === 0
+    ? `<div class="karte leer">Nichts gefunden.</div>`
+    : liste.map(a => `
+      <button class="eintrag ${S.neu.auftrag && S.neu.auftrag.id===a.id ? "an":""}"
+              data-akt="auftragSet" data-id="${esc(a.id)}">
+        <span class="nr">${esc(a.id)}</span>
+        <span class="nm">${esc(a.name)}</span>
+        ${a.immer ? `<span class="marke">fix</span>` : ""}
+      </button>`).join("");
 }
+
+// ---------- Klicks ----------
+app.addEventListener("click", async (e) => {
+  const el = e.target.closest("[data-akt]");
+  if (!el) return;
+  const a = el.dataset.akt;
+
+  if (a === "abmelden") { await sb.auth.signOut(); S = {...S, session:null, auftraege:[]}; zeigeLogin(); return; }
+  if (a === "neu")      { S.neu = leererBeleg(); S.ansicht = "erfassen"; return render(); }
+  if (a === "zurueck")  { S.ansicht = (S.ansicht === "erfassen") ? "liste" : "erfassen"; return render(); }
+  if (a === "kontoWahl"){ S.ansicht = "kontoWahl"; return render(); }
+  if (a === "auftragWahl"){ S.suche = ""; S.ansicht = "auftragWahl"; return render(); }
+
+  if (a === "kontoSet") {
+    const k = S.konten.find(x => x.nummer === el.dataset.nr);
+    S.neu.konto = k; S.neu.mwst = String(k.mwst);   // MwSt aus dem Konto vorbelegen
+    S.ansicht = "erfassen"; return render();
+  }
+  if (a === "auftragSet") {
+    S.neu.auftrag = S.auftraege.find(x => x.id === el.dataset.id);
+    S.ansicht = "erfassen"; return render();
+  }
+  if (a === "mwst") { S.neu.mwst = el.dataset.v; return render(); }
+  if (a === "ziffer") {
+    const z = el.dataset.z;
+    if (z === "⌫") S.neu.roh = S.neu.roh.slice(0, -1);
+    else if (S.neu.roh.length + z.length <= 7) S.neu.roh = (S.neu.roh + z).replace(/^0+(?=\d)/, "");
+    return render();
+  }
+
+  if (a === "speichern") {
+    const n = S.neu, betrag = betragVon(n.roh);
+    el.disabled = true; el.textContent = "Speichere …";
+    const { error } = await sb.from("spesen_beleg").insert({
+      geraet:       S.session.user.email,
+      beleg_datum:  n.datum,
+      betrag:       betrag,
+      mwst:         parseFloat(n.mwst),
+      konto_nummer: n.konto.nummer,
+      auftrag_nr:   n.auftrag.id,
+      monat:        n.datum.slice(0, 7)
+    });
+    if (error) {
+      el.disabled = false; el.textContent = "Speichern";
+      alert("Konnte nicht gespeichert werden:\n" + error.message);
+      return;
+    }
+    S.meldung = `Beleg über CHF ${chf(betrag)} gespeichert.`;
+    S.neu = null; S.ansicht = "liste";
+    await ladeAlles(); render();
+  }
+});
+
+// Datumsfeld
+app.addEventListener("change", (e) => {
+  if (e.target.dataset && e.target.dataset.feld === "datum") S.neu.datum = e.target.value;
+});
 
 start();
 </script>
