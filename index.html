@@ -15,7 +15,11 @@
   .kopf h1 { margin:0 0 2px; font-size:22px; }
   .kopf .sub { font-size:13px; color:#BDD1EA; }
   .kopf .wachs { flex-grow:1; }
-  .inhalt { padding:14px 20px 40px; max-width:760px; margin:0 auto; }
+  .reiter { background:var(--blau); padding:0 20px 12px; display:flex; gap:8px; }
+  .reiter button { flex-grow:1; min-height:40px; border:0; border-radius:9px;
+                   background:#2f6cbd; color:#BDD1EA; font-size:15px; }
+  .reiter button.an { background:#fff; color:var(--blau); font-weight:700; }
+  .inhalt { padding:14px 20px 40px; max-width:980px; margin:0 auto; }
   .karte { background:#fff; border:1px solid var(--rand); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
   button { font-family:inherit; cursor:pointer; }
   .knopf { width:100%; min-height:54px; border:0; border-radius:12px; background:var(--blau);
@@ -34,7 +38,7 @@
   .zeile { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .leer { text-align:center; color:var(--grau); font-size:15px; padding:26px 10px; }
   label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
-  input { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
+  input, select { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
           border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
   .wahl { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
           border-radius:11px; min-height:58px; padding:8px 15px; display:flex;
@@ -63,6 +67,14 @@
               align-items:center; justify-content:center; font-size:15px; color:var(--grau); }
   .beleglink { border:1px solid #C9D6E8; background:#fff; color:var(--blau);
                border-radius:8px; min-height:36px; padding:0 12px; font-size:13px; }
+  .rollen { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table { border-collapse:collapse; width:100%; min-width:560px; }
+  th, td { text-align:left; padding:10px 10px 10px 0; font-size:14px; white-space:nowrap; }
+  th { font-size:12px; color:var(--grau); font-weight:600; border-bottom:2px solid #D5D9E3; }
+  td { border-bottom:1px solid #EDEFF5; }
+  .re { text-align:right; }
+  .summe td { background:#EDEFF5; font-weight:700; border-bottom:0; }
+  .gross { font-size:16px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -88,16 +100,22 @@ const monatName = (m) => {
   return n[parseInt(mm,10)-1] + " " + j;
 };
 const chf = (z) => Number(z).toFixed(2);
+const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
 
 let S = {
-  session:null, konten:[], auftraege:[], belege:[],
-  monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null
+  session:null, istAdmin:false, konten:[], auftraege:[], belege:[],
+  monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null,
+  uMonat: heute().slice(0,7), uGeraet:"", uBelege:[], uLaedt:false
 };
 
 const leererBeleg = () => ({ konto:null, auftrag:null, mwst:"8.1", roh:"",
                              datum: heute(), datei:null, vorschau:null });
 const betragVon = (roh) => parseInt(roh || "0", 10) / 100;
 const ordnerName = (mail) => mail.replace(/@/g,"_").replace(/\./g,"_");
+const kontoName = (nr) => {
+  const k = S.konten.find(x => x.nummer === nr);
+  return k ? k.bezeichnung : "";
+};
 
 // ---------- Start ----------
 async function start() {
@@ -135,13 +153,15 @@ function zeigeLogin(meldung) {
 
 // ---------- Daten ----------
 async function ladeAlles() {
-  const [k, b] = await Promise.all([
+  const [k, b, adm] = await Promise.all([
     sb.from("spesen_konto").select("nummer,bezeichnung,mwst").eq("aktiv",true).order("sortierung"),
-    sb.from("spesen_beleg").select("*").eq("monat", S.monat)
-      .order("beleg_datum",{ascending:false}).order("id",{ascending:false})
+    sb.from("spesen_beleg").select("*").eq("monat", S.monat).eq("geraet", S.session.user.email)
+      .order("beleg_datum",{ascending:false}).order("id",{ascending:false}),
+    sb.rpc("ist_admin")
   ]);
-  S.konten = k.data || [];
-  S.belege = b.data || [];
+  S.konten   = k.data || [];
+  S.belege   = b.data || [];
+  S.istAdmin = adm.data === true;
   if (!S.auftraege.length) {
     try {
       const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${new Date().getFullYear()}`,
@@ -152,10 +172,41 @@ async function ladeAlles() {
   }
 }
 
+async function ladeUebersicht() {
+  S.uLaedt = true; render();
+  const { data } = await sb.from("spesen_beleg").select("*").eq("monat", S.uMonat)
+    .order("beleg_datum",{ascending:true}).order("id",{ascending:true});
+  S.uBelege = data || [];
+  S.uLaedt  = false;
+  render();
+}
+
+// ---------- Gruppierung ----------
+// Fasst die Belege nach Konto, Auftragsnummer und MwSt-Satz zusammen.
+// MwSt wird erst auf der Gruppensumme gerechnet, nicht je Beleg — sonst
+// entstehen durch das Runden Rappendifferenzen.
+function gruppiere(belege) {
+  const m = new Map();
+  for (const b of belege) {
+    const s = `${b.konto_nummer}|${b.auftrag_nr}|${b.mwst}`;
+    if (!m.has(s)) m.set(s, { konto:b.konto_nummer, auftrag:b.auftrag_nr,
+                              satz:Number(b.mwst), anzahl:0, brutto:0 });
+    const g = m.get(s);
+    g.anzahl += 1;
+    g.brutto += parseFloat(b.betrag);
+  }
+  const liste = [...m.values()].map(g => {
+    const netto = g.brutto / (1 + g.satz / 100);
+    return { ...g, netto: Math.round(netto*100)/100,
+             steuer: Math.round((g.brutto - netto)*100)/100 };
+  });
+  liste.sort((a,b) => a.konto.localeCompare(b.konto,"de",{numeric:true})
+                   || a.auftrag.localeCompare(b.auftrag,"de",{numeric:true})
+                   || b.satz - a.satz);
+  return liste;
+}
+
 // ---------- Bild aufbereiten ----------
-// Fotos werden auf 2000 px längste Kante verkleinert und als JPEG gespeichert.
-// PDFs bleiben unangetastet. Kann der Browser das Format nicht lesen (z. B. HEIC),
-// wird die Originaldatei hochgeladen.
 async function aufbereiten(file) {
   if (file.type === "application/pdf") return { blob:file, typ:"application/pdf", ext:"pdf" };
   try {
@@ -194,6 +245,7 @@ async function belegOeffnen(pfad) {
 // ---------- Ansichten ----------
 function render() {
   if (S.ansicht === "liste")       return renderListe();
+  if (S.ansicht === "uebersicht")  return renderUebersicht();
   if (S.ansicht === "erfassen")    return renderErfassen();
   if (S.ansicht === "kontoWahl")   return renderKontoWahl();
   if (S.ansicht === "auftragWahl") return renderAuftragWahl();
@@ -207,9 +259,16 @@ function kopf(titel, sub, zurueck) {
   </div>`;
 }
 
+function reiter() {
+  return `<div class="reiter">
+    <button class="${S.ansicht==="liste"?"an":""}" data-akt="tabListe">Meine Belege</button>
+    <button class="${S.ansicht==="uebersicht"?"an":""}" data-akt="tabUebersicht">Übersicht</button>
+  </div>`;
+}
+
 function renderListe() {
   const summe = S.belege.reduce((t,b) => t + parseFloat(b.betrag), 0);
-  app.innerHTML = kopf("Meine Spesen", `${S.session.user.email} · ${monatName(S.monat)}`) + `
+  app.innerHTML = kopf("Meine Spesen", `${S.session.user.email} · ${monatName(S.monat)}`) + reiter() + `
     <div class="inhalt">
       ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
       <div class="karte zeile">
@@ -224,9 +283,9 @@ function renderListe() {
         : S.belege.map(b => `
           <div class="karte zeile">
             <div>
-              <div style="font-weight:600;">${esc(b.konto_nummer)} · ${esc(b.auftrag_nr)}</div>
+              <div style="font-weight:600;">${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))} · ${esc(b.auftrag_nr)}</div>
               <div style="font-size:13px;color:var(--grau);">
-                ${new Date(b.beleg_datum).toLocaleDateString("de-CH")} · MwSt ${b.mwst} %</div>
+                ${datumCH(b.beleg_datum)} · MwSt ${b.mwst} %</div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
               ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf" data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
@@ -235,6 +294,82 @@ function renderListe() {
           </div>`).join("")}
     </div>`;
   S.meldung = null;
+}
+
+function renderUebersicht() {
+  const geraete = [...new Set(S.uBelege.map(b => b.geraet))].sort();
+  const gefiltert = S.uGeraet ? S.uBelege.filter(b => b.geraet === S.uGeraet) : S.uBelege;
+  const gruppen = gruppiere(gefiltert);
+  const tBrutto = gruppen.reduce((t,g) => t + g.brutto, 0);
+  const tSteuer = gruppen.reduce((t,g) => t + g.steuer, 0);
+  const tNetto  = gruppen.reduce((t,g) => t + g.netto,  0);
+  const tAnzahl = gruppen.reduce((t,g) => t + g.anzahl, 0);
+
+  app.innerHTML = kopf("Übersicht", S.istAdmin ? "Alle Geräte" : S.session.user.email) + reiter() + `
+    <div class="inhalt">
+
+      <div class="karte">
+        <label for="umonat">Monat</label>
+        <input id="umonat" type="month" value="${S.uMonat}" data-feld="umonat" style="margin-bottom:${S.istAdmin?"12px":"0"}">
+        ${S.istAdmin ? `
+          <label for="ugeraet">Gerät / Karte</label>
+          <select id="ugeraet" data-feld="ugeraet">
+            <option value="">Alle Geräte</option>
+            ${geraete.map(g => `<option value="${esc(g)}" ${S.uGeraet===g?"selected":""}>${esc(g)}</option>`).join("")}
+          </select>` : ""}
+      </div>
+
+      ${S.uLaedt ? `<div class="karte leer">Lade …</div>` : gefiltert.length === 0
+        ? `<div class="karte leer">Keine Belege in ${esc(monatName(S.uMonat))}.</div>`
+        : `
+        <div class="karte">
+          <div style="font-size:17px;font-weight:700;margin-bottom:3px;">Kontierung</div>
+          <div style="font-size:13px;color:var(--grau);margin-bottom:12px;">
+            Zusammengefasst nach Konto, Auftragsnummer und MwSt-Satz</div>
+          <div class="rollen"><table>
+            <thead><tr>
+              <th>Konto</th><th>Bezeichnung</th><th>Auftrag</th><th>MwSt</th>
+              <th class="re">Belege</th><th class="re">Brutto</th>
+              <th class="re">MwSt-Betrag</th><th class="re">Netto</th>
+            </tr></thead>
+            <tbody>
+              ${gruppen.map(g => `<tr>
+                <td class="gross">${esc(g.konto)}</td>
+                <td>${esc(kontoName(g.konto))}</td>
+                <td>${esc(g.auftrag)}</td>
+                <td>${g.satz} %</td>
+                <td class="re">${g.anzahl}</td>
+                <td class="re gross">${chf(g.brutto)}</td>
+                <td class="re">${chf(g.steuer)}</td>
+                <td class="re">${chf(g.netto)}</td>
+              </tr>`).join("")}
+              <tr class="summe">
+                <td colspan="4">Total</td>
+                <td class="re">${tAnzahl}</td>
+                <td class="re">${chf(tBrutto)}</td>
+                <td class="re">${chf(tSteuer)}</td>
+                <td class="re">${chf(tNetto)}</td>
+              </tr>
+            </tbody>
+          </table></div>
+        </div>
+
+        <div class="karte">
+          <div style="font-size:17px;font-weight:700;margin-bottom:12px;">Einzelne Belege</div>
+          ${gefiltert.map(b => `
+            <div class="zeile" style="padding:9px 0;border-bottom:1px solid #EDEFF5;">
+              <div>
+                <div style="font-weight:600;">${esc(b.konto_nummer)} · ${esc(b.auftrag_nr)} · ${b.mwst} %</div>
+                <div style="font-size:13px;color:var(--grau);">
+                  ${datumCH(b.beleg_datum)}${S.istAdmin && !S.uGeraet ? " · " + esc(b.geraet) : ""}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf" data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
+                <div style="font-weight:700;">${chf(b.betrag)}</div>
+              </div>
+            </div>`).join("")}
+        </div>`}
+    </div>`;
 }
 
 function renderErfassen() {
@@ -354,6 +489,8 @@ app.addEventListener("click", async (e) => {
   const a = el.dataset.akt;
 
   if (a === "abmelden")   { await sb.auth.signOut(); S.session=null; S.auftraege=[]; zeigeLogin(); return; }
+  if (a === "tabListe")   { S.ansicht = "liste"; return render(); }
+  if (a === "tabUebersicht") { S.ansicht = "uebersicht"; return ladeUebersicht(); }
   if (a === "neu")        { S.neu = leererBeleg(); S.ansicht = "erfassen"; return render(); }
   if (a === "zurueck")    { S.ansicht = (S.ansicht === "erfassen") ? "liste" : "erfassen"; return render(); }
   if (a === "kontoWahl")  { S.ansicht = "kontoWahl"; return render(); }
@@ -423,7 +560,10 @@ app.addEventListener("click", async (e) => {
 });
 
 app.addEventListener("change", (e) => {
-  if (e.target.dataset && e.target.dataset.feld === "datum") S.neu.datum = e.target.value;
+  const f = e.target.dataset && e.target.dataset.feld;
+  if (f === "datum")   { S.neu.datum = e.target.value; }
+  if (f === "umonat")  { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(); }
+  if (f === "ugeraet") { S.uGeraet = e.target.value; render(); }
 });
 
 start();
