@@ -31,6 +31,9 @@
   .mitte .karte { width:100%; max-width:380px; }
   .zeile { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .leer { text-align:center; color:var(--grau); font-size:15px; padding:30px 10px; }
+  details { font-size:13px; color:var(--grau); margin-top:6px; }
+  pre { white-space:pre-wrap; word-break:break-all; font-size:12px; background:#F7F8FA;
+        padding:10px; border-radius:8px; margin:8px 0 0; }
 </style>
 </head>
 <body>
@@ -38,10 +41,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ===== HIER EINTRAGEN (Supabase → Project Settings → API) =====
 const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
-// ==============================================================
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById("app");
@@ -90,6 +91,15 @@ function zeigeLogin(meldung) {
   });
 }
 
+// Auftragsnummern über die Edge Function aus FileMaker holen
+async function ladeAuftragsnummern(session) {
+  const jahr = new Date().getFullYear();
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${jahr}`, {
+    headers: { Authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_KEY }
+  });
+  return await r.json();
+}
+
 async function zeigeApp(session) {
   const geraet = session.user.email;
   const monat = monatJetzt();
@@ -105,9 +115,7 @@ async function zeigeApp(session) {
                 style="background:#2f6cbd; border-color:#2f6cbd; color:#fff;">Abmelden</button>
       </div>
     </div>
-    <div class="inhalt" id="inhalt">
-      <div class="karte">Lade …</div>
-    </div>`;
+    <div class="inhalt" id="inhalt"><div class="karte">Lade …</div></div>`;
 
   document.getElementById("abmelden").addEventListener("click", async () => {
     await sb.auth.signOut();
@@ -130,10 +138,24 @@ async function zeigeApp(session) {
     return;
   }
 
+  let auftraege = null, auftragFehler = null;
+  try { auftraege = await ladeAuftragsnummern(session); }
+  catch (e) { auftragFehler = String(e); }
+
+  const auftragBlock = auftragFehler
+    ? `<div class="fehler">Auftragsnummern: Netzwerkfehler — ${auftragFehler}</div>`
+    : auftraege && auftraege.ok
+      ? `<div class="ok">Auftragsnummern: ${auftraege.anzahl} geladen
+           (davon ${auftraege.uebergreifend} übergreifend).</div>`
+      : `<div class="fehler">Auftragsnummern konnten nicht geladen werden.
+           <details><summary>Details</summary><pre>${
+             JSON.stringify(auftraege, null, 2)}</pre></details></div>`;
+
   const summe = (belege || []).reduce((t, b) => t + parseFloat(b.betrag), 0);
 
   inhalt.innerHTML = `
-    <div class="ok">Verbindung steht — ${konten.length} Konten geladen.</div>
+    <div class="ok">Datenbank: ${konten.length} Konten geladen.</div>
+    ${auftragBlock}
 
     <div class="karte zeile">
       <div>
