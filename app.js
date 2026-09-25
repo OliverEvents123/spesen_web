@@ -7,8 +7,16 @@ async function start() {
   if (!data.session) { zeigeLogin(); return; }
   S.session = data.session;
   await ladeAlles();
-  render();
+  if (istBreit()) await ladeUebersicht(true); else render();
 }
+
+// Wechselt die Bildschirmbreite die Seite, neu aufbauen —
+// am Rechner braucht es dafür die Übersichtsdaten.
+window.matchMedia(`(min-width:${BREIT_AB}px)`).addEventListener("change", async (e) => {
+  if (!S.session) return;
+  if (e.matches && !S.uBelege.length) { await ladeUebersicht(true); return; }
+  render();
+});
 
 // ---------- Dateifelder ----------
 document.getElementById("kamera").addEventListener("change", (e) => {
@@ -18,22 +26,26 @@ document.getElementById("datei").addEventListener("change", (e) => {
   dateiGewaehlt(e.target.files[0]); e.target.value = "";
 });
 
-// ---------- Ziehen und Ablegen (nur beim Erfassen) ----------
+// ---------- Ziehen und Ablegen ----------
+// Beim Erfassen und am Rechner auch auf der Hauptseite
+const ziehenErlaubt = () => S.session &&
+  (S.ansicht === "erfassen" || (istBreit() && S.ansicht === "liste"));
+
 let ziehZaehler = 0;
 document.addEventListener("dragenter", (e) => {
-  if (S.ansicht !== "erfassen") return;
+  if (!ziehenErlaubt()) return;
   e.preventDefault(); ziehZaehler++; document.body.classList.add("ziehen");
 });
 document.addEventListener("dragover", (e) => {
-  if (S.ansicht !== "erfassen") return;
+  if (!ziehenErlaubt()) return;
   e.preventDefault(); e.dataTransfer.dropEffect = "copy";
 });
 document.addEventListener("dragleave", () => {
-  if (S.ansicht !== "erfassen") return;
+  if (!ziehenErlaubt()) return;
   if (--ziehZaehler <= 0) { ziehZaehler = 0; document.body.classList.remove("ziehen"); }
 });
 document.addEventListener("drop", (e) => {
-  if (S.ansicht !== "erfassen") return;
+  if (!ziehenErlaubt()) return;
   e.preventDefault(); ziehZaehler = 0; document.body.classList.remove("ziehen");
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (f) dateiGewaehlt(f);
@@ -46,17 +58,22 @@ app.addEventListener("click", async (e) => {
   const a = el.dataset.akt;
 
   if (a === "abmelden") {
-    await sb.auth.signOut(); S.session = null; S.auftraege = []; zeigeLogin(); return;
+    await sb.auth.signOut();
+    S.session = null; S.auftraege = []; S.uBelege = []; S.benutzer = [];
+    zeigeLogin(); return;
   }
   if (a === "tabListe")      { S.favEdit = null; S.ansicht = "liste"; return render(); }
   if (a === "tabUebersicht") { S.favEdit = null; S.ansicht = "uebersicht"; return ladeUebersicht(); }
-  if (a === "neu")           { S.neu = leererBeleg(); S.zurueckZu = "liste";
+  if (a === "neu")           { S.neu = leererBeleg();
+                               S.zurueckZu = istBreit() ? "desktop" : "liste";
                                S.ansicht = "erfassen"; return render(); }
   if (a === "bearbeiten")    { return belegBearbeiten(el.dataset.id, el.dataset.w); }
 
   // ---------- Benutzerverwaltung (nur Admin) ----------
   if (a === "tabBenutzer") {
-    S.ansicht = "benutzer"; render();
+    S.ansicht = "benutzer";
+    S.benEdit = istBreit() ? { neu:true, email:"", name:"", rolle:"user", gesperrt:false } : null;
+    render();
     const j = await ladeBenutzer();
     if (!j.ok) alert("Benutzer konnten nicht geladen werden:\n" + (j.fehler || ""));
     return render();
@@ -64,7 +81,8 @@ app.addEventListener("click", async (e) => {
 
   if (a === "benNeu") {
     S.benEdit = { neu:true, email:"", name:"", rolle:"user", gesperrt:false };
-    S.ansicht = "benForm"; return render();
+    if (!istBreit()) S.ansicht = "benForm";
+    return render();
   }
 
   if (a === "benBearbeiten") {
@@ -72,7 +90,8 @@ app.addEventListener("click", async (e) => {
     if (!b) return;
     S.benEdit = { neu:false, email:b.email, name:b.name || "",
                   rolle:b.rolle, gesperrt: b.gesperrt || !b.aktiv };
-    S.ansicht = "benForm"; return render();
+    if (!istBreit()) S.ansicht = "benForm";
+    return render();
   }
 
   if (a === "benRolle") { S.benEdit.rolle = el.dataset.v; return render(); }
@@ -84,8 +103,10 @@ app.addEventListener("click", async (e) => {
                        : `${b.email} wieder freischalten?`)) return;
     const j = await benutzerRuf({ aktion:"aktiv", email:b.email, aktiv: !jetzt });
     if (!j.ok) { alert(j.fehler || "Hat nicht geklappt."); return; }
-    S.benEdit = null; S.meldung = jetzt ? "Benutzer gesperrt." : "Benutzer freigeschaltet.";
-    S.ansicht = "benutzer"; await ladeBenutzer(); return render();
+    S.meldung = jetzt ? "Benutzer gesperrt." : "Benutzer freigeschaltet.";
+    S.benEdit = istBreit() ? { neu:true, email:"", name:"", rolle:"user", gesperrt:false } : null;
+    S.ansicht = "benutzer";
+    await ladeBenutzer(); return render();
   }
 
   if (a === "benSichern") {
@@ -132,7 +153,8 @@ app.addEventListener("click", async (e) => {
       S.meldung = "Gespeichert.";
     }
 
-    S.benEdit = null; S.ansicht = "benutzer";
+    S.benEdit = istBreit() ? { neu:true, email:"", name:"", rolle:"user", gesperrt:false } : null;
+    S.ansicht = "benutzer";
     await ladeBenutzer(); return render();
   }
 
@@ -155,9 +177,9 @@ app.addEventListener("click", async (e) => {
   }
 
   // ---------- Favoriten ----------
-  if (a === "zuFavoriten")   { S.ansicht = "favoriten"; return render(); }
-  if (a === "favAnwenden")   { return favAnwenden(el.dataset.id); }
-  if (a === "favNeu")        { S.favEdit = leererFavorit(); S.ansicht = "favForm"; return render(); }
+  if (a === "zuFavoriten") { S.ansicht = "favoriten"; return render(); }
+  if (a === "favAnwenden") { return favAnwenden(el.dataset.id); }
+  if (a === "favNeu")      { S.favEdit = leererFavorit(); S.ansicht = "favForm"; return render(); }
 
   if (a === "favBearbeiten") {
     const f = S.favoriten.find(x => String(x.id) === String(el.dataset.id));
@@ -199,7 +221,6 @@ app.addEventListener("click", async (e) => {
     S.meldung = "Favorit gelöscht."; S.ansicht = "favoriten"; return render();
   }
 
-  // Aus einem Beleg heraus einen Favoriten anlegen
   if (a === "favMerken") {
     const n = S.neu;
     const vorschlag = n.konto.bezeichnung || n.konto.nummer;
@@ -219,14 +240,13 @@ app.addEventListener("click", async (e) => {
   if (a === "zurueck") {
     if (S.ansicht === "erfassen") {
       const woher = S.zurueckZu; S.neu = null;
-      S.ansicht = (woher === "uebersicht") ? "uebersicht" : "liste";
+      S.ansicht = (woher === "uebersicht" && !istBreit()) ? "uebersicht" : "liste";
       return render();
     }
     if (S.ansicht === "passwort")  { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favoriten") { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
     if (S.ansicht === "benForm")   { S.benEdit = null; S.ansicht = "benutzer"; return render(); }
-    // aus Konto- oder Auftragswahl
     S.ansicht = S.favEdit ? "favForm" : "erfassen"; return render();
   }
 
@@ -256,13 +276,6 @@ app.addEventListener("click", async (e) => {
   }
 
   if (a === "mwst") { S.neu.mwst = el.dataset.v; return render(); }
-  if (a === "ziffer") {
-    const z = el.dataset.z;
-    if (z === "⌫") S.neu.roh = S.neu.roh.slice(0, -1);
-    else if (S.neu.roh.length + z.length <= 7)
-      S.neu.roh = (S.neu.roh + z).replace(/^0+(?=\d)/, "");
-    return render();
-  }
 
   // ---------- Export ----------
   if (a === "expCsv") {
@@ -305,9 +318,9 @@ app.addEventListener("click", async (e) => {
     return;
   }
 
-  // ---------- Beleg speichern (neu und geändert) ----------
+  // ---------- Beleg speichern ----------
   if (a === "speichern") {
-    const n = S.neu, betrag = betragVon(n.roh);
+    const n = S.neu, betrag = betragVon(n.betragText);
     const urspruenglich = el.textContent;
     el.disabled = true;
 
@@ -371,17 +384,27 @@ app.addEventListener("change", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
   if (f === "datum")    { S.neu.datum   = e.target.value; }
   if (f === "zahlart")  { S.neu.zahlart = e.target.value; }
-  if (f === "favname")  { S.favEdit.name = e.target.value; }
   if (f === "umonat")   { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(); }
   if (f === "ugeraet")  { S.uGeraet = e.target.value; render(); }
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); }
 });
 
-// Namensfeld des Favoriten schon beim Tippen übernehmen
+// Betrag und Favoritenname schon beim Tippen übernehmen,
+// ohne neu zu zeichnen — sonst verliert das Feld den Fokus.
 app.addEventListener("input", (e) => {
-  if (e.target.dataset && e.target.dataset.feld === "favname" && S.favEdit) {
-    S.favEdit.name = e.target.value;
+  const f = e.target.dataset && e.target.dataset.feld;
+  if (f === "betrag" && S.neu) {
+    S.neu.betragText = e.target.value;
+    const knopf = app.querySelector('[data-akt="speichern"]');
+    if (knopf) {
+      const fertig = betragVon(S.neu.betragText) > 0 && S.neu.konto
+                     && S.neu.auftrag && (S.neu.datei || S.neu.altPfad);
+      knopf.disabled = !fertig;
+      knopf.textContent = fertig ? (S.neu.id ? "Änderungen speichern" : "Speichern")
+                                 : "Beleg, Konto, Auftrag und Betrag nötig";
+    }
   }
+  if (f === "favname" && S.favEdit) { S.favEdit.name = e.target.value; }
 });
 
 start();
