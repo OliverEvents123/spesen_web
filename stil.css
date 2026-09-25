@@ -124,3 +124,8 @@ td { border-bottom:1px solid #EDEFF5; }
 .kopfknoepfe { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0; }
 .kopfknoepfe button { border:0; border-radius:9px; background:var(--hell); color:#fff;
                       font-size:13px; padding:0 12px; min-height:36px; }
+/* Benutzerverwaltung */
+.rolle { font-size:11px; border-radius:4px; padding:3px 8px; font-weight:600; }
+.rolle.admin { background:#E8F0FA; color:#215aa8; }
+.rolle.user  { background:#EDEFF5; color:#5A6478; }
+.rolle.aus   { background:#FCEEED; color:#8E201B; }
