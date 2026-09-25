@@ -102,3 +102,20 @@ td { border-bottom:1px solid #EDEFF5; }
 .re { text-align:right; }
 .summe td { background:#EDEFF5; font-weight:700; border-bottom:0; }
 .gross { font-size:16px; font-weight:700; }
+
+/* ---------- Favoriten ---------- */
+.favgitter { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.favkachel { min-height:74px; border:1px solid #C9D6E8; border-radius:12px; background:#fff;
+             padding:11px 13px; display:flex; flex-direction:column; align-items:flex-start;
+             gap:5px; text-align:left; }
+.favkachel .nam { font-size:16px; font-weight:700; color:var(--dunkel); }
+.favkachel .nrn { font-size:12px; color:var(--grau); }
+.favlink { display:block; width:100%; background:none; border:0; color:var(--blau);
+           font-size:14px; text-align:center; padding:6px 0 2px; }
+.abschnitt { font-size:12px; font-weight:600; color:var(--grau); letter-spacing:0.4px;
+             padding-top:4px; display:block; }
+.favzeile { background:#fff; border:1px solid var(--rand); border-radius:12px; padding:12px 15px;
+            display:flex; align-items:center; gap:10px; min-height:64px; margin-bottom:9px; }
+.pfeil { width:36px; height:36px; border:1px solid #C9D6E8; border-radius:8px; background:#fff;
+         color:var(--blau); font-size:17px; flex-shrink:0; }
+.pfeil[disabled] { color:#C9D6E8; }
