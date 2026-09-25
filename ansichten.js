@@ -10,6 +10,8 @@ function render() {
   if (S.ansicht === "favoriten")   return renderFavoriten();
   if (S.ansicht === "favForm")     return renderFavForm();
   if (S.ansicht === "passwort")    return renderPasswort();
+  if (S.ansicht === "benutzer")    return renderBenutzer();
+  if (S.ansicht === "benForm")     return renderBenForm();
 }
 
 function kopf(titel, sub, zurueck) {
@@ -27,6 +29,8 @@ function reiter() {
   return `<div class="reiter">
     <button class="${S.ansicht==="liste"?"an":""}" data-akt="tabListe">Meine Belege</button>
     <button class="${S.ansicht==="uebersicht"?"an":""}" data-akt="tabUebersicht">Übersicht</button>
+    ${S.istAdmin ? `<button class="${S.ansicht==="benutzer"?"an":""}"
+        data-akt="tabBenutzer">Benutzer</button>` : ""}
   </div>`;
 }
 
@@ -462,5 +466,80 @@ function renderPasswort() {
       <button class="knopf" data-akt="pwSichern">Passwort speichern</button>
       <div style="font-size:13px;color:var(--grau);padding-top:12px;line-height:1.45;">
         Mindestens sechs Zeichen. Nach dem Ändern bleibst du angemeldet.</div>
+    </div>`;
+}
+// ---------- Benutzer verwalten ----------
+function renderBenutzer() {
+  app.innerHTML = kopf("Benutzer", `${S.benutzer.length} angelegt`) + reiter() + `
+    <div class="inhalt">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
+
+      <button class="knopf" data-akt="benNeu" style="margin-bottom:14px;">+ Neuer Benutzer</button>
+
+      ${S.benutzer.length === 0
+        ? `<div class="karte leer">Keine Benutzer geladen.</div>`
+        : S.benutzer.map(b => `
+          <div class="karte zeile">
+            <div style="min-width:0;">
+              <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;">
+                ${esc(b.name || b.email.split("@")[0])}</div>
+              <div style="font-size:13px;color:var(--grau);overflow:hidden;text-overflow:ellipsis;">
+                ${esc(b.email)}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <span class="rolle ${b.gesperrt || !b.aktiv ? "aus" : b.rolle}">${
+                b.gesperrt || !b.aktiv ? "gesperrt" : (b.rolle === "admin" ? "Admin" : "User")}</span>
+              <button class="stift" data-akt="benBearbeiten" data-e="${esc(b.email)}"
+                      aria-label="Benutzer bearbeiten">${STIFT}</button>
+            </div>
+          </div>`).join("")}
+
+      <div style="font-size:13px;color:var(--grau);padding-top:12px;line-height:1.45;">
+        Gesperrte Benutzer können sich nicht anmelden. Ihre Belege bleiben erhalten
+        und erscheinen weiter in der Übersicht.</div>
+    </div>`;
+  S.meldung = null;
+}
+
+function renderBenForm() {
+  const b = S.benEdit;
+  app.innerHTML = kopf(b.neu ? "Neuer Benutzer" : "Benutzer ändern",
+                       b.neu ? "Konto anlegen" : b.email, true) + `
+    <div class="inhalt">
+
+      ${b.neu ? `
+        <div class="karte">
+          <label for="bmail">E-Mail</label>
+          <input id="bmail" type="email" inputmode="email" value="${esc(b.email)}"
+                 placeholder="handy2@tit-pit.ch" style="margin-bottom:12px">
+          <label for="bname">Name (frei wählbar)</label>
+          <input id="bname" type="text" value="${esc(b.name)}" placeholder="Eventhandy 2">
+        </div>` : ""}
+
+      <div class="karte">
+        <label>Rolle</label>
+        <div class="mwst" style="margin-bottom:0;">
+          <button class="${b.rolle==="user"?"an":""}" data-akt="benRolle" data-v="user">User</button>
+          <button class="${b.rolle==="admin"?"an":""}" data-akt="benRolle" data-v="admin">Admin</button>
+        </div>
+        <div style="font-size:13px;color:var(--grau);padding-top:10px;line-height:1.45;">
+          ${b.rolle === "admin"
+            ? "Sieht alle Belege aller Geräte und darf Benutzer verwalten."
+            : "Sieht und erfasst nur die eigenen Belege."}</div>
+      </div>
+
+      <div class="karte">
+        <label for="bpw">${b.neu ? "Passwort" : "Neues Passwort (leer lassen, wenn unverändert)"}</label>
+        <input id="bpw" type="text" autocomplete="off" placeholder="mindestens 6 Zeichen">
+        <div style="font-size:13px;color:var(--grau);padding-top:10px;line-height:1.45;">
+          Das Passwort ist im Klartext sichtbar, damit du es weitergeben kannst.</div>
+      </div>
+
+      <button class="knopf" data-akt="benSichern">
+        ${b.neu ? "Benutzer anlegen" : "Änderungen speichern"}</button>
+
+      ${!b.neu ? `
+        <button class="zweit" data-akt="benSperren" style="margin-top:10px;">
+          ${b.gesperrt ? "Wieder freischalten" : "Anmeldung sperren"}</button>` : ""}
     </div>`;
 }
