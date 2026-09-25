@@ -40,6 +40,8 @@
   label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
   input, select { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
           border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
+  .paar { display:flex; gap:10px; flex-wrap:wrap; }
+  .paar > div { flex:1 1 150px; }
   .wahl { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
           border-radius:11px; min-height:58px; padding:8px 15px; display:flex;
           align-items:center; gap:12px; margin-bottom:10px; }
@@ -67,6 +69,10 @@
               align-items:center; justify-content:center; font-size:15px; color:var(--grau); }
   .beleglink { border:1px solid #C9D6E8; background:#fff; color:var(--blau);
                border-radius:8px; min-height:36px; padding:0 12px; font-size:13px; }
+  .ablage { transition:border-color .12s, background .12s; }
+  body.ziehen .ablage { border:2px dashed var(--blau); background:#EAF1FA; }
+  .ziehhinweis { display:none; font-size:13px; color:var(--blau); text-align:center; padding:6px 0 0; }
+  body.ziehen .ziehhinweis { display:block; }
   .rollen { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   table { border-collapse:collapse; width:100%; min-width:560px; }
   th, td { text-align:left; padding:10px 10px 10px 0; font-size:14px; white-space:nowrap; }
@@ -91,6 +97,9 @@ const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
 const sb  = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById("app");
 
+const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
+const zahlartName = (z) => ZAHLART[z || "karte"] || z;
+
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
   (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const heute = () => new Date().toLocaleDateString("sv-SE");
@@ -106,11 +115,11 @@ const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
 let S = {
   session:null, istAdmin:false, konten:[], auftraege:[], belege:[],
   monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null,
-  uMonat: heute().slice(0,7), uGeraet:"", uBelege:[], uLaedt:false
+  uMonat: heute().slice(0,7), uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
 };
 
 const leererBeleg = () => ({ konto:null, auftrag:null, mwst:"8.1", roh:"",
-                             datum: heute(), datei:null, vorschau:null });
+                             datum: heute(), zahlart:"karte", datei:null, vorschau:null });
 const betragVon = (roh) => parseInt(roh || "0", 10) / 100;
 const ordnerName = (mail) => mail.replace(/@/g,"_").replace(/\./g,"_");
 const kontoName = (nr) => {
@@ -183,8 +192,6 @@ async function ladeUebersicht() {
 }
 
 // ---------- Gruppierung ----------
-// MwSt wird auf der Gruppensumme gerechnet, nicht je Beleg — sonst
-// entstehen durch das Runden Rappendifferenzen.
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
@@ -206,8 +213,20 @@ function gruppiere(belege) {
   return liste;
 }
 
-const uGefiltert = () => S.uGeraet ? S.uBelege.filter(b => b.geraet === S.uGeraet) : S.uBelege;
-const uTitel = () => `${monatName(S.uMonat)} · ${S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email)}`;
+const uGefiltert = () => S.uBelege.filter(b =>
+  (!S.uGeraet  || b.geraet === S.uGeraet) &&
+  (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart));
+
+const uTitel = () => [
+  monatName(S.uMonat),
+  S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email),
+  S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
+].join(" · ");
+
+const uDateiname = () =>
+  `Spesen_${S.uMonat}` +
+  (S.uZahlart ? "_" + S.uZahlart : "") +
+  (S.uGeraet ? "_" + S.uGeraet.split("@")[0] : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
 // ---------- Bild aufbereiten ----------
 async function aufbereiten(file) {
@@ -230,7 +249,9 @@ async function aufbereiten(file) {
 }
 
 function dateiGewaehlt(file) {
-  if (!file) return;
+  if (!file || !S.neu) return;
+  const erlaubt = file.type === "application/pdf" || file.type.startsWith("image/");
+  if (!erlaubt) { alert("Bitte ein Bild oder ein PDF wählen."); return; }
   if (S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
   S.neu.datei    = file;
   S.neu.vorschau = file.type === "application/pdf" ? null : URL.createObjectURL(file);
@@ -238,6 +259,27 @@ function dateiGewaehlt(file) {
 }
 document.getElementById("kamera").addEventListener("change", (e) => { dateiGewaehlt(e.target.files[0]); e.target.value = ""; });
 document.getElementById("datei").addEventListener("change",  (e) => { dateiGewaehlt(e.target.files[0]); e.target.value = ""; });
+
+// ---------- Ziehen und Ablegen ----------
+let ziehZaehler = 0;
+document.addEventListener("dragenter", (e) => {
+  if (S.ansicht !== "erfassen") return;
+  e.preventDefault(); ziehZaehler++; document.body.classList.add("ziehen");
+});
+document.addEventListener("dragover", (e) => {
+  if (S.ansicht !== "erfassen") return;
+  e.preventDefault(); e.dataTransfer.dropEffect = "copy";
+});
+document.addEventListener("dragleave", () => {
+  if (S.ansicht !== "erfassen") return;
+  if (--ziehZaehler <= 0) { ziehZaehler = 0; document.body.classList.remove("ziehen"); }
+});
+document.addEventListener("drop", (e) => {
+  if (S.ansicht !== "erfassen") return;
+  e.preventDefault(); ziehZaehler = 0; document.body.classList.remove("ziehen");
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) dateiGewaehlt(f);
+});
 
 async function belegOeffnen(pfad) {
   const { data, error } = await sb.storage.from("belege").createSignedUrl(pfad, 60);
@@ -288,7 +330,7 @@ function renderListe() {
             <div>
               <div style="font-weight:600;">${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))} · ${esc(b.auftrag_nr)}</div>
               <div style="font-size:13px;color:var(--grau);">
-                ${datumCH(b.beleg_datum)} · MwSt ${b.mwst} %</div>
+                ${datumCH(b.beleg_datum)} · MwSt ${b.mwst} % · ${esc(zahlartName(b.zahlart))}</div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
               ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf" data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
@@ -312,23 +354,37 @@ function renderUebersicht() {
     <div class="inhalt">
 
       <div class="karte">
-        <label for="umonat">Monat</label>
-        <input id="umonat" type="month" value="${S.uMonat}" data-feld="umonat" style="margin-bottom:${S.istAdmin?"12px":"0"}">
-        ${S.istAdmin ? `
-          <label for="ugeraet">Gerät / Karte</label>
-          <select id="ugeraet" data-feld="ugeraet">
-            <option value="">Alle Geräte</option>
-            ${geraete.map(g => `<option value="${esc(g)}" ${S.uGeraet===g?"selected":""}>${esc(g)}</option>`).join("")}
-          </select>` : ""}
+        <div class="paar">
+          <div>
+            <label for="umonat">Monat</label>
+            <input id="umonat" type="month" value="${S.uMonat}" data-feld="umonat">
+          </div>
+          <div>
+            <label for="uzahlart">Zahlungsart</label>
+            <select id="uzahlart" data-feld="uzahlart">
+              <option value="" ${S.uZahlart===""?"selected":""}>Alle</option>
+              ${Object.entries(ZAHLART).map(([w,n]) =>
+                `<option value="${w}" ${S.uZahlart===w?"selected":""}>${n}</option>`).join("")}
+            </select>
+          </div>
+          ${S.istAdmin ? `
+          <div>
+            <label for="ugeraet">Gerät / Karte</label>
+            <select id="ugeraet" data-feld="ugeraet">
+              <option value="">Alle Geräte</option>
+              ${geraete.map(g => `<option value="${esc(g)}" ${S.uGeraet===g?"selected":""}>${esc(g)}</option>`).join("")}
+            </select>
+          </div>` : ""}
+        </div>
       </div>
 
       ${S.uLaedt ? `<div class="karte leer">Lade …</div>` : gefiltert.length === 0
-        ? `<div class="karte leer">Keine Belege in ${esc(monatName(S.uMonat))}.</div>`
+        ? `<div class="karte leer">Keine Belege für diese Auswahl.</div>`
         : `
         <div class="karte">
           <div style="font-size:17px;font-weight:700;margin-bottom:3px;">Kontierung</div>
           <div style="font-size:13px;color:var(--grau);margin-bottom:12px;">
-            Zusammengefasst nach Konto, Auftragsnummer und MwSt-Satz</div>
+            ${esc(uTitel())}</div>
           <div class="rollen"><table>
             <thead><tr>
               <th>Konto</th><th>Bezeichnung</th><th>Auftrag</th><th>MwSt</th>
@@ -372,7 +428,7 @@ function renderUebersicht() {
               <div>
                 <div style="font-weight:600;">${i+1} · ${esc(b.konto_nummer)} · ${esc(b.auftrag_nr)} · ${b.mwst} %</div>
                 <div style="font-size:13px;color:var(--grau);">
-                  ${datumCH(b.beleg_datum)}${S.istAdmin && !S.uGeraet ? " · " + esc(b.geraet) : ""}</div>
+                  ${datumCH(b.beleg_datum)} · ${esc(zahlartName(b.zahlart))}${S.istAdmin && !S.uGeraet ? " · " + esc(b.geraet) : ""}</div>
               </div>
               <div style="display:flex;align-items:center;gap:10px;">
                 ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf" data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
@@ -390,16 +446,20 @@ function renderErfassen() {
   const tasten = ["1","2","3","4","5","6","7","8","9","00","0","⌫"];
 
   const belegKarte = n.datei
-    ? `<div class="karte">
+    ? `<div class="karte ablage">
          ${n.vorschau
            ? `<img class="vorschau" src="${n.vorschau}" alt="Belegvorschau">`
            : `<div class="pdfmarke">PDF: ${esc(n.datei.name)}</div>`}
          <button class="zweit" data-akt="belegNeu" style="margin-top:10px;">Anderen Beleg wählen</button>
+         <div class="ziehhinweis">Datei hier ablegen, um sie zu ersetzen</div>
        </div>`
-    : `<div class="karte">
+    : `<div class="karte ablage">
          <div style="font-size:13px;color:var(--grau);margin-bottom:10px;">Beleg</div>
          <button class="knopf" data-akt="foto" style="margin-bottom:8px;">Beleg fotografieren</button>
          <button class="zweit" data-akt="waehlen">PDF oder Bild wählen</button>
+         <div style="font-size:12px;color:var(--grau);text-align:center;padding-top:8px;">
+           am Rechner auch per Ziehen und Ablegen</div>
+         <div class="ziehhinweis">Datei hier ablegen</div>
        </div>`;
 
   app.innerHTML = kopf("Beleg erfassen", "Angaben prüfen und speichern", true) + `
@@ -421,8 +481,19 @@ function renderErfassen() {
       </button>
 
       <div class="karte">
-        <label for="datum">Belegdatum</label>
-        <input id="datum" type="date" value="${n.datum}" data-feld="datum">
+        <div class="paar">
+          <div>
+            <label for="datum">Belegdatum</label>
+            <input id="datum" type="date" value="${n.datum}" data-feld="datum">
+          </div>
+          <div>
+            <label for="zahlart">Bezahlt mit</label>
+            <select id="zahlart" data-feld="zahlart">
+              ${Object.entries(ZAHLART).map(([w,t]) =>
+                `<option value="${w}" ${n.zahlart===w?"selected":""}>${t}</option>`).join("")}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div class="karte zeile">
@@ -513,7 +584,8 @@ app.addEventListener("click", async (e) => {
 
   if (a === "expCsv") {
     const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer) }));
-    SpesenExport.csv({ belege, gruppen: gruppiere(belege), monat: S.uMonat, titel: uTitel() });
+    SpesenExport.csv({ belege, gruppen: gruppiere(belege), monat: S.uMonat,
+                       titel: uTitel(), dateiname: uDateiname().replace(".pdf",".csv") });
     return;
   }
 
@@ -523,14 +595,13 @@ app.addEventListener("click", async (e) => {
     try {
       await SpesenExport.pdf({
         sb, belege, gruppen: gruppiere(belege), monat: S.uMonat, titel: uTitel(),
+        dateiname: uDateiname(),
         fortschritt: (i, n) => { el.textContent = `Beleg ${i} von ${n} …`; }
       });
-      el.textContent = "PDF erzeugen";
     } catch (err) {
       alert("Das PDF konnte nicht erstellt werden:\n" + (err.message || err));
-      el.textContent = "PDF erzeugen";
     }
-    el.disabled = false;
+    el.textContent = "PDF erzeugen"; el.disabled = false;
     return;
   }
 
@@ -577,6 +648,7 @@ app.addEventListener("click", async (e) => {
       mwst:         parseFloat(n.mwst),
       konto_nummer: n.konto.nummer,
       auftrag_nr:   n.auftrag.id,
+      zahlart:      n.zahlart,
       datei_pfad:   pfad,
       monat:        n.datum.slice(0, 7)
     });
@@ -595,9 +667,11 @@ app.addEventListener("click", async (e) => {
 
 app.addEventListener("change", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
-  if (f === "datum")   { S.neu.datum = e.target.value; }
-  if (f === "umonat")  { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(); }
-  if (f === "ugeraet") { S.uGeraet = e.target.value; render(); }
+  if (f === "datum")    { S.neu.datum = e.target.value; }
+  if (f === "zahlart")  { S.neu.zahlart = e.target.value; }
+  if (f === "umonat")   { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(); }
+  if (f === "ugeraet")  { S.uGeraet = e.target.value; render(); }
+  if (f === "uzahlart") { S.uZahlart = e.target.value; render(); }
 });
 
 start();
