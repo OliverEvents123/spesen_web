@@ -47,19 +47,84 @@ app.addEventListener("click", async (e) => {
   if (a === "abmelden") {
     await sb.auth.signOut(); S.session = null; S.auftraege = []; zeigeLogin(); return;
   }
-  if (a === "tabListe")      { S.ansicht = "liste"; return render(); }
-  if (a === "tabUebersicht") { S.ansicht = "uebersicht"; return ladeUebersicht(); }
+  if (a === "tabListe")      { S.favEdit = null; S.ansicht = "liste"; return render(); }
+  if (a === "tabUebersicht") { S.favEdit = null; S.ansicht = "uebersicht"; return ladeUebersicht(); }
   if (a === "neu")           { S.neu = leererBeleg(); S.zurueckZu = "liste";
                                S.ansicht = "erfassen"; return render(); }
   if (a === "bearbeiten")    { return belegBearbeiten(el.dataset.id, el.dataset.w); }
 
+  // ---------- Favoriten ----------
+  if (a === "zuFavoriten")   { S.ansicht = "favoriten"; return render(); }
+  if (a === "favAnwenden")   { return favAnwenden(el.dataset.id); }
+  if (a === "favNeu")        { S.favEdit = leererFavorit(); S.ansicht = "favForm"; return render(); }
+
+  if (a === "favBearbeiten") {
+    const f = S.favoriten.find(x => String(x.id) === String(el.dataset.id));
+    if (!f) return;
+    S.favEdit = {
+      id: f.id, name: f.name,
+      konto: S.konten.find(x => x.nummer === f.konto_nummer)
+             || { nummer:f.konto_nummer, bezeichnung:kontoName(f.konto_nummer) },
+      auftrag: S.auftraege.find(x => x.id === f.auftrag_nr)
+               || { id:f.auftrag_nr, name:f.auftrag_name || "" }
+    };
+    S.ansicht = "favForm"; return render();
+  }
+
+  if (a === "favHoch") { await favHoch(el.dataset.id); return render(); }
+
+  if (a === "favSichern") {
+    el.disabled = true; el.textContent = "Speichere …";
+    const { error } = await favSpeichern(S.favEdit);
+    if (error) {
+      el.disabled = false; el.textContent = "Favorit speichern";
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
+      return;
+    }
+    S.favEdit = null;
+    await ladeFavoriten();
+    S.meldung = "Favorit gespeichert."; S.ansicht = "favoriten"; return render();
+  }
+
+  if (a === "favWeg") {
+    if (!confirm("Diesen Favoriten löschen?")) return;
+    const { error } = await favLoeschen(S.favEdit.id);
+    if (error) {
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gelöscht werden:\n" + error.message);
+      return;
+    }
+    S.favEdit = null;
+    await ladeFavoriten();
+    S.meldung = "Favorit gelöscht."; S.ansicht = "favoriten"; return render();
+  }
+
+  // Aus einem Beleg heraus einen Favoriten anlegen
+  if (a === "favMerken") {
+    const n = S.neu;
+    const vorschlag = n.konto.bezeichnung || n.konto.nummer;
+    const name = prompt("Name des Favoriten:", vorschlag);
+    if (name === null) return;
+    const { error } = await favSpeichern({ id:null, name, konto:n.konto, auftrag:n.auftrag });
+    if (error) {
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
+      return;
+    }
+    await ladeFavoriten();
+    alert("Als Favorit gespeichert.");
+    return;
+  }
+
+  // ---------- Zurück ----------
   if (a === "zurueck") {
     if (S.ansicht === "erfassen") {
       const woher = S.zurueckZu; S.neu = null;
       S.ansicht = (woher === "uebersicht") ? "uebersicht" : "liste";
       return render();
     }
-    S.ansicht = "erfassen"; return render();
+    if (S.ansicht === "favoriten") { S.ansicht = "liste"; return render(); }
+    if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
+    // aus Konto- oder Auftragswahl
+    S.ansicht = S.favEdit ? "favForm" : "erfassen"; return render();
   }
 
   if (a === "kontoWahl")   { S.ansicht = "kontoWahl"; return render(); }
@@ -72,16 +137,24 @@ app.addEventListener("click", async (e) => {
     return render();
   }
 
+  // Auswahl trifft entweder den Favoriten oder den Beleg
   if (a === "kontoSet") {
     const k = S.konten.find(x => x.nummer === el.dataset.nr);
+    if (S.favEdit) {
+      S.favEdit.konto = k;
+      S.ansicht = "favForm"; return render();
+    }
     S.neu.konto = k;
     if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
     S.ansicht = "erfassen"; return render();
   }
   if (a === "auftragSet") {
-    S.neu.auftrag = S.auftraege.find(x => x.id === el.dataset.id);
+    const auf = S.auftraege.find(x => x.id === el.dataset.id);
+    if (S.favEdit) { S.favEdit.auftrag = auf; S.ansicht = "favForm"; return render(); }
+    S.neu.auftrag = auf;
     S.ansicht = "erfassen"; return render();
   }
+
   if (a === "mwst") { S.neu.mwst = el.dataset.v; return render(); }
   if (a === "ziffer") {
     const z = el.dataset.z;
@@ -116,7 +189,7 @@ app.addEventListener("click", async (e) => {
     return;
   }
 
-  // ---------- Löschen ----------
+  // ---------- Beleg löschen ----------
   if (a === "loeschen") {
     const n = S.neu;
     if (!confirm("Diesen Beleg wirklich löschen? Der Scan wird mitgelöscht.")) return;
@@ -132,7 +205,7 @@ app.addEventListener("click", async (e) => {
     return;
   }
 
-  // ---------- Speichern (neu und geändert) ----------
+  // ---------- Beleg speichern (neu und geändert) ----------
   if (a === "speichern") {
     const n = S.neu, betrag = betragVon(n.roh);
     const urspruenglich = el.textContent;
@@ -183,7 +256,6 @@ app.addEventListener("click", async (e) => {
       return;
     }
 
-    // Alte Datei erst nach erfolgreichem Speichern entfernen
     if (n.datei && n.altPfad && n.altPfad !== pfad) {
       try { await sb.storage.from("belege").remove([n.altPfad]); } catch {}
     }
@@ -199,9 +271,17 @@ app.addEventListener("change", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
   if (f === "datum")    { S.neu.datum   = e.target.value; }
   if (f === "zahlart")  { S.neu.zahlart = e.target.value; }
+  if (f === "favname")  { S.favEdit.name = e.target.value; }
   if (f === "umonat")   { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(); }
   if (f === "ugeraet")  { S.uGeraet = e.target.value; render(); }
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); }
+});
+
+// Namensfeld schon beim Tippen übernehmen, nicht erst beim Verlassen
+app.addEventListener("input", (e) => {
+  if (e.target.dataset && e.target.dataset.feld === "favname" && S.favEdit) {
+    S.favEdit.name = e.target.value;
+  }
 });
 
 start();
