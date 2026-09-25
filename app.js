@@ -54,7 +54,89 @@ app.addEventListener("click", async (e) => {
                                S.ansicht = "erfassen"; return render(); }
   if (a === "bearbeiten")    { return belegBearbeiten(el.dataset.id, el.dataset.w); }
 
-  // ---------- Passwort ----------
+  // ---------- Benutzerverwaltung (nur Admin) ----------
+  if (a === "tabBenutzer") {
+    S.ansicht = "benutzer"; render();
+    const j = await ladeBenutzer();
+    if (!j.ok) alert("Benutzer konnten nicht geladen werden:\n" + (j.fehler || ""));
+    return render();
+  }
+
+  if (a === "benNeu") {
+    S.benEdit = { neu:true, email:"", name:"", rolle:"user", gesperrt:false };
+    S.ansicht = "benForm"; return render();
+  }
+
+  if (a === "benBearbeiten") {
+    const b = S.benutzer.find(x => x.email === el.dataset.e);
+    if (!b) return;
+    S.benEdit = { neu:false, email:b.email, name:b.name || "",
+                  rolle:b.rolle, gesperrt: b.gesperrt || !b.aktiv };
+    S.ansicht = "benForm"; return render();
+  }
+
+  if (a === "benRolle") { S.benEdit.rolle = el.dataset.v; return render(); }
+
+  if (a === "benSperren") {
+    const b = S.benEdit;
+    const jetzt = !b.gesperrt;
+    if (!confirm(jetzt ? `Anmeldung für ${b.email} sperren?`
+                       : `${b.email} wieder freischalten?`)) return;
+    const j = await benutzerRuf({ aktion:"aktiv", email:b.email, aktiv: !jetzt });
+    if (!j.ok) { alert(j.fehler || "Hat nicht geklappt."); return; }
+    S.benEdit = null; S.meldung = jetzt ? "Benutzer gesperrt." : "Benutzer freigeschaltet.";
+    S.ansicht = "benutzer"; await ladeBenutzer(); return render();
+  }
+
+  if (a === "benSichern") {
+    const b  = S.benEdit;
+    const pw = (document.getElementById("bpw") || {}).value || "";
+    const urspruenglich = el.textContent;
+    el.disabled = true; el.textContent = "Speichere …";
+
+    if (b.neu) {
+      const mail = (document.getElementById("bmail").value || "").trim().toLowerCase();
+      const name = (document.getElementById("bname").value || "").trim();
+      if (!mail.includes("@")) {
+        el.disabled = false; el.textContent = urspruenglich;
+        alert("Bitte eine gültige E-Mail eingeben."); return;
+      }
+      if (pw.length < 6) {
+        el.disabled = false; el.textContent = urspruenglich;
+        alert("Das Passwort braucht mindestens sechs Zeichen."); return;
+      }
+      const j = await benutzerRuf({ aktion:"anlegen", email:mail, passwort:pw,
+                                    name, rolle:b.rolle });
+      if (!j.ok) {
+        el.disabled = false; el.textContent = urspruenglich;
+        alert(j.fehler || "Anlegen fehlgeschlagen."); return;
+      }
+      S.meldung = "Benutzer angelegt.";
+    } else {
+      const j1 = await benutzerRuf({ aktion:"rolle", email:b.email, rolle:b.rolle });
+      if (!j1.ok) {
+        el.disabled = false; el.textContent = urspruenglich;
+        alert(j1.fehler || "Rolle konnte nicht geändert werden."); return;
+      }
+      if (pw) {
+        if (pw.length < 6) {
+          el.disabled = false; el.textContent = urspruenglich;
+          alert("Das Passwort braucht mindestens sechs Zeichen."); return;
+        }
+        const j2 = await benutzerRuf({ aktion:"passwort", email:b.email, passwort:pw });
+        if (!j2.ok) {
+          el.disabled = false; el.textContent = urspruenglich;
+          alert(j2.fehler || "Passwort konnte nicht gesetzt werden."); return;
+        }
+      }
+      S.meldung = "Gespeichert.";
+    }
+
+    S.benEdit = null; S.ansicht = "benutzer";
+    await ladeBenutzer(); return render();
+  }
+
+  // ---------- Eigenes Passwort ----------
   if (a === "zuPasswort") { S.ansicht = "passwort"; return render(); }
 
   if (a === "pwSichern") {
@@ -143,6 +225,7 @@ app.addEventListener("click", async (e) => {
     if (S.ansicht === "passwort")  { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favoriten") { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
+    if (S.ansicht === "benForm")   { S.benEdit = null; S.ansicht = "benutzer"; return render(); }
     // aus Konto- oder Auftragswahl
     S.ansicht = S.favEdit ? "favForm" : "erfassen"; return render();
   }
