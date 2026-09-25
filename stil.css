@@ -129,3 +129,9 @@ td { border-bottom:1px solid #EDEFF5; }
 .rolle.admin { background:#E8F0FA; color:#215aa8; }
 .rolle.user  { background:#EDEFF5; color:#5A6478; }
 .rolle.aus   { background:#FCEEED; color:#8E201B; }
+
+/* iOS gibt Datums- und Monatsfeldern eine eigene Mindestbreite — die brechen wir */
+input[type="date"], input[type="month"] {
+  min-width:0; max-width:100%; text-align:left;
+  -webkit-appearance:none; appearance:none;
+}
