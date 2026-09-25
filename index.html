@@ -6,7 +6,7 @@
 <title>Spesen</title>
 <style>
   :root { --blau:#215aa8; --hell:#2f6cbd; --dunkel:#1b3d6b; --grau:#5A6478;
-          --rand:#E1E4EC; --bg:#F4F5F8; --warn:#A08040; }
+          --rand:#E1E4EC; --bg:#F4F5F8; --warn:#A08040; --rot:#A3241F; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--dunkel);
          font-family: Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
@@ -27,6 +27,8 @@
   .knopf[disabled] { background:#AEB6C6; font-size:15px; }
   .zweit { width:100%; min-height:48px; border:1px solid #C9D6E8; border-radius:11px;
            background:#fff; color:var(--blau); font-size:15px; font-weight:600; }
+  .loeschen { width:100%; min-height:48px; border:1px solid #E9C3C0; border-radius:11px;
+              background:#fff; color:var(--rot); font-size:15px; font-weight:600; margin-top:10px; }
   .rund { width:40px; height:40px; border:0; border-radius:10px; background:var(--hell);
           color:#fff; font-size:19px; line-height:1; }
   .fehler { background:#FCEEED; border:1px solid #E9C3C0; color:#8E201B;
@@ -70,6 +72,8 @@
               align-items:center; justify-content:center; font-size:15px; color:var(--grau); }
   .beleglink { border:1px solid #C9D6E8; background:#fff; color:var(--blau);
                border-radius:8px; min-height:36px; padding:0 12px; font-size:13px; }
+  .stift { border:1px solid #C9D6E8; background:#fff; border-radius:8px; width:36px; height:36px;
+           display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .ablage { transition:border-color .12s, background .12s; }
   body.ziehen .ablage { border:2px dashed var(--blau); background:#EAF1FA; }
   .ziehhinweis { display:none; font-size:13px; color:var(--blau); text-align:center; padding:6px 0 0; }
@@ -100,6 +104,9 @@ const app = document.getElementById("app");
 
 const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
 const zahlartName = (z) => ZAHLART[z || "karte"] || z;
+const STIFT = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#215aa8"
+  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M4 20h4l10-10-4-4L4 16z"></path><path d="M14 6l4 4"></path></svg>`;
 
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
   (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
@@ -113,14 +120,25 @@ const monatName = (m) => {
 const chf = (z) => Number(z).toFixed(2);
 const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
 
+// Sieht der Fehler nach fehlender Verbindung aus?
+function istNetzfehler(err) {
+  if (!navigator.onLine) return true;
+  const t = String((err && (err.message || err.error_description)) || err || "").toLowerCase();
+  return t.includes("failed to fetch") || t.includes("networkerror") ||
+         t.includes("network request failed") || t.includes("load failed") ||
+         t.includes("timeout");
+}
+const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
+
 let S = {
   session:null, istAdmin:false, konten:[], auftraege:[], belege:[],
-  monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null,
+  monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null, zurueckZu:"liste",
   uMonat: heute().slice(0,7), uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
 };
 
-const leererBeleg = () => ({ konto:null, auftrag:null, mwst:"8.1", roh:"",
-                             datum: heute(), zahlart:"karte", datei:null, vorschau:null });
+const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", roh:"",
+                             datum: heute(), zahlart:"karte", datei:null, vorschau:null,
+                             altPfad:null, altUrl:null });
 const betragVon = (roh) => parseInt(roh || "0", 10) / 100;
 const ordnerName = (mail) => mail.replace(/@/g,"_").replace(/\./g,"_");
 const kontoName = (nr) => {
@@ -154,10 +172,17 @@ function zeigeLogin(meldung) {
   document.getElementById("f").addEventListener("submit", async (e) => {
     e.preventDefault();
     const b = document.getElementById("btn"); b.disabled = true; b.textContent = "Moment …";
-    const { data, error } = await sb.auth.signInWithPassword({
-      email: document.getElementById("mail").value.trim(),
-      password: document.getElementById("pw").value });
-    if (error) { zeigeLogin("Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht."); return; }
+    let data, error;
+    try {
+      ({ data, error } = await sb.auth.signInWithPassword({
+        email: document.getElementById("mail").value.trim(),
+        password: document.getElementById("pw").value }));
+    } catch (err) { zeigeLogin(NETZTEXT); return; }
+    if (error) {
+      zeigeLogin(istNetzfehler(error) ? NETZTEXT
+                 : "Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht.");
+      return;
+    }
     S.session = data.session; await ladeAlles(); render();
   });
 }
@@ -193,8 +218,6 @@ async function ladeUebersicht() {
 }
 
 // ---------- Gruppierung ----------
-// MwSt wird auf der Gruppensumme gerechnet, nicht je Beleg — sonst
-// entstehen durch das Runden Rappendifferenzen.
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
@@ -290,6 +313,41 @@ async function belegOeffnen(pfad) {
   window.open(data.signedUrl, "_blank");
 }
 
+// ---------- Beleg bearbeiten ----------
+async function belegBearbeiten(id, woher) {
+  const quelle = woher === "uebersicht" ? S.uBelege : S.belege;
+  const b = quelle.find(x => String(x.id) === String(id));
+  if (!b) return;
+
+  const k = S.konten.find(x => x.nummer === b.konto_nummer)
+            || { nummer:b.konto_nummer, bezeichnung:kontoName(b.konto_nummer) };
+  const a = S.auftraege.find(x => x.id === b.auftrag_nr) || { id:b.auftrag_nr, name:"" };
+
+  let url = null;
+  if (b.datei_pfad && !b.datei_pfad.toLowerCase().endsWith(".pdf")) {
+    const { data } = await sb.storage.from("belege").createSignedUrl(b.datei_pfad, 600);
+    url = data ? data.signedUrl : null;
+  }
+
+  S.neu = {
+    id: b.id, konto:k, auftrag:a, mwst:String(b.mwst),
+    roh: String(Math.round(parseFloat(b.betrag) * 100)),
+    datum: b.beleg_datum, zahlart: b.zahlart || "karte",
+    datei:null, vorschau:null, altPfad: b.datei_pfad, altUrl: url
+  };
+  S.zurueckZu = woher;
+  S.ansicht = "erfassen";
+  render();
+}
+
+async function zurueckNachSpeichern(text) {
+  S.meldung = text;
+  const woher = S.zurueckZu;
+  S.neu = null; S.zurueckZu = "liste";
+  if (woher === "uebersicht") { S.ansicht = "uebersicht"; await ladeUebersicht(); }
+  else { S.ansicht = "liste"; await ladeAlles(); render(); }
+}
+
 // ---------- Ansichten ----------
 function render() {
   if (S.ansicht === "liste")       return renderListe();
@@ -335,8 +393,10 @@ function renderListe() {
               <div style="font-size:13px;color:var(--grau);">
                 ${datumCH(b.beleg_datum)} · MwSt ${b.mwst} % · ${esc(zahlartName(b.zahlart))}</div>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
               ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf" data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
+              <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="liste"
+                      aria-label="Beleg bearbeiten">${STIFT}</button>
               <div style="font-size:17px;font-weight:700;">${chf(b.betrag)}</div>
             </div>
           </div>`).join("")}
@@ -355,6 +415,7 @@ function renderUebersicht() {
 
   app.innerHTML = kopf("Übersicht", S.istAdmin ? "Alle Geräte" : S.session.user.email) + reiter() + `
     <div class="inhalt">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
 
       <div class="karte">
         <div class="paar">
@@ -432,26 +493,42 @@ function renderUebersicht() {
                 <div style="font-size:13px;color:var(--grau);">
                   ${datumCH(b.beleg_datum)} · ${esc(zahlartName(b.zahlart))}${S.istAdmin && !S.uGeraet ? " · " + esc(b.geraet) : ""}</div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;">
+              <div style="display:flex;align-items:center;gap:8px;">
                 ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf" data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
+                <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="uebersicht"
+                        aria-label="Beleg bearbeiten">${STIFT}</button>
                 <div style="font-weight:700;">${chf(b.betrag)}</div>
               </div>
             </div>`).join("")}
         </div>`}
     </div>`;
+  S.meldung = null;
 }
 
 function renderErfassen() {
   const n = S.neu;
+  const bearbeiten = !!n.id;
   const betrag = betragVon(n.roh);
-  const fertig = betrag > 0 && n.konto && n.auftrag && n.datei;
+  const hatBeleg = !!(n.datei || n.altPfad);
+  const fertig = betrag > 0 && n.konto && n.auftrag && hatBeleg;
   const tasten = ["1","2","3","4","5","6","7","8","9","00","0","⌫"];
 
-  const belegKarte = n.datei
+  let belegInhalt;
+  if (n.datei) {
+    belegInhalt = n.vorschau
+      ? `<img class="vorschau" src="${n.vorschau}" alt="Belegvorschau">`
+      : `<div class="pdfmarke">PDF: ${esc(n.datei.name)}</div>`;
+  } else if (n.altPfad) {
+    belegInhalt = n.altUrl
+      ? `<img class="vorschau" src="${n.altUrl}" alt="Beleg">`
+      : `<div class="pdfmarke">PDF-Beleg hinterlegt</div>`;
+  } else {
+    belegInhalt = null;
+  }
+
+  const belegKarte = belegInhalt
     ? `<div class="karte ablage">
-         ${n.vorschau
-           ? `<img class="vorschau" src="${n.vorschau}" alt="Belegvorschau">`
-           : `<div class="pdfmarke">PDF: ${esc(n.datei.name)}</div>`}
+         ${belegInhalt}
          <button class="zweit" data-akt="belegNeu" style="margin-top:10px;">Anderen Beleg wählen</button>
          <div class="ziehhinweis">Datei hier ablegen, um sie zu ersetzen</div>
        </div>`
@@ -464,7 +541,8 @@ function renderErfassen() {
          <div class="ziehhinweis">Datei hier ablegen</div>
        </div>`;
 
-  app.innerHTML = kopf("Beleg erfassen", "Angaben prüfen und speichern", true) + `
+  app.innerHTML = kopf(bearbeiten ? "Beleg bearbeiten" : "Beleg erfassen",
+                       bearbeiten ? "Werte ändern und speichern" : "Angaben prüfen und speichern", true) + `
     <div class="inhalt">
       ${belegKarte}
 
@@ -514,7 +592,10 @@ function renderErfassen() {
       </div>
 
       <button class="knopf" data-akt="speichern" ${fertig ? "" : "disabled"}>
-        ${fertig ? "Speichern" : "Beleg, Konto, Auftrag und Betrag nötig"}</button>
+        ${fertig ? (bearbeiten ? "Änderungen speichern" : "Speichern")
+                 : "Beleg, Konto, Auftrag und Betrag nötig"}</button>
+
+      ${bearbeiten ? `<button class="loeschen" data-akt="loeschen">Diesen Beleg löschen</button>` : ""}
     </div>`;
 }
 
@@ -575,13 +656,21 @@ app.addEventListener("click", async (e) => {
   if (a === "abmelden")   { await sb.auth.signOut(); S.session=null; S.auftraege=[]; zeigeLogin(); return; }
   if (a === "tabListe")   { S.ansicht = "liste"; return render(); }
   if (a === "tabUebersicht") { S.ansicht = "uebersicht"; return ladeUebersicht(); }
-  if (a === "neu")        { S.neu = leererBeleg(); S.ansicht = "erfassen"; return render(); }
-  if (a === "zurueck")    { S.ansicht = (S.ansicht === "erfassen") ? "liste" : "erfassen"; return render(); }
+  if (a === "neu")        { S.neu = leererBeleg(); S.zurueckZu = "liste"; S.ansicht = "erfassen"; return render(); }
+  if (a === "bearbeiten") { return belegBearbeiten(el.dataset.id, el.dataset.w); }
+  if (a === "zurueck") {
+    if (S.ansicht === "erfassen") {
+      const woher = S.zurueckZu; S.neu = null;
+      if (woher === "uebersicht") { S.ansicht = "uebersicht"; return render(); }
+      S.ansicht = "liste"; return render();
+    }
+    S.ansicht = "erfassen"; return render();
+  }
   if (a === "kontoWahl")  { S.ansicht = "kontoWahl"; return render(); }
   if (a === "auftragWahl"){ S.suche = ""; S.ansicht = "auftragWahl"; return render(); }
   if (a === "foto")       { document.getElementById("kamera").click(); return; }
   if (a === "waehlen")    { document.getElementById("datei").click(); return; }
-  if (a === "belegNeu")   { S.neu.datei = null; S.neu.vorschau = null; return render(); }
+  if (a === "belegNeu")   { S.neu.datei = null; S.neu.vorschau = null; S.neu.altPfad = null; S.neu.altUrl = null; return render(); }
   if (a === "belegAuf")   { return belegOeffnen(el.dataset.p); }
 
   if (a === "expCsv") {
@@ -601,7 +690,7 @@ app.addEventListener("click", async (e) => {
         fortschritt: (i, n) => { el.textContent = `Beleg ${i} von ${n} …`; }
       });
     } catch (err) {
-      alert("Das PDF konnte nicht erstellt werden:\n" + (err.message || err));
+      alert(istNetzfehler(err) ? NETZTEXT : "Das PDF konnte nicht erstellt werden:\n" + (err.message || err));
     }
     el.textContent = "PDF erzeugen"; el.disabled = false;
     return;
@@ -609,7 +698,8 @@ app.addEventListener("click", async (e) => {
 
   if (a === "kontoSet") {
     const k = S.konten.find(x => x.nummer === el.dataset.nr);
-    S.neu.konto = k; S.neu.mwst = String(k.mwst);
+    S.neu.konto = k;
+    if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
     S.ansicht = "erfassen"; return render();
   }
   if (a === "auftragSet") {
@@ -624,27 +714,47 @@ app.addEventListener("click", async (e) => {
     return render();
   }
 
+  if (a === "loeschen") {
+    const n = S.neu;
+    if (!confirm("Diesen Beleg wirklich löschen? Der Scan wird mitgelöscht.")) return;
+    el.disabled = true; el.textContent = "Lösche …";
+    const { error } = await sb.from("spesen_beleg").delete().eq("id", n.id);
+    if (error) {
+      el.disabled = false; el.textContent = "Diesen Beleg löschen";
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gelöscht werden:\n" + error.message);
+      return;
+    }
+    if (n.altPfad) { try { await sb.storage.from("belege").remove([n.altPfad]); } catch {} }
+    await zurueckNachSpeichern("Beleg gelöscht.");
+    return;
+  }
+
   if (a === "speichern") {
     const n = S.neu, betrag = betragVon(n.roh);
-    el.disabled = true; el.textContent = "Bereite Beleg auf …";
+    const urspruenglich = el.textContent;
+    el.disabled = true;
 
-    let pfad = null;
-    try {
-      const { blob, typ, ext } = await aufbereiten(n.datei);
-      el.textContent = "Lade Beleg hoch …";
-      pfad = `${ordnerName(S.session.user.email)}/${n.datum.slice(0,7)}/${Date.now()}.${ext}`;
-      const { error: upFehler } = await sb.storage.from("belege")
-        .upload(pfad, blob, { contentType: typ, upsert:false });
-      if (upFehler) throw upFehler;
-    } catch (err) {
-      el.disabled = false; el.textContent = "Speichern";
-      alert("Der Beleg konnte nicht hochgeladen werden:\n" + (err.message || err));
-      return;
+    // Neue Datei? Dann zuerst hochladen.
+    let pfad = n.altPfad;
+    if (n.datei) {
+      el.textContent = "Bereite Beleg auf …";
+      try {
+        const { blob, typ, ext } = await aufbereiten(n.datei);
+        el.textContent = "Lade Beleg hoch …";
+        pfad = `${ordnerName(S.session.user.email)}/${n.datum.slice(0,7)}/${Date.now()}.${ext}`;
+        const { error: upFehler } = await sb.storage.from("belege")
+          .upload(pfad, blob, { contentType: typ, upsert:false });
+        if (upFehler) throw upFehler;
+      } catch (err) {
+        el.disabled = false; el.textContent = urspruenglich;
+        alert(istNetzfehler(err) ? NETZTEXT
+              : "Der Beleg konnte nicht hochgeladen werden:\n" + (err.message || err));
+        return;
+      }
     }
 
     el.textContent = "Speichere …";
-    const { error } = await sb.from("spesen_beleg").insert({
-      geraet:       S.session.user.email,
+    const daten = {
       beleg_datum:  n.datum,
       betrag:       betrag,
       mwst:         parseFloat(n.mwst),
@@ -653,17 +763,30 @@ app.addEventListener("click", async (e) => {
       zahlart:      n.zahlart,
       datei_pfad:   pfad,
       monat:        n.datum.slice(0, 7)
-    });
+    };
+
+    let error;
+    if (n.id) {
+      ({ error } = await sb.from("spesen_beleg")
+        .update({ ...daten, geaendert: new Date().toISOString() }).eq("id", n.id));
+    } else {
+      ({ error } = await sb.from("spesen_beleg")
+        .insert({ ...daten, geraet: S.session.user.email }));
+    }
+
     if (error) {
-      el.disabled = false; el.textContent = "Speichern";
-      alert("Konnte nicht gespeichert werden:\n" + error.message);
+      el.disabled = false; el.textContent = urspruenglich;
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
       return;
     }
 
+    // Alte Datei erst nach erfolgreichem Speichern entfernen
+    if (n.datei && n.altPfad && n.altPfad !== pfad) {
+      try { await sb.storage.from("belege").remove([n.altPfad]); } catch {}
+    }
     if (n.vorschau) URL.revokeObjectURL(n.vorschau);
-    S.meldung = `Beleg über CHF ${chf(betrag)} gespeichert.`;
-    S.neu = null; S.ansicht = "liste";
-    await ladeAlles(); render();
+
+    await zurueckNachSpeichern(n.id ? "Beleg geändert." : `Beleg über CHF ${chf(betrag)} gespeichert.`);
   }
 });
 
