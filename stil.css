@@ -119,3 +119,8 @@ td { border-bottom:1px solid #EDEFF5; }
 .pfeil { width:36px; height:36px; border:1px solid #C9D6E8; border-radius:8px; background:#fff;
          color:var(--blau); font-size:17px; flex-shrink:0; }
 .pfeil[disabled] { color:#C9D6E8; }
+
+/* Knöpfe rechts im Kopfbereich */
+.kopfknoepfe { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0; }
+.kopfknoepfe button { border:0; border-radius:9px; background:var(--hell); color:#fff;
+                      font-size:13px; padding:0 12px; min-height:36px; }
