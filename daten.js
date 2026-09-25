@@ -1,5 +1,6 @@
+// daten.js
 // Verbindung zu Supabase, der Zustand der App und alle Datenzugriffe.
-// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung, Favoriten.
+// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung, Favoriten, Benutzer.
 
 const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
@@ -12,7 +13,10 @@ const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
 const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
-const MAX_KACHELN = 6;   // mehr Favoriten sind nur in der Verwaltung sichtbar
+const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
+const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
+
+const istBreit = () => window.matchMedia(`(min-width:${BREIT_AB}px)`).matches;
 
 const STIFT = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#215aa8"
   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -20,6 +24,9 @@ const STIFT = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" strok
 const STERN = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#215aa8"
   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <path d="M12 4l2.4 5 5.6.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.6-.8z"></path></svg>`;
+const HOCH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B9AB4"
+  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M12 16V5"></path><path d="M7 10l5-5 5 5"></path><path d="M5 19h14"></path></svg>`;
 
 // ---------- Kleine Helfer ----------
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
@@ -33,8 +40,14 @@ const monatName = (m) => {
 };
 const chf = (z) => Number(z).toFixed(2);
 const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
-const betragVon = (roh) => parseInt(roh || "0", 10) / 100;
 const ordnerName = (mail) => mail.replace(/@/g,"_").replace(/\./g,"_");
+const kurzName = (mail) => String(mail || "").split("@")[0];
+
+// Betrag aus dem Textfeld: akzeptiert Punkt und Komma
+const betragVon = (text) => {
+  const z = parseFloat(String(text ?? "").replace(",", ".").replace(/[^\d.]/g, ""));
+  return isFinite(z) && z > 0 ? Math.round(z * 100) / 100 : 0;
+};
 
 function istNetzfehler(err) {
   if (!navigator.onLine) return true;
@@ -53,7 +66,7 @@ let S = {
   uMonat: heute().slice(0,7), uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
 };
 
-const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", roh:"",
+const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", betragText:"",
                              datum: heute(), zahlart:"karte", datei:null, vorschau:null,
                              altPfad:null, altUrl:null });
 
@@ -94,8 +107,8 @@ async function ladeFavoriten() {
   S.favoriten = data || [];
 }
 
-async function ladeUebersicht() {
-  S.uLaedt = true; render();
+async function ladeUebersicht(stumm) {
+  if (!stumm) { S.uLaedt = true; render(); }
   const { data } = await sb.from("spesen_beleg").select("*").eq("monat", S.uMonat)
     .order("beleg_datum",{ascending:true}).order("id",{ascending:true});
   S.uBelege = data || [];
@@ -104,7 +117,6 @@ async function ladeUebersicht() {
 }
 
 // ---------- Favoriten ----------
-// Ein Favorit hält Konto und Auftragsnummer. Alles andere bleibt am Beleg.
 async function favSpeichern(fav) {
   const daten = {
     geraet:       S.session.user.email,
@@ -113,9 +125,7 @@ async function favSpeichern(fav) {
     auftrag_nr:   fav.auftrag.id,
     auftrag_name: fav.auftrag.name || null
   };
-  if (fav.id) {
-    return sb.from("spesen_favorit").update(daten).eq("id", fav.id);
-  }
+  if (fav.id) return sb.from("spesen_favorit").update(daten).eq("id", fav.id);
   const hoechste = S.favoriten.reduce((m, f) => Math.max(m, f.sortierung || 0), 0);
   return sb.from("spesen_favorit").insert({ ...daten, sortierung: hoechste + 10 });
 }
@@ -124,7 +134,6 @@ async function favLoeschen(id) {
   return sb.from("spesen_favorit").delete().eq("id", id);
 }
 
-// Tauscht einen Favoriten mit dem darüberliegenden
 async function favHoch(id) {
   const i = S.favoriten.findIndex(f => String(f.id) === String(id));
   if (i <= 0) return;
@@ -137,7 +146,6 @@ async function favHoch(id) {
   await ladeFavoriten();
 }
 
-// Favorit auf einen neuen Beleg anwenden
 function favAnwenden(id) {
   const f = S.favoriten.find(x => String(x.id) === String(id));
   if (!f) return;
@@ -146,7 +154,7 @@ function favAnwenden(id) {
   const a = S.auftraege.find(x => x.id === f.auftrag_nr)
             || { id:f.auftrag_nr, name:f.auftrag_name || "" };
   S.neu = { ...leererBeleg(), konto:k, auftrag:a, mwst:String(k.mwst ?? "8.1") };
-  S.zurueckZu = "liste";
+  S.zurueckZu = istBreit() ? "desktop" : "liste";
   S.ansicht = "erfassen";
   render();
 }
@@ -157,9 +165,10 @@ function favAnwenden(id) {
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
-    const s = `${b.konto_nummer}|${b.auftrag_nr}|${b.mwst}`;
+    const s = `${b.konto_nummer}|${b.auftrag_nr}|${b.mwst}|${b.zahlart || "karte"}`;
     if (!m.has(s)) m.set(s, { konto:b.konto_nummer, bezeichnung:kontoName(b.konto_nummer),
-                              auftrag:b.auftrag_nr, satz:Number(b.mwst), anzahl:0, brutto:0 });
+                              auftrag:b.auftrag_nr, satz:Number(b.mwst),
+                              zahlart:(b.zahlart || "karte"), anzahl:0, brutto:0 });
     const g = m.get(s);
     g.anzahl += 1;
     g.brutto += parseFloat(b.betrag);
@@ -188,7 +197,7 @@ const uTitel = () => [
 const uDateiname = () =>
   `Spesen_${S.uMonat}` +
   (S.uZahlart ? "_" + S.uZahlart : "") +
-  (S.uGeraet ? "_" + S.uGeraet.split("@")[0] : (S.istAdmin ? "_alle" : "")) + ".pdf";
+  (S.uGeraet ? "_" + kurzName(S.uGeraet) : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
 // ---------- Belegdatei ----------
 async function aufbereiten(file) {
@@ -211,9 +220,14 @@ async function aufbereiten(file) {
 }
 
 function dateiGewaehlt(file) {
-  if (!file || !S.neu) return;
+  if (!file) return;
   const erlaubt = file.type === "application/pdf" || file.type.startsWith("image/");
   if (!erlaubt) { alert("Bitte ein Bild oder ein PDF wählen."); return; }
+
+  // Vom Rechner direkt auf die Ablagefläche gezogen: Erfassung öffnen
+  if (!S.neu) { S.neu = leererBeleg(); S.zurueckZu = istBreit() ? "desktop" : "liste";
+                S.ansicht = "erfassen"; }
+
   if (S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
   S.neu.datei    = file;
   S.neu.vorschau = file.type === "application/pdf" ? null : URL.createObjectURL(file);
@@ -228,8 +242,10 @@ async function belegOeffnen(pfad) {
 
 // ---------- Beleg zum Bearbeiten öffnen ----------
 async function belegBearbeiten(id, woher) {
-  const quelle = woher === "uebersicht" ? S.uBelege : S.belege;
-  const b = quelle.find(x => String(x.id) === String(id));
+  const quelle = woher === "liste" ? S.belege : S.uBelege;
+  const b = (quelle.find(x => String(x.id) === String(id)))
+            || S.belege.find(x => String(x.id) === String(id))
+            || S.uBelege.find(x => String(x.id) === String(id));
   if (!b) return;
 
   const k = S.konten.find(x => x.nummer === b.konto_nummer)
@@ -244,7 +260,7 @@ async function belegBearbeiten(id, woher) {
 
   S.neu = {
     id: b.id, konto:k, auftrag:a, mwst:String(b.mwst),
-    roh: String(Math.round(parseFloat(b.betrag) * 100)),
+    betragText: chf(b.betrag),
     datum: b.beleg_datum, zahlart: b.zahlart || "karte",
     datei:null, vorschau:null, altPfad: b.datei_pfad, altUrl: url
   };
@@ -257,10 +273,17 @@ async function belegBearbeiten(id, woher) {
 async function zurueckNachSpeichern(text) {
   S.meldung = text;
   const woher = S.zurueckZu;
-  S.neu = null; S.zurueckZu = "liste";
-  if (woher === "uebersicht") { S.ansicht = "uebersicht"; await ladeUebersicht(); }
-  else { S.ansicht = "liste"; await ladeAlles(); render(); }
+  S.neu = null; S.zurueckZu = istBreit() ? "desktop" : "liste";
+  if (istBreit()) {
+    S.ansicht = "liste";
+    await ladeAlles(); await ladeUebersicht(true);
+  } else if (woher === "uebersicht") {
+    S.ansicht = "uebersicht"; await ladeUebersicht();
+  } else {
+    S.ansicht = "liste"; await ladeAlles(); render();
+  }
 }
+
 // ---------- Benutzerverwaltung (nur Admin) ----------
 // Alles läuft über die Edge Function, weil Passwörter setzen und Konten
 // anlegen nur mit dem service_role-Schlüssel geht — und der bleibt dort.
@@ -284,3 +307,6 @@ async function ladeBenutzer() {
     return { ok: false, fehler: String(e) };
   }
 }
+
+// Wie viele Belege hat ein Gerät im gewählten Monat?
+const belegeVon = (mail) => S.uBelege.filter(b => b.geraet === mail).length;
