@@ -27,9 +27,10 @@ document.getElementById("datei").addEventListener("change", (e) => {
 });
 
 // ---------- Ziehen und Ablegen ----------
-// Beim Erfassen und am Rechner auch auf der Hauptseite
-const ziehenErlaubt = () => S.session &&
-  (S.ansicht === "erfassen" || (istBreit() && S.ansicht === "liste"));
+// Überall erlaubt, solange jemand angemeldet ist. Die frühere Einschränkung
+// auf die Ansichten "erfassen" und "liste" war der Grund, warum das Ablegen
+// nach einem Klick auf die Übersicht nicht mehr ging.
+const ziehenErlaubt = () => !!S.session;
 
 let ziehZaehler = 0;
 document.addEventListener("dragenter", (e) => {
@@ -48,7 +49,14 @@ document.addEventListener("drop", (e) => {
   if (!ziehenErlaubt()) return;
   e.preventDefault(); ziehZaehler = 0; document.body.classList.remove("ziehen");
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f) dateiGewaehlt(f);
+  if (!f) return;
+  // Liegt gerade kein Beleg offen, einen neuen öffnen und die Datei hineinlegen.
+  if (!S.neu) {
+    S.neu = leererBeleg();
+    S.zurueckZu = istBreit() ? "desktop" : "liste";
+    S.ansicht = "erfassen";
+  }
+  dateiGewaehlt(f);
 });
 
 // ---------- Klicks ----------
@@ -63,7 +71,7 @@ app.addEventListener("click", async (e) => {
     zeigeLogin(); return;
   }
   if (a === "tabListe")      { S.favEdit = null; S.ansicht = "liste"; return render(); }
-  if (a === "tabUebersicht") { S.favEdit = null; S.ansicht = "uebersicht"; return ladeUebersicht(); }
+  if (a === "tabUebersicht") { S.favEdit = null; S.ansicht = "uebersicht"; return ladeUebersicht(true); }
   if (a === "neu")           { S.neu = leererBeleg();
                                S.zurueckZu = istBreit() ? "desktop" : "liste";
                                S.ansicht = "erfassen"; return render(); }
@@ -74,8 +82,24 @@ app.addEventListener("click", async (e) => {
     S.ansicht = "benutzer";
     S.benEdit = istBreit() ? { neu:true, email:"", name:"", rolle:"user", gesperrt:false } : null;
     render();
+
     const j = await ladeBenutzer();
-    if (!j.ok) alert("Benutzer konnten nicht geladen werden:\n" + (j.fehler || ""));
+
+    // Schickt die Funktion die Liste unter einem anderen Namen mit,
+    // hier noch einmal nachfassen, damit die Tabelle nicht leer bleibt.
+    if (j && (!S.benutzer || !S.benutzer.length)) {
+      const liste = Array.isArray(j) ? j
+                  : (j.benutzer || j.liste || j.daten || j.users || null);
+      if (Array.isArray(liste)) S.benutzer = liste;
+    }
+
+    if (!j || j.ok === false) {
+      alert("Benutzer konnten nicht geladen werden:\n" + ((j && j.fehler) || ""));
+    } else if (!S.benutzer || !S.benutzer.length) {
+      // Vorübergehend: zeigt, was die Funktion tatsächlich geantwortet hat.
+      alert("Die Funktion hat geantwortet, aber keine Benutzer geliefert.\n\n"
+            + "Antwort zur Fehlersuche:\n" + JSON.stringify(j).slice(0, 400));
+    }
     return render();
   }
 
@@ -384,7 +408,9 @@ app.addEventListener("change", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
   if (f === "datum")    { S.neu.datum   = e.target.value; }
   if (f === "zahlart")  { S.neu.zahlart = e.target.value; }
-  if (f === "umonat")   { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(); }
+  // Mit true wird erst gezeichnet, wenn die Daten da sind. Ohne das Argument
+  // wurde das Monatsfeld mitten im Laden neu gebaut und die Auswahl ging verloren.
+  if (f === "umonat")   { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(true); }
   if (f === "ugeraet")  { S.uGeraet = e.target.value; render(); }
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); }
 });
