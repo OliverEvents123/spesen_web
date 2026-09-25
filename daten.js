@@ -47,6 +47,7 @@ function istNetzfehler(err) {
 // ---------- Zustand ----------
 let S = {
   session:null, istAdmin:false, konten:[], auftraege:[], belege:[], favoriten:[],
+  benutzer:[], benEdit:null,
   monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null,
   suche:"", meldung:null, zurueckZu:"liste",
   uMonat: heute().slice(0,7), uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
@@ -259,4 +260,27 @@ async function zurueckNachSpeichern(text) {
   S.neu = null; S.zurueckZu = "liste";
   if (woher === "uebersicht") { S.ansicht = "uebersicht"; await ladeUebersicht(); }
   else { S.ansicht = "liste"; await ladeAlles(); render(); }
+}
+// ---------- Benutzerverwaltung (nur Admin) ----------
+// Alles läuft über die Edge Function, weil Passwörter setzen und Konten
+// anlegen nur mit dem service_role-Schlüssel geht — und der bleibt dort.
+async function benutzerRuf(daten) {
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/benutzer`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${S.session.access_token}`,
+               apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(daten)
+  });
+  return await r.json();
+}
+
+async function ladeBenutzer() {
+  try {
+    const j = await benutzerRuf({ aktion: "liste" });
+    S.benutzer = j.ok ? j.benutzer : [];
+    return j;
+  } catch (e) {
+    S.benutzer = [];
+    return { ok: false, fehler: String(e) };
+  }
 }
