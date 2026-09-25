@@ -1,3 +1,4 @@
+// app.js
 // Startet die App und verarbeitet alle Klicks und Feldänderungen.
 // Die Bildschirme kommen aus ansichten.js, die Datenzugriffe aus daten.js.
 
@@ -52,6 +53,24 @@ app.addEventListener("click", async (e) => {
   if (a === "neu")           { S.neu = leererBeleg(); S.zurueckZu = "liste";
                                S.ansicht = "erfassen"; return render(); }
   if (a === "bearbeiten")    { return belegBearbeiten(el.dataset.id, el.dataset.w); }
+
+  // ---------- Passwort ----------
+  if (a === "zuPasswort") { S.ansicht = "passwort"; return render(); }
+
+  if (a === "pwSichern") {
+    const p1 = document.getElementById("pw1").value;
+    const p2 = document.getElementById("pw2").value;
+    if (p1.length < 6) { alert("Das Passwort braucht mindestens sechs Zeichen."); return; }
+    if (p1 !== p2)     { alert("Die beiden Passwörter stimmen nicht überein."); return; }
+    el.disabled = true; el.textContent = "Speichere …";
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    if (error) {
+      el.disabled = false; el.textContent = "Passwort speichern";
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht geändert werden:\n" + error.message);
+      return;
+    }
+    S.meldung = "Passwort geändert."; S.ansicht = "liste"; return render();
+  }
 
   // ---------- Favoriten ----------
   if (a === "zuFavoriten")   { S.ansicht = "favoriten"; return render(); }
@@ -121,6 +140,7 @@ app.addEventListener("click", async (e) => {
       S.ansicht = (woher === "uebersicht") ? "uebersicht" : "liste";
       return render();
     }
+    if (S.ansicht === "passwort")  { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favoriten") { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
     // aus Konto- oder Auftragswahl
@@ -140,10 +160,7 @@ app.addEventListener("click", async (e) => {
   // Auswahl trifft entweder den Favoriten oder den Beleg
   if (a === "kontoSet") {
     const k = S.konten.find(x => x.nummer === el.dataset.nr);
-    if (S.favEdit) {
-      S.favEdit.konto = k;
-      S.ansicht = "favForm"; return render();
-    }
+    if (S.favEdit) { S.favEdit.konto = k; S.ansicht = "favForm"; return render(); }
     S.neu.konto = k;
     if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
     S.ansicht = "erfassen"; return render();
@@ -277,7 +294,7 @@ app.addEventListener("change", (e) => {
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); }
 });
 
-// Namensfeld schon beim Tippen übernehmen, nicht erst beim Verlassen
+// Namensfeld des Favoriten schon beim Tippen übernehmen
 app.addEventListener("input", (e) => {
   if (e.target.dataset && e.target.dataset.feld === "favname" && S.favEdit) {
     S.favEdit.name = e.target.value;
