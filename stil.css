@@ -1,0 +1,104 @@
+/* Gestaltung der Spesen-App. Hausfarbe #215aa8 wie in der Zeiterfassung. */
+
+:root { --blau:#215aa8; --hell:#2f6cbd; --dunkel:#1b3d6b; --grau:#5A6478;
+        --rand:#E1E4EC; --bg:#F4F5F8; --warn:#A08040; --rot:#A3241F; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--dunkel);
+       font-family: Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
+
+/* Kopfbereich und Reiter */
+.kopf { background:var(--blau); color:#fff; padding:calc(env(safe-area-inset-top) + 22px) 20px 16px;
+        display:flex; align-items:center; gap:12px; }
+.kopf h1 { margin:0 0 2px; font-size:22px; }
+.kopf .sub { font-size:13px; color:#BDD1EA; }
+.kopf .wachs { flex-grow:1; }
+.reiter { background:var(--blau); padding:0 20px 12px; display:flex; gap:8px; }
+.reiter button { flex-grow:1; min-height:40px; border:0; border-radius:9px;
+                 background:#2f6cbd; color:#BDD1EA; font-size:15px; }
+.reiter button.an { background:#fff; color:var(--blau); font-weight:700; }
+
+/* Grundbausteine */
+.inhalt { padding:14px 20px 40px; max-width:980px; margin:0 auto; }
+.karte { background:#fff; border:1px solid var(--rand); border-radius:12px;
+         padding:14px 16px; margin-bottom:10px; }
+button { font-family:inherit; cursor:pointer; }
+.knopf { width:100%; min-height:54px; border:0; border-radius:12px; background:var(--blau);
+         color:#fff; font-size:17px; font-weight:600; }
+.knopf[disabled] { background:#AEB6C6; font-size:15px; }
+.zweit { width:100%; min-height:48px; border:1px solid #C9D6E8; border-radius:11px;
+         background:#fff; color:var(--blau); font-size:15px; font-weight:600; }
+.loeschen { width:100%; min-height:48px; border:1px solid #E9C3C0; border-radius:11px;
+            background:#fff; color:var(--rot); font-size:15px; font-weight:600; margin-top:10px; }
+.rund { width:40px; height:40px; border:0; border-radius:10px; background:var(--hell);
+        color:#fff; font-size:19px; line-height:1; }
+.zeile { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.leer { text-align:center; color:var(--grau); font-size:15px; padding:26px 10px; }
+
+/* Meldungen */
+.fehler { background:#FCEEED; border:1px solid #E9C3C0; color:#8E201B;
+          border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:10px; }
+.ok { background:#E9F3ED; border:1px solid #BCDAC8; color:#124F32;
+      border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:10px; }
+
+/* Anmeldung */
+.mitte { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.mitte .karte { width:100%; max-width:380px; }
+
+/* Eingabefelder. .paar stellt zwei Felder nebeneinander, am Handy untereinander */
+label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
+input, select { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
+        border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
+.paar { display:flex; gap:10px; flex-wrap:wrap; }
+.paar > div { flex:1 1 180px; min-width:0; }
+@media (max-width:520px) { .paar > div { flex:1 1 100%; } }
+
+/* Auswahlzeilen für Konto und Auftrag */
+.wahl { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
+        border-radius:11px; min-height:58px; padding:8px 15px; display:flex;
+        align-items:center; gap:12px; margin-bottom:10px; }
+.wahl.offen { border-color:#E8CFAE; }
+.wahl .titel { font-size:13px; color:var(--grau); width:60px; flex-shrink:0; }
+.wahl .wert { flex-grow:1; font-size:17px; font-weight:700; }
+.wahl .pfeil { color:#7D89A0; font-size:18px; }
+
+/* Zahlenblock und MwSt */
+.block { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:10px; }
+.taste { min-height:52px; border:1px solid #D5D9E3; border-radius:10px; background:#fff;
+         color:var(--dunkel); font-size:21px; font-weight:600; }
+.mwst { display:flex; gap:8px; margin-bottom:10px; }
+.mwst button { flex-grow:1; min-height:46px; border-radius:9px; border:1px solid #D5D9E3;
+               background:#fff; color:#3f5a80; font-size:15px; }
+.mwst button.an { background:var(--blau); border-color:var(--blau); color:#fff; font-weight:700; }
+
+/* Listeneinträge in den Auswahlbildschirmen */
+.eintrag { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
+           border-radius:11px; min-height:54px; padding:8px 15px; display:flex;
+           align-items:center; gap:14px; margin-bottom:8px; }
+.eintrag.an { border:2px solid var(--blau); background:#EAF1FA; }
+.eintrag .nr { font-size:18px; font-weight:700; width:70px; flex-shrink:0; }
+.eintrag .nm { flex-grow:1; font-size:15px; color:#3f5a80; }
+.marke { font-size:11px; background:#EDEFF5; color:#3f5a80; border-radius:4px; padding:2px 6px; }
+
+/* Beleg: Vorschau, Knöpfe, Ablagefläche */
+.vorschau { width:100%; max-height:260px; object-fit:contain; border-radius:8px;
+            background:#EDEFF5; display:block; }
+.pdfmarke { height:110px; border-radius:8px; background:#EDEFF5; display:flex;
+            align-items:center; justify-content:center; font-size:15px; color:var(--grau); }
+.beleglink { border:1px solid #C9D6E8; background:#fff; color:var(--blau);
+             border-radius:8px; min-height:36px; padding:0 12px; font-size:13px; }
+.stift { border:1px solid #C9D6E8; background:#fff; border-radius:8px; width:36px; height:36px;
+         display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ablage { transition:border-color .12s, background .12s; }
+body.ziehen .ablage { border:2px dashed var(--blau); background:#EAF1FA; }
+.ziehhinweis { display:none; font-size:13px; color:var(--blau); text-align:center; padding:6px 0 0; }
+body.ziehen .ziehhinweis { display:block; }
+
+/* Kontierungstabelle, rollt am Handy seitwärts */
+.rollen { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+table { border-collapse:collapse; width:100%; min-width:560px; }
+th, td { text-align:left; padding:10px 10px 10px 0; font-size:14px; white-space:nowrap; }
+th { font-size:12px; color:var(--grau); font-weight:600; border-bottom:2px solid #D5D9E3; }
+td { border-bottom:1px solid #EDEFF5; }
+.re { text-align:right; }
+.summe td { background:#EDEFF5; font-weight:700; border-bottom:0; }
+.gross { font-size:16px; font-weight:700; }
