@@ -41,7 +41,8 @@
   input, select { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
           border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
   .paar { display:flex; gap:10px; flex-wrap:wrap; }
-  .paar > div { flex:1 1 150px; }
+  .paar > div { flex:1 1 180px; min-width:0; }
+  @media (max-width:520px) { .paar > div { flex:1 1 100%; } }
   .wahl { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
           border-radius:11px; min-height:58px; padding:8px 15px; display:flex;
           align-items:center; gap:12px; margin-bottom:10px; }
@@ -192,6 +193,8 @@ async function ladeUebersicht() {
 }
 
 // ---------- Gruppierung ----------
+// MwSt wird auf der Gruppensumme gerechnet, nicht je Beleg — sonst
+// entstehen durch das Runden Rappendifferenzen.
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
@@ -383,8 +386,7 @@ function renderUebersicht() {
         : `
         <div class="karte">
           <div style="font-size:17px;font-weight:700;margin-bottom:3px;">Kontierung</div>
-          <div style="font-size:13px;color:var(--grau);margin-bottom:12px;">
-            ${esc(uTitel())}</div>
+          <div style="font-size:13px;color:var(--grau);margin-bottom:12px;">${esc(uTitel())}</div>
           <div class="rollen"><table>
             <thead><tr>
               <th>Konto</th><th>Bezeichnung</th><th>Auftrag</th><th>MwSt</th>
