@@ -83,6 +83,7 @@
 <input type="file" id="datei"  accept="image/*,application/pdf" hidden>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="export.js"></script>
 <script>
 const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
@@ -182,15 +183,14 @@ async function ladeUebersicht() {
 }
 
 // ---------- Gruppierung ----------
-// Fasst die Belege nach Konto, Auftragsnummer und MwSt-Satz zusammen.
-// MwSt wird erst auf der Gruppensumme gerechnet, nicht je Beleg — sonst
+// MwSt wird auf der Gruppensumme gerechnet, nicht je Beleg — sonst
 // entstehen durch das Runden Rappendifferenzen.
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
     const s = `${b.konto_nummer}|${b.auftrag_nr}|${b.mwst}`;
-    if (!m.has(s)) m.set(s, { konto:b.konto_nummer, auftrag:b.auftrag_nr,
-                              satz:Number(b.mwst), anzahl:0, brutto:0 });
+    if (!m.has(s)) m.set(s, { konto:b.konto_nummer, bezeichnung:kontoName(b.konto_nummer),
+                              auftrag:b.auftrag_nr, satz:Number(b.mwst), anzahl:0, brutto:0 });
     const g = m.get(s);
     g.anzahl += 1;
     g.brutto += parseFloat(b.betrag);
@@ -205,6 +205,9 @@ function gruppiere(belege) {
                    || b.satz - a.satz);
   return liste;
 }
+
+const uGefiltert = () => S.uGeraet ? S.uBelege.filter(b => b.geraet === S.uGeraet) : S.uBelege;
+const uTitel = () => `${monatName(S.uMonat)} · ${S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email)}`;
 
 // ---------- Bild aufbereiten ----------
 async function aufbereiten(file) {
@@ -298,7 +301,7 @@ function renderListe() {
 
 function renderUebersicht() {
   const geraete = [...new Set(S.uBelege.map(b => b.geraet))].sort();
-  const gefiltert = S.uGeraet ? S.uBelege.filter(b => b.geraet === S.uGeraet) : S.uBelege;
+  const gefiltert = uGefiltert();
   const gruppen = gruppiere(gefiltert);
   const tBrutto = gruppen.reduce((t,g) => t + g.brutto, 0);
   const tSteuer = gruppen.reduce((t,g) => t + g.steuer, 0);
@@ -335,7 +338,7 @@ function renderUebersicht() {
             <tbody>
               ${gruppen.map(g => `<tr>
                 <td class="gross">${esc(g.konto)}</td>
-                <td>${esc(kontoName(g.konto))}</td>
+                <td>${esc(g.bezeichnung)}</td>
                 <td>${esc(g.auftrag)}</td>
                 <td>${g.satz} %</td>
                 <td class="re">${g.anzahl}</td>
@@ -355,11 +358,19 @@ function renderUebersicht() {
         </div>
 
         <div class="karte">
+          <div style="font-size:17px;font-weight:700;margin-bottom:3px;">Export für DocuWare</div>
+          <div style="font-size:13px;color:var(--grau);margin-bottom:12px;">
+            Im PDF steht diese Übersicht vorn, danach folgen alle ${tAnzahl} Belege.</div>
+          <button class="knopf" data-akt="expPdf" style="margin-bottom:8px;">PDF erzeugen</button>
+          <button class="zweit" data-akt="expCsv">Buchungsliste als CSV</button>
+        </div>
+
+        <div class="karte">
           <div style="font-size:17px;font-weight:700;margin-bottom:12px;">Einzelne Belege</div>
-          ${gefiltert.map(b => `
+          ${gefiltert.map((b,i) => `
             <div class="zeile" style="padding:9px 0;border-bottom:1px solid #EDEFF5;">
               <div>
-                <div style="font-weight:600;">${esc(b.konto_nummer)} · ${esc(b.auftrag_nr)} · ${b.mwst} %</div>
+                <div style="font-weight:600;">${i+1} · ${esc(b.konto_nummer)} · ${esc(b.auftrag_nr)} · ${b.mwst} %</div>
                 <div style="font-size:13px;color:var(--grau);">
                   ${datumCH(b.beleg_datum)}${S.istAdmin && !S.uGeraet ? " · " + esc(b.geraet) : ""}</div>
               </div>
@@ -499,6 +510,29 @@ app.addEventListener("click", async (e) => {
   if (a === "waehlen")    { document.getElementById("datei").click(); return; }
   if (a === "belegNeu")   { S.neu.datei = null; S.neu.vorschau = null; return render(); }
   if (a === "belegAuf")   { return belegOeffnen(el.dataset.p); }
+
+  if (a === "expCsv") {
+    const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer) }));
+    SpesenExport.csv({ belege, gruppen: gruppiere(belege), monat: S.uMonat, titel: uTitel() });
+    return;
+  }
+
+  if (a === "expPdf") {
+    const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer) }));
+    el.disabled = true;
+    try {
+      await SpesenExport.pdf({
+        sb, belege, gruppen: gruppiere(belege), monat: S.uMonat, titel: uTitel(),
+        fortschritt: (i, n) => { el.textContent = `Beleg ${i} von ${n} …`; }
+      });
+      el.textContent = "PDF erzeugen";
+    } catch (err) {
+      alert("Das PDF konnte nicht erstellt werden:\n" + (err.message || err));
+      el.textContent = "PDF erzeugen";
+    }
+    el.disabled = false;
+    return;
+  }
 
   if (a === "kontoSet") {
     const k = S.konten.find(x => x.nummer === el.dataset.nr);
