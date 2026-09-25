@@ -15,8 +15,10 @@ function kopf(titel, sub, zurueck) {
   return `<div class="kopf">
     ${zurueck ? `<button class="rund" data-akt="zurueck" aria-label="Zurück">‹</button>` : ""}
     <div class="wachs"><h1>${esc(titel)}</h1><div class="sub">${esc(sub)}</div></div>
-    ${zurueck ? "" : `<button class="rund" data-akt="abmelden"
-        style="width:auto;padding:0 12px;font-size:14px;">Abmelden</button>`}
+    ${zurueck ? "" : `<div class="kopfknoepfe">
+        <button data-akt="zuPasswort">Passwort</button>
+        <button data-akt="abmelden">Abmelden</button>
+      </div>`}
   </div>`;
 }
 
