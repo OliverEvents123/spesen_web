@@ -9,6 +9,7 @@ function render() {
   if (S.ansicht === "auftragWahl") return renderAuftragWahl();
   if (S.ansicht === "favoriten")   return renderFavoriten();
   if (S.ansicht === "favForm")     return renderFavForm();
+  if (S.ansicht === "passwort")    return renderPasswort();
 }
 
 function kopf(titel, sub, zurueck) {
@@ -83,7 +84,8 @@ function renderListe() {
       </div>
       <button class="favlink" data-akt="zuFavoriten">Favoriten verwalten</button>`;
 
-  app.innerHTML = kopf("Meine Spesen", `${S.session.user.email} · ${monatName(S.monat)}`) + reiter() + `
+   app.innerHTML = kopf("Meine Spesen",
+    `${S.session.user.email.split("@")[0]} · ${monatName(S.monat)}`) + reiter() + `
     <div class="inhalt">
       ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
       <div class="karte zeile">
@@ -446,4 +448,19 @@ function zeichneTreffer() {
         <span class="nm">${esc(a.name)}</span>
         ${a.immer ? `<span class="marke">fix</span>` : ""}
       </button>`).join("");
+  }
+  // ---------- Passwort ändern ----------
+function renderPasswort() {
+  app.innerHTML = kopf("Passwort ändern", S.session.user.email, true) + `
+    <div class="inhalt">
+      <div class="karte">
+        <label for="pw1">Neues Passwort</label>
+        <input id="pw1" type="password" autocomplete="new-password" style="margin-bottom:12px">
+        <label for="pw2">Wiederholen</label>
+        <input id="pw2" type="password" autocomplete="new-password">
+      </div>
+      <button class="knopf" data-akt="pwSichern">Passwort speichern</button>
+      <div style="font-size:13px;color:var(--grau);padding-top:12px;line-height:1.45;">
+        Mindestens sechs Zeichen. Nach dem Ändern bleibst du angemeldet.</div>
+    </div>`;
 }
