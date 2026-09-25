@@ -1,5 +1,5 @@
 // Verbindung zu Supabase, der Zustand der App und alle Datenzugriffe.
-// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung.
+// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung, Favoriten.
 
 const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
@@ -12,15 +12,19 @@ const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
 const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
+const MAX_KACHELN = 6;   // mehr Favoriten sind nur in der Verwaltung sichtbar
 
 const STIFT = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#215aa8"
   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <path d="M4 20h4l10-10-4-4L4 16z"></path><path d="M14 6l4 4"></path></svg>`;
+const STERN = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#215aa8"
+  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M12 4l2.4 5 5.6.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.6-.8z"></path></svg>`;
 
 // ---------- Kleine Helfer ----------
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
   (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
-const heute = () => new Date().toLocaleDateString("sv-SE");   // ergibt JJJJ-MM-TT
+const heute = () => new Date().toLocaleDateString("sv-SE");
 const monatName = (m) => {
   const n = ["Januar","Februar","März","April","Mai","Juni",
              "Juli","August","September","Oktober","November","Dezember"];
@@ -32,7 +36,6 @@ const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
 const betragVon = (roh) => parseInt(roh || "0", 10) / 100;
 const ordnerName = (mail) => mail.replace(/@/g,"_").replace(/\./g,"_");
 
-// Sieht der Fehler nach fehlender Verbindung aus?
 function istNetzfehler(err) {
   if (!navigator.onLine) return true;
   const t = String((err && (err.message || err.error_description)) || err || "").toLowerCase();
@@ -43,14 +46,17 @@ function istNetzfehler(err) {
 
 // ---------- Zustand ----------
 let S = {
-  session:null, istAdmin:false, konten:[], auftraege:[], belege:[],
-  monat: heute().slice(0,7), ansicht:"liste", neu:null, suche:"", meldung:null, zurueckZu:"liste",
+  session:null, istAdmin:false, konten:[], auftraege:[], belege:[], favoriten:[],
+  monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null,
+  suche:"", meldung:null, zurueckZu:"liste",
   uMonat: heute().slice(0,7), uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
 };
 
 const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", roh:"",
                              datum: heute(), zahlart:"karte", datei:null, vorschau:null,
                              altPfad:null, altUrl:null });
+
+const leererFavorit = () => ({ id:null, name:"", konto:null, auftrag:null });
 
 const kontoName = (nr) => {
   const k = S.konten.find(x => x.nummer === nr);
@@ -59,15 +65,17 @@ const kontoName = (nr) => {
 
 // ---------- Laden ----------
 async function ladeAlles() {
-  const [k, b, adm] = await Promise.all([
+  const [k, b, f, adm] = await Promise.all([
     sb.from("spesen_konto").select("nummer,bezeichnung,mwst").eq("aktiv",true).order("sortierung"),
     sb.from("spesen_beleg").select("*").eq("monat", S.monat).eq("geraet", S.session.user.email)
       .order("beleg_datum",{ascending:false}).order("id",{ascending:false}),
+    sb.from("spesen_favorit").select("*").order("sortierung").order("id"),
     sb.rpc("ist_admin")
   ]);
-  S.konten   = k.data || [];
-  S.belege   = b.data || [];
-  S.istAdmin = adm.data === true;
+  S.konten    = k.data || [];
+  S.belege    = b.data || [];
+  S.favoriten = f.data || [];
+  S.istAdmin  = adm.data === true;
 
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
   if (!S.auftraege.length) {
@@ -80,12 +88,65 @@ async function ladeAlles() {
   }
 }
 
+async function ladeFavoriten() {
+  const { data } = await sb.from("spesen_favorit").select("*").order("sortierung").order("id");
+  S.favoriten = data || [];
+}
+
 async function ladeUebersicht() {
   S.uLaedt = true; render();
   const { data } = await sb.from("spesen_beleg").select("*").eq("monat", S.uMonat)
     .order("beleg_datum",{ascending:true}).order("id",{ascending:true});
   S.uBelege = data || [];
   S.uLaedt  = false;
+  render();
+}
+
+// ---------- Favoriten ----------
+// Ein Favorit hält Konto und Auftragsnummer. Alles andere bleibt am Beleg.
+async function favSpeichern(fav) {
+  const daten = {
+    geraet:       S.session.user.email,
+    name:         fav.name.trim() || fav.konto.bezeichnung || fav.konto.nummer,
+    konto_nummer: fav.konto.nummer,
+    auftrag_nr:   fav.auftrag.id,
+    auftrag_name: fav.auftrag.name || null
+  };
+  if (fav.id) {
+    return sb.from("spesen_favorit").update(daten).eq("id", fav.id);
+  }
+  const hoechste = S.favoriten.reduce((m, f) => Math.max(m, f.sortierung || 0), 0);
+  return sb.from("spesen_favorit").insert({ ...daten, sortierung: hoechste + 10 });
+}
+
+async function favLoeschen(id) {
+  return sb.from("spesen_favorit").delete().eq("id", id);
+}
+
+// Tauscht einen Favoriten mit dem darüberliegenden
+async function favHoch(id) {
+  const i = S.favoriten.findIndex(f => String(f.id) === String(id));
+  if (i <= 0) return;
+  const a = S.favoriten[i], b = S.favoriten[i-1];
+  const sa = a.sortierung || (i+1)*10, sbv = b.sortierung || i*10;
+  await Promise.all([
+    sb.from("spesen_favorit").update({ sortierung: sbv }).eq("id", a.id),
+    sb.from("spesen_favorit").update({ sortierung: sa  }).eq("id", b.id)
+  ]);
+  await ladeFavoriten();
+}
+
+// Favorit auf einen neuen Beleg anwenden
+function favAnwenden(id) {
+  const f = S.favoriten.find(x => String(x.id) === String(id));
+  if (!f) return;
+  const k = S.konten.find(x => x.nummer === f.konto_nummer)
+            || { nummer:f.konto_nummer, bezeichnung:kontoName(f.konto_nummer) };
+  const a = S.auftraege.find(x => x.id === f.auftrag_nr)
+            || { id:f.auftrag_nr, name:f.auftrag_name || "" };
+  S.neu = { ...leererBeleg(), konto:k, auftrag:a, mwst:String(k.mwst ?? "8.1") };
+  S.zurueckZu = "liste";
+  S.ansicht = "erfassen";
   render();
 }
 
@@ -129,9 +190,6 @@ const uDateiname = () =>
   (S.uGeraet ? "_" + S.uGeraet.split("@")[0] : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
 // ---------- Belegdatei ----------
-// Fotos auf 2000 px längste Kante verkleinern und als JPEG speichern.
-// PDFs bleiben unverändert. Was der Browser nicht lesen kann (HEIC),
-// geht im Original hoch.
 async function aufbereiten(file) {
   if (file.type === "application/pdf") return { blob:file, typ:"application/pdf", ext:"pdf" };
   try {
