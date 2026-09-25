@@ -1,5 +1,9 @@
 // Erzeugt das Monats-PDF und die Buchungsliste als CSV.
 // Aufbau des PDF: Seite 1 Kontierung, Seite 2 Belegliste, danach jeder Beleg.
+//
+// Verschlüsselte PDF-Belege (Bankauszüge, viele Shop-Rechnungen) lassen sich
+// nicht seitenweise übernehmen — ihre Datenströme sind für die PDF-Bibliothek
+// unlesbar. Solche Belege werden deshalb gerendert und als Bild eingesetzt.
 
 const SpesenExport = (function () {
 
@@ -7,15 +11,46 @@ const SpesenExport = (function () {
   const chf = (z) => Number(z).toFixed(2);
   const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
 
-  function laden() {
+  function skriptLaden(src) {
     return new Promise((ok, fehler) => {
-      if (window.PDFLib) return ok();
       const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js";
+      s.src = src;
       s.onload = () => ok();
-      s.onerror = () => fehler(new Error("PDF-Bibliothek konnte nicht geladen werden."));
+      s.onerror = () => fehler(new Error("Bibliothek konnte nicht geladen werden: " + src));
       document.head.appendChild(s);
     });
+  }
+
+  async function pdfLibLaden() {
+    if (!window.PDFLib) await skriptLaden("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
+  }
+
+  async function pdfJsLaden() {
+    if (!window.pdfjsLib) {
+      await skriptLaden("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+    }
+    return window.pdfjsLib;
+  }
+
+  // Jede Seite eines PDF als JPEG rendern
+  async function seitenAlsBilder(puffer, skala) {
+    const lib = await pdfJsLaden();
+    const dok = await lib.getDocument({ data: puffer.slice(0) }).promise;
+    const bilder = [];
+    for (let i = 1; i <= dok.numPages; i++) {
+      const seite = await dok.getPage(i);
+      const sicht = seite.getViewport({ scale: skala || 2 });
+      const c = document.createElement("canvas");
+      c.width = Math.round(sicht.width); c.height = Math.round(sicht.height);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height);
+      await seite.render({ canvasContext: ctx, viewport: sicht }).promise;
+      const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.85));
+      bilder.push(new Uint8Array(await blob.arrayBuffer()));
+    }
+    return bilder;
   }
 
   function speichern(blob, name) {
@@ -28,7 +63,7 @@ const SpesenExport = (function () {
 
   // ---------- PDF ----------
   async function pdf({ sb, belege, gruppen, monat, titel, fortschritt }) {
-    await laden();
+    await pdfLibLaden();
     const { PDFDocument, StandardFonts, rgb } = PDFLib;
 
     const doc   = await PDFDocument.create();
@@ -40,7 +75,6 @@ const SpesenExport = (function () {
 
     const nummeriert = belege.map((b, i) => ({ ...b, nr: i + 1 }));
 
-    // Hilfsmittel zum Zeichnen einer Tabellenzeile
     function zeile(seite, y, spalten, werte, schrift, groesse, farbe) {
       let x = RAND;
       spalten.forEach((sp, i) => {
@@ -52,6 +86,42 @@ const SpesenExport = (function () {
         });
         x += sp.w;
       });
+    }
+
+    function beschriftung(b) {
+      return `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
+             `Auftrag ${b.auftrag_nr} · MwSt ${b.mwst} % · CHF ${chf(b.betrag)}`;
+    }
+
+    // Ersatzseite, wenn keine Datei da ist oder sie nicht eingebettet werden kann
+    function ersatzSeite(b, grund) {
+      const p = doc.addPage([BREITE, HOEHE]);
+      p.drawText(beschriftung(b), { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
+
+      const kx = RAND + 40, kb = BREITE - 2*RAND - 80;
+      const ky = HOEHE/2 - 110, kh = 230;
+      p.drawRectangle({ x:kx, y:ky, width:kb, height:kh,
+                        borderColor:linie, borderWidth:1.5, color:rgb(0.98,0.98,0.99) });
+
+      const t1 = grund;
+      p.drawText(t1, { x:kx + (kb - fett.widthOfTextAtSize(t1,17))/2,
+                       y:ky + kh - 46, size:17, font:fett, color:blau });
+
+      const daten = [
+        ["Beleg-Nr.", String(b.nr)],
+        ["Datum",     datumCH(b.beleg_datum)],
+        ["Konto",     `${b.konto_nummer} ${b.bezeichnung || ""}`.trim()],
+        ["Auftrag",   String(b.auftrag_nr)],
+        ["MwSt",      `${b.mwst} %`],
+        ["Betrag",    `CHF ${chf(b.betrag)}`]
+      ];
+      let dy = ky + kh - 84;
+      daten.forEach(([k, v]) => {
+        p.drawText(k, { x:kx+26, y:dy, size:11, font, color:grau });
+        p.drawText(v, { x:kx+130, y:dy, size:12, font:fett, color:rgb(0.1,0.24,0.42) });
+        dy -= 24;
+      });
+      return p;
     }
 
     // ===== Seite 1: Kontierung =====
@@ -80,9 +150,8 @@ const SpesenExport = (function () {
       { w:48 }, { w:118 }, { w:58 }, { w:44 },
       { w:38, re:true }, { w:72, re:true }, { w:72, re:true }, { w:65, re:true }
     ];
-    const kopf = ["Konto","Bezeichnung","Auftrag","MwSt","Belege","Brutto","MwSt-Betrag","Netto"];
-
-    zeile(s1, y, sp, kopf, fett, 9, grau);
+    zeile(s1, y, sp, ["Konto","Bezeichnung","Auftrag","MwSt","Belege","Brutto","MwSt-Betrag","Netto"],
+          fett, 9, grau);
     y -= 6;
     s1.drawLine({ start:{x:RAND,y}, end:{x:BREITE-RAND,y}, thickness:1, color:linie });
     y -= 16;
@@ -100,7 +169,6 @@ const SpesenExport = (function () {
     s1.drawRectangle({ x:RAND, y:y-6, width:BREITE-2*RAND, height:24,
                        color:rgb(0.93,0.95,0.98) });
     zeile(s1, y, sp, ["Total","","","", tA, chf(tB), chf(tS), chf(tN)], fett, 10);
-    y -= 40;
 
     s1.drawText(`Erstellt am ${datumCH(new Date())}`,
                 { x:RAND, y:RAND-12, size:8, font, color:grau });
@@ -111,9 +179,7 @@ const SpesenExport = (function () {
     s2.drawText("Belegliste", { x:RAND, y:z, size:16, font:fett, color:blau });
     z -= 26;
 
-    const spL = [
-      { w:34 }, { w:72 }, { w:58 }, { w:110 }, { w:58 }, { w:44 }, { w:80, re:true }
-    ];
+    const spL = [{ w:34 }, { w:72 }, { w:58 }, { w:110 }, { w:58 }, { w:44 }, { w:80, re:true }];
     zeile(s2, z, spL, ["Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt","Betrag"], fett, 9, grau);
     z -= 6;
     s2.drawLine({ start:{x:RAND,y:z}, end:{x:BREITE-RAND,y:z}, thickness:1, color:linie });
@@ -130,73 +196,81 @@ const SpesenExport = (function () {
 
     // ===== Die Belege selbst =====
     const mitDatei = nummeriert.filter(b => b.datei_pfad);
-    let urlVon = {};
+    const urlVon = {};
     if (mitDatei.length) {
       const { data } = await sb.storage.from("belege")
         .createSignedUrls(mitDatei.map(b => b.datei_pfad), 900);
       (data || []).forEach(e => { if (e.signedUrl) urlVon[e.path] = e.signedUrl; });
     }
 
+    // Ein gerendertes Bild als eigene Seite einsetzen
+    async function bildSeite(bytes, istPng, b, nurErsteMitKopf, seitenNr) {
+      const p = doc.addPage([BREITE, HOEHE]);
+      if (seitenNr === 0) {
+        p.drawText(beschriftung(b), { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
+      } else {
+        p.drawText(`Beleg ${b.nr} · Seite ${seitenNr+1}`,
+                   { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
+      }
+      const bild = istPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+      const maxB = BREITE - 2*RAND, maxH = HOEHE - 2*RAND - 24;
+      const f = Math.min(maxB / bild.width, maxH / bild.height);
+      const w = bild.width * f, h = bild.height * f;
+      p.drawImage(bild, { x:(BREITE-w)/2, y:(HOEHE-24-h)/2, width:w, height:h });
+    }
+
     let i = 0;
     for (const b of nummeriert) {
       i++;
       if (fortschritt) fortschritt(i, nummeriert.length);
-      const url = urlVon[b.datei_pfad];
-      const beschriftung =
-        `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
-        `Auftrag ${b.auftrag_nr} · MwSt ${b.mwst} % · CHF ${chf(b.betrag)}`;
 
-      if (!url) {
-        const p = doc.addPage([BREITE, HOEHE]);
-        p.drawText(beschriftung, { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
-        p.drawText("Belegdatei nicht verfügbar.",
-                   { x:RAND, y:HOEHE/2, size:12, font, color:grau });
-        continue;
-      }
+      if (!b.datei_pfad) { ersatzSeite(b, "Kein Beleg hinterlegt"); continue; }
+
+      const url = urlVon[b.datei_pfad];
+      if (!url) { ersatzSeite(b, "Belegdatei nicht gefunden"); continue; }
 
       let puffer;
       try { puffer = await (await fetch(url)).arrayBuffer(); }
-      catch {
-        const p = doc.addPage([BREITE, HOEHE]);
-        p.drawText(beschriftung, { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
-        p.drawText("Belegdatei konnte nicht geladen werden.",
-                   { x:RAND, y:HOEHE/2, size:12, font, color:grau });
-        continue;
-      }
+      catch { ersatzSeite(b, "Belegdatei konnte nicht geladen werden"); continue; }
 
       const endung = (b.datei_pfad.split(".").pop() || "").toLowerCase();
 
       try {
         if (endung === "pdf") {
           const quelle = await PDFDocument.load(puffer, { ignoreEncryption:true });
-          const seiten = await doc.copyPages(quelle, quelle.getPageIndices());
-          seiten.forEach((seite, nr) => {
-            doc.addPage(seite);
-            if (nr === 0) {
-              const { width, height } = seite.getSize();
-              const t = `Beleg ${b.nr}`;
-              const br = fett.widthOfTextAtSize(t, 9);
-              seite.drawRectangle({ x:width-br-18, y:height-22, width:br+10, height:16,
-                                    color:rgb(1,1,1), opacity:0.85 });
-              seite.drawText(t, { x:width-br-13, y:height-18, size:9, font:fett, color:blau });
-            }
-          });
+
+          if (quelle.isEncrypted) {
+            // Geschütztes PDF: Seiten rendern und als Bild einsetzen
+            const bilder = await seitenAlsBilder(puffer, 2);
+            for (let s = 0; s < bilder.length; s++) await bildSeite(bilder[s], false, b, true, s);
+          } else {
+            const seiten = await doc.copyPages(quelle, quelle.getPageIndices());
+            seiten.forEach((seite, nr) => {
+              doc.addPage(seite);
+              if (nr === 0) {
+                const { width, height } = seite.getSize();
+                const t = `Beleg ${b.nr}`;
+                const br = fett.widthOfTextAtSize(t, 9);
+                seite.drawRectangle({ x:width-br-18, y:height-22, width:br+10, height:16,
+                                      color:rgb(1,1,1), opacity:0.85 });
+                seite.drawText(t, { x:width-br-13, y:height-18, size:9, font:fett, color:blau });
+              }
+            });
+          }
         } else {
-          const p = doc.addPage([BREITE, HOEHE]);
-          p.drawText(beschriftung, { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
-          const bild = (endung === "png")
-            ? await doc.embedPng(puffer)
-            : await doc.embedJpg(puffer);
-          const maxB = BREITE - 2*RAND, maxH = HOEHE - 2*RAND - 24;
-          const f = Math.min(maxB / bild.width, maxH / bild.height);
-          const w = bild.width * f, h = bild.height * f;
-          p.drawImage(bild, { x:(BREITE-w)/2, y:(HOEHE-24-h)/2, width:w, height:h });
+          await bildSeite(new Uint8Array(puffer), endung === "png", b, true, 0);
         }
-      } catch {
-        const p = doc.addPage([BREITE, HOEHE]);
-        p.drawText(beschriftung, { x:RAND, y:HOEHE-RAND, size:9, font, color:grau });
-        p.drawText("Dieses Dateiformat konnte nicht eingebettet werden.",
-                   { x:RAND, y:HOEHE/2, size:12, font, color:grau });
+      } catch (fehler) {
+        // Letzter Versuch: notfalls als Bild rendern
+        let geschafft = false;
+        if (endung === "pdf") {
+          try {
+            const bilder = await seitenAlsBilder(puffer, 2);
+            for (let s = 0; s < bilder.length; s++) await bildSeite(bilder[s], false, b, true, s);
+            geschafft = true;
+          } catch { /* unten abfangen */ }
+        }
+        if (!geschafft) ersatzSeite(b, "Beleg konnte nicht eingebettet werden");
       }
     }
 
@@ -223,12 +297,11 @@ const SpesenExport = (function () {
       chf(gruppen.reduce((t,g)=>t+g.netto,0)));
     r("");
     r("EINZELNE BELEGE");
-    r("Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt-Satz","Betrag","Gerät");
+    r("Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt-Satz","Betrag","Beleg","Gerät");
     belege.forEach((b, i) => r(i+1, datumCH(b.beleg_datum), b.konto_nummer,
                                b.bezeichnung || "", b.auftrag_nr, b.mwst,
-                               chf(b.betrag), b.geraet));
+                               chf(b.betrag), b.datei_pfad ? "ja" : "fehlt", b.geraet));
 
-    // BOM voran, damit Excel die Umlaute richtig anzeigt
     speichern(new Blob(["\uFEFF" + z.join("\r\n")],
               { type:"text/csv;charset=utf-8" }), `Spesen_${monat}.csv`);
   }
