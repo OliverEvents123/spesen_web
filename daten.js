@@ -1,6 +1,7 @@
 // daten.js
 // Verbindung zu Supabase, der Zustand der App und alle Datenzugriffe.
-// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung, Favoriten, Benutzer.
+// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung,
+// Favoriten, Benutzer, Konten, Zeitraum.
 
 const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
 const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
@@ -15,6 +16,10 @@ const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
 const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
 const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
+const SAETZE = ["8.1","2.6","3.8","0"];
+
+// Die Abrechnungsperiode läuft vom 16. bis zum 15. des Folgemonats.
+const PERIODE_START = 16;
 
 const istBreit = () => window.matchMedia(`(min-width:${BREIT_AB}px)`).matches;
 
@@ -27,6 +32,9 @@ const STERN = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strok
 const HOCH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B9AB4"
   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <path d="M12 16V5"></path><path d="M7 10l5-5 5 5"></path><path d="M5 19h14"></path></svg>`;
+const PLUS = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#215aa8"
+  stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+  <path d="M12 5v14"></path><path d="M5 12h14"></path></svg>`;
 
 // ---------- Kleine Helfer ----------
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g,
@@ -49,6 +57,32 @@ const betragVon = (text) => {
   return isFinite(z) && z > 0 ? Math.round(z * 100) / 100 : 0;
 };
 
+// ---------- Zeitraum ----------
+// Ortszeit, nicht UTC — sonst rutscht das Datum je nach Stunde um einen Tag.
+const isoDatum = (d) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+const kurzDatum = (iso) => iso.slice(8,10) + "." + iso.slice(5,7) + ".";
+const langDatum = (iso) => iso.slice(8,10) + "." + iso.slice(5,7) + "." + iso.slice(0,4);
+
+// versatz 0 = laufende Periode, -1 = die davor
+function periode(versatz) {
+  const h = new Date();
+  let m = h.getMonth();
+  if (h.getDate() < PERIODE_START) m -= 1;   // vor dem 16. läuft noch die Vorperiode
+  m += (versatz || 0);
+  const von = new Date(h.getFullYear(), m, PERIODE_START);
+  const bis = new Date(h.getFullYear(), m + 1, PERIODE_START - 1);
+  return { von: isoDatum(von), bis: isoDatum(bis) };
+}
+
+function kalendermonat(versatz) {
+  const h = new Date();
+  const m = h.getMonth() + (versatz || 0);
+  return { von: isoDatum(new Date(h.getFullYear(), m, 1)),
+           bis: isoDatum(new Date(h.getFullYear(), m + 1, 0)) };
+}
+
 function istNetzfehler(err) {
   if (!navigator.onLine) return true;
   const t = String((err && (err.message || err.error_description)) || err || "").toLowerCase();
@@ -58,29 +92,58 @@ function istNetzfehler(err) {
 }
 
 // ---------- Zustand ----------
+const START = periode(0);
+
 let S = {
   session:null, istAdmin:false, konten:[], auftraege:[], belege:[], favoriten:[],
-  benutzer:[], benEdit:null,
-  monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null,
+  benutzer:[], benEdit:null, kontEdit:null,
+  monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null, posIndex:null,
   suche:"", meldung:null, zurueckZu:"liste",
-  uMonat: heute().slice(0,7), uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
+  uVon: START.von, uBis: START.bis, uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
 };
 
 const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", betragText:"",
+                             positionen:null,
                              datum: heute(), zahlart:"karte", datei:null, vorschau:null,
                              altPfad:null, altUrl:null });
 
+const leerePosition = (vorlage) => ({
+  betragText: "", mwst: (vorlage && vorlage.mwst) || "8.1",
+  konto: (vorlage && vorlage.konto) || null,
+  auftrag: (vorlage && vorlage.auftrag) || null
+});
+
 const leererFavorit = () => ({ id:null, name:"", konto:null, auftrag:null });
+
+const leeresKonto = () => {
+  const hoechste = S.konten.reduce((m,k) => Math.max(m, k.sortierung || 0), 0);
+  return { neu:true, nummer:"", bezeichnung:"", mwst:"8.1",
+           sortierung: String(hoechste + 10), aktiv:true };
+};
 
 const kontoName = (nr) => {
   const k = S.konten.find(x => x.nummer === nr);
   return k ? k.bezeichnung : "";
 };
 
+// In der Auswahl stehen nur aktive Konten; die Admin-Liste zeigt alle.
+const aktiveKonten = () => S.konten.filter(k => k.aktiv !== false);
+
+// Die Zeilen eines Belegs: entweder seine Positionen oder er selbst als eine.
+const belegZeilen = (b) =>
+  (Array.isArray(b.positionen) && b.positionen.length)
+    ? b.positionen
+    : [{ betrag:b.betrag, mwst:b.mwst,
+         konto_nummer:b.konto_nummer, auftrag_nr:b.auftrag_nr }];
+
+const istAufgeteilt = (b) => Array.isArray(b.positionen) && b.positionen.length > 1;
+
 // ---------- Laden ----------
+const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv";
+
 async function ladeAlles() {
   const [k, b, f, adm] = await Promise.all([
-    sb.from("spesen_konto").select("nummer,bezeichnung,mwst").eq("aktiv",true).order("sortierung"),
+    sb.from("spesen_konto").select(KONTO_SPALTEN).order("sortierung").order("nummer"),
     sb.from("spesen_beleg").select("*").eq("monat", S.monat).eq("geraet", S.session.user.email)
       .order("beleg_datum",{ascending:false}).order("id",{ascending:false}),
     sb.from("spesen_favorit").select("*").order("sortierung").order("id"),
@@ -107,13 +170,42 @@ async function ladeFavoriten() {
   S.favoriten = data || [];
 }
 
+async function ladeKonten() {
+  const { data } = await sb.from("spesen_konto")
+    .select(KONTO_SPALTEN).order("sortierung").order("nummer");
+  S.konten = data || [];
+}
+
+// Zählt mit, welche Abfrage die neueste ist. Stellt man den Zeitraum schnell
+// zweimal um, darf die langsamere erste Antwort die zweite nicht überschreiben.
+let uLauf = 0;
+
 async function ladeUebersicht(stumm) {
+  const lauf = ++uLauf;
   if (!stumm) { S.uLaedt = true; render(); }
-  const { data } = await sb.from("spesen_beleg").select("*").eq("monat", S.uMonat)
+
+  const { data } = await sb.from("spesen_beleg").select("*")
+    .gte("beleg_datum", S.uVon).lte("beleg_datum", S.uBis)
     .order("beleg_datum",{ascending:true}).order("id",{ascending:true});
+
+  if (lauf !== uLauf) return;   // eine neuere Abfrage ist schon unterwegs
   S.uBelege = data || [];
   S.uLaedt  = false;
   render();
+}
+
+// ---------- Konten verwalten (nur Admin) ----------
+async function kontoSpeichern(k) {
+  const daten = {
+    bezeichnung: String(k.bezeichnung || "").trim(),
+    mwst:        parseFloat(k.mwst),
+    sortierung:  parseInt(k.sortierung, 10) || 0,
+    aktiv:       !!k.aktiv
+  };
+  if (k.neu) {
+    return sb.from("spesen_konto").insert({ ...daten, nummer: String(k.nummer).trim() });
+  }
+  return sb.from("spesen_konto").update(daten).eq("nummer", k.nummer);
 }
 
 // ---------- Favoriten ----------
@@ -162,24 +254,27 @@ function favAnwenden(id) {
 // ---------- Auswertung ----------
 // MwSt wird auf der Gruppensumme gerechnet, nicht je Beleg — sonst
 // entstehen durch das Runden Rappendifferenzen.
+// Ein aufgeteilter Beleg liefert je Position eine Zeile.
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
-    const s = `${b.konto_nummer}|${b.auftrag_nr}|${b.mwst}|${b.zahlart || "karte"}`;
-    if (!m.has(s)) m.set(s, { konto:b.konto_nummer, bezeichnung:kontoName(b.konto_nummer),
-                              auftrag:b.auftrag_nr, satz:Number(b.mwst),
-                              zahlart:(b.zahlart || "karte"), anzahl:0, brutto:0 });
-    const g = m.get(s);
-    g.anzahl += 1;
-    g.brutto += parseFloat(b.betrag);
+    for (const p of belegZeilen(b)) {
+      const s = `${p.konto_nummer}|${p.auftrag_nr}|${p.mwst}|${b.zahlart || "karte"}`;
+      if (!m.has(s)) m.set(s, { konto:p.konto_nummer, bezeichnung:kontoName(p.konto_nummer),
+                                auftrag:p.auftrag_nr, satz:Number(p.mwst),
+                                zahlart:(b.zahlart || "karte"), anzahl:0, brutto:0 });
+      const g = m.get(s);
+      g.anzahl += 1;
+      g.brutto += parseFloat(p.betrag);
+    }
   }
   const liste = [...m.values()].map(g => {
     const netto = g.brutto / (1 + g.satz / 100);
     return { ...g, netto: Math.round(netto*100)/100,
              steuer: Math.round((g.brutto - netto)*100)/100 };
   });
-  liste.sort((a,b) => a.konto.localeCompare(b.konto,"de",{numeric:true})
-                   || a.auftrag.localeCompare(b.auftrag,"de",{numeric:true})
+  liste.sort((a,b) => String(a.konto).localeCompare(String(b.konto),"de",{numeric:true})
+                   || String(a.auftrag).localeCompare(String(b.auftrag),"de",{numeric:true})
                    || b.satz - a.satz);
   return liste;
 }
@@ -188,14 +283,16 @@ const uGefiltert = () => S.uBelege.filter(b =>
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart));
 
+const uZeitraumText = () => `${langDatum(S.uVon)} – ${langDatum(S.uBis)}`;
+
 const uTitel = () => [
-  monatName(S.uMonat),
+  uZeitraumText(),
   S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email),
   S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
 ].join(" · ");
 
 const uDateiname = () =>
-  `Spesen_${S.uMonat}` +
+  `Spesen_${S.uVon}_bis_${S.uBis}` +
   (S.uZahlart ? "_" + S.uZahlart : "") +
   (S.uGeraet ? "_" + kurzName(S.uGeraet) : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
@@ -241,6 +338,14 @@ async function belegOeffnen(pfad) {
 }
 
 // ---------- Beleg zum Bearbeiten öffnen ----------
+function kontoObjekt(nr) {
+  return S.konten.find(x => x.nummer === nr)
+         || { nummer:nr, bezeichnung:kontoName(nr) };
+}
+function auftragObjekt(id) {
+  return S.auftraege.find(x => x.id === id) || { id, name:"" };
+}
+
 async function belegBearbeiten(id, woher) {
   const quelle = woher === "liste" ? S.belege : S.uBelege;
   const b = (quelle.find(x => String(x.id) === String(id)))
@@ -248,37 +353,53 @@ async function belegBearbeiten(id, woher) {
             || S.uBelege.find(x => String(x.id) === String(id));
   if (!b) return;
 
-  const k = S.konten.find(x => x.nummer === b.konto_nummer)
-            || { nummer:b.konto_nummer, bezeichnung:kontoName(b.konto_nummer) };
-  const a = S.auftraege.find(x => x.id === b.auftrag_nr) || { id:b.auftrag_nr, name:"" };
-
   let url = null;
   if (b.datei_pfad && !b.datei_pfad.toLowerCase().endsWith(".pdf")) {
     const { data } = await sb.storage.from("belege").createSignedUrl(b.datei_pfad, 600);
     url = data ? data.signedUrl : null;
   }
 
+  const aufgeteilt = Array.isArray(b.positionen) && b.positionen.length > 1;
+
   S.neu = {
-    id: b.id, konto:k, auftrag:a, mwst:String(b.mwst),
+    id: b.id,
+    konto:   kontoObjekt(b.konto_nummer),
+    auftrag: auftragObjekt(b.auftrag_nr),
+    mwst: String(b.mwst),
     betragText: chf(b.betrag),
+    positionen: aufgeteilt ? b.positionen.map(p => ({
+      betragText: chf(p.betrag),
+      mwst: String(p.mwst),
+      konto: kontoObjekt(p.konto_nummer),
+      auftrag: auftragObjekt(p.auftrag_nr)
+    })) : null,
     datum: b.beleg_datum, zahlart: b.zahlart || "karte",
     datei:null, vorschau:null, altPfad: b.datei_pfad, altUrl: url
   };
+  S.posIndex  = null;
   S.zurueckZu = woher;
-  S.ansicht = "erfassen";
+  S.ansicht   = "erfassen";
   render();
 }
+
+// Summe der Positionen — das ist der Belegbetrag, wenn aufgeteilt wird.
+const positionenSumme = (pos) =>
+  (pos || []).reduce((t,p) => t + betragVon(p.betragText), 0);
+
+const positionenFertig = (pos) =>
+  Array.isArray(pos) && pos.length > 0 &&
+  pos.every(p => betragVon(p.betragText) > 0 && p.konto && p.auftrag);
 
 // ---------- Nach dem Speichern zurück ----------
 async function zurueckNachSpeichern(text) {
   S.meldung = text;
   const woher = S.zurueckZu;
-  S.neu = null; S.zurueckZu = istBreit() ? "desktop" : "liste";
+  S.neu = null; S.posIndex = null; S.zurueckZu = istBreit() ? "desktop" : "liste";
   if (istBreit()) {
     S.ansicht = "liste";
     await ladeAlles(); await ladeUebersicht(true);
   } else if (woher === "uebersicht") {
-    S.ansicht = "uebersicht"; await ladeUebersicht();
+    S.ansicht = "uebersicht"; await ladeUebersicht(true);
   } else {
     S.ansicht = "liste"; await ladeAlles(); render();
   }
@@ -300,7 +421,7 @@ async function benutzerRuf(daten) {
 async function ladeBenutzer() {
   try {
     const j = await benutzerRuf({ aktion: "liste" });
-    S.benutzer = j.ok ? j.benutzer : [];
+    S.benutzer = j.ok ? (j.benutzer || []) : [];
     return j;
   } catch (e) {
     S.benutzer = [];
@@ -308,5 +429,5 @@ async function ladeBenutzer() {
   }
 }
 
-// Wie viele Belege hat ein Gerät im gewählten Monat?
+// Wie viele Belege hat ein Gerät im gewählten Zeitraum?
 const belegeVon = (mail) => S.uBelege.filter(b => b.geraet === mail).length;
