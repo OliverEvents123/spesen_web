@@ -18,6 +18,17 @@ const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
 const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
 const SAETZE = ["8.1","2.6","3.8","0"];
 
+// Fester Eintrag für Belege ohne Kostenstelle. Kommt nicht aus FileMaker und
+// steht in der Auswahl immer zuoberst. In der Datenbank landet die id "ohne" —
+// braucht DocuWare etwas anderes, nur hier die id ändern.
+const OHNE_KST = { id:"ohne KST", name:"ohne KST", fix:true };
+
+// Wie eine Auftragsnummer im Text erscheint
+const auftragAnzeige = (nr) => nr === OHNE_KST.id ? OHNE_KST.name : nr;
+const auftragText = (a) => !a ? "wählen"
+  : (a.id === OHNE_KST.id ? OHNE_KST.name
+     : a.id + (a.name ? "  " + a.name : ""));
+
 // Die Abrechnungsperiode läuft vom 16. bis zum 15. des Folgemonats.
 const PERIODE_START = 16;
 
@@ -243,8 +254,7 @@ function favAnwenden(id) {
   if (!f) return;
   const k = S.konten.find(x => x.nummer === f.konto_nummer)
             || { nummer:f.konto_nummer, bezeichnung:kontoName(f.konto_nummer) };
-  const a = S.auftraege.find(x => x.id === f.auftrag_nr)
-            || { id:f.auftrag_nr, name:f.auftrag_name || "" };
+  const a = auftragObjekt(f.auftrag_nr, f.auftrag_name);
   S.neu = { ...leererBeleg(), konto:k, auftrag:a, mwst:String(k.mwst ?? "8.1") };
   S.zurueckZu = istBreit() ? "desktop" : "liste";
   S.ansicht = "erfassen";
@@ -342,8 +352,9 @@ function kontoObjekt(nr) {
   return S.konten.find(x => x.nummer === nr)
          || { nummer:nr, bezeichnung:kontoName(nr) };
 }
-function auftragObjekt(id) {
-  return S.auftraege.find(x => x.id === id) || { id, name:"" };
+function auftragObjekt(id, ersatzName) {
+  if (id === OHNE_KST.id) return OHNE_KST;
+  return S.auftraege.find(x => x.id === id) || { id, name: ersatzName || "" };
 }
 
 async function belegBearbeiten(id, woher) {

@@ -179,7 +179,7 @@ function blockKontierung(gruppen) {
         ${gruppen.map(g => `<tr>
           <td class="gross">${esc(g.konto)}</td>
           <td>${esc(g.bezeichnung)}</td>
-          <td>${esc(g.auftrag)}</td>
+          <td>${esc(auftragAnzeige(g.auftrag))}</td>
           <td>${g.satz} %</td>
           <td>${esc(zahlartName(g.zahlart))}</td>
           <td class="re">${g.anzahl}</td>
@@ -213,7 +213,7 @@ function blockExport(anzahl) {
 function belegText(b) {
   if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen`;
   return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}`
-       + ` · ${esc(b.auftrag_nr)} · ${b.mwst} %`;
+       + ` · ${esc(auftragAnzeige(b.auftrag_nr))} · ${b.mwst} %`;
 }
 
 // Belegliste. woher steuert, wohin das Bearbeiten zurückkehrt.
@@ -414,8 +414,7 @@ function blockPosition(p, i, anzahl) {
     <button class="wahl ${p.auftrag ? "" : "offen"}" data-akt="auftragWahl" data-i="${i}">
       <span class="titel">Auftrag</span>
       <span class="wert" style="color:${p.auftrag ? "var(--dunkel)" : "var(--warn)"}">
-        ${p.auftrag ? esc(p.auftrag.id + (p.auftrag.name ? "  " + p.auftrag.name : ""))
-                    : "wählen"}</span>
+        ${esc(auftragText(p.auftrag))}</span>
       <span class="pfeil">›</span>
     </button>
   </div>`;
@@ -468,8 +467,7 @@ function renderErfassen() {
       <button class="wahl ${n.auftrag ? "" : "offen"}" data-akt="auftragWahl">
         <span class="titel">Auftrag</span>
         <span class="wert" style="color:${n.auftrag ? "var(--dunkel)" : "var(--warn)"}">
-          ${n.auftrag ? esc(n.auftrag.id + (n.auftrag.name ? "  " + n.auftrag.name : ""))
-                      : "wählen"}</span>
+          ${esc(auftragText(n.auftrag))}</span>
         <span class="pfeil">›</span>
       </button>
 
@@ -592,25 +590,33 @@ function zeichneTreffer() {
   const q = S.suche.trim().toLowerCase();
   const ziel = wahlZiel();
   const gewaehlt = ziel ? ziel.auftrag : null;
-  const liste = (q
-    ? S.auftraege.filter(a => a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q))
-    : S.auftraege).slice(0, 60);
+
+  const passt = (a) => !q || String(a.id).toLowerCase().includes(q)
+                          || String(a.name || "").toLowerCase().includes(q);
+
+  // "ohne KST" steht immer zuoberst — auch wenn FileMaker nichts geliefert hat.
+  const liste = [
+    ...(passt(OHNE_KST) ? [OHNE_KST] : []),
+    ...S.auftraege.filter(passt).slice(0, 60)
+  ];
+
   const feld = document.getElementById("treffer");
   if (!feld) return;
-  if (!S.auftraege.length) {
-    feld.innerHTML = `<div class="fehler">Die Auftragsnummern konnten nicht aus FileMaker
-      geladen werden. Seite neu laden oder später nochmal versuchen.</div>`;
-    return;
-  }
-  feld.innerHTML = liste.length === 0
+
+  const hinweis = S.auftraege.length ? "" :
+    `<div class="fehler">Die Auftragsnummern konnten nicht aus FileMaker geladen
+      werden. Seite neu laden oder später nochmal versuchen.</div>`;
+
+  feld.innerHTML = hinweis + (liste.length === 0
     ? `<div class="karte leer">Nichts gefunden.</div>`
     : liste.map(a => `
       <button class="eintrag ${gewaehlt && gewaehlt.id===a.id ? "an":""}"
               data-akt="auftragSet" data-id="${esc(a.id)}">
-        <span class="nr">${esc(a.id)}</span>
+        <span class="nr">${a.id === OHNE_KST.id ? "—" : esc(a.id)}</span>
         <span class="nm">${esc(a.name)}</span>
-        ${a.immer ? `<span class="marke">fix</span>` : ""}
-      </button>`).join("");
+        ${a.fix ? `<span class="marke">fest</span>`
+                : (a.immer ? `<span class="marke">fix</span>` : "")}
+      </button>`).join(""));
 }
 
 // ---------- Passwort ändern ----------
@@ -646,7 +652,7 @@ function renderFavoriten() {
             <div style="flex-grow:1;min-width:0;">
               <div style="font-size:16px;font-weight:700;">${esc(f.name)}</div>
               <div style="font-size:13px;color:var(--grau);">
-                Konto ${esc(f.konto_nummer)} · Auftrag ${esc(f.auftrag_nr)}</div>
+                Konto ${esc(f.konto_nummer)} · Auftrag ${esc(auftragAnzeige(f.auftrag_nr))}</div>
             </div>
             <button class="stift" data-akt="favBearbeiten" data-id="${f.id}"
                     aria-label="Favorit bearbeiten">${STIFT}</button>
@@ -683,8 +689,7 @@ function renderFavForm() {
       <button class="wahl ${f.auftrag ? "" : "offen"}" data-akt="auftragWahl">
         <span class="titel">Auftrag</span>
         <span class="wert" style="color:${f.auftrag ? "var(--dunkel)" : "var(--warn)"}">
-          ${f.auftrag ? esc(f.auftrag.id + (f.auftrag.name ? "  " + f.auftrag.name : ""))
-                      : "wählen"}</span>
+          ${esc(auftragText(f.auftrag))}</span>
         <span class="pfeil">›</span>
       </button>
 

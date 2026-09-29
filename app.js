@@ -280,8 +280,7 @@ app.addEventListener("click", async (e) => {
       id: f.id, name: f.name,
       konto: S.konten.find(x => x.nummer === f.konto_nummer)
              || { nummer:f.konto_nummer, bezeichnung:kontoName(f.konto_nummer) },
-      auftrag: S.auftraege.find(x => x.id === f.auftrag_nr)
-               || { id:f.auftrag_nr, name:f.auftrag_name || "" }
+      auftrag: auftragObjekt(f.auftrag_nr, f.auftrag_name)
     };
     S.ansicht = "favForm"; return render();
   }
@@ -419,7 +418,7 @@ app.addEventListener("click", async (e) => {
     S.ansicht = "erfassen"; return render();
   }
   if (a === "auftragSet") {
-    const auf = S.auftraege.find(x => x.id === el.dataset.id);
+    const auf = auftragObjekt(el.dataset.id);
     if (S.favEdit) { S.favEdit.auftrag = auf; S.ansicht = "favForm"; return render(); }
     if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
       S.neu.positionen[S.posIndex].auftrag = auf;
