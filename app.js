@@ -27,9 +27,7 @@ document.getElementById("datei").addEventListener("change", (e) => {
 });
 
 // ---------- Ziehen und Ablegen ----------
-// Überall erlaubt, solange jemand angemeldet ist. Die frühere Einschränkung
-// auf die Ansichten "erfassen" und "liste" war der Grund, warum das Ablegen
-// nach einem Klick auf die Übersicht nicht mehr ging.
+// Überall erlaubt, solange jemand angemeldet ist.
 const ziehenErlaubt = () => !!S.session;
 
 let ziehZaehler = 0;
@@ -59,6 +57,23 @@ document.addEventListener("drop", (e) => {
   dateiGewaehlt(f);
 });
 
+// ---------- Speicherknopf nachziehen ----------
+// Wird beim Tippen gerufen, damit das Feld den Fokus nicht verliert.
+function knopfStand() {
+  const n = S.neu;
+  if (!n) return;
+  const knopf = app.querySelector('[data-akt="speichern"]');
+  if (!knopf) return;
+  const geteilt  = Array.isArray(n.positionen);
+  const hatBeleg = !!(n.datei || n.altPfad);
+  const fertig = hatBeleg && (geteilt
+    ? positionenFertig(n.positionen)
+    : (betragVon(n.betragText) > 0 && n.konto && n.auftrag));
+  knopf.disabled = !fertig;
+  knopf.textContent = fertig ? (n.id ? "Änderungen speichern" : "Speichern")
+                             : "Beleg, Konto, Auftrag und Betrag nötig";
+}
+
 // ---------- Klicks ----------
 app.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-akt]");
@@ -72,33 +87,28 @@ app.addEventListener("click", async (e) => {
   }
   if (a === "tabListe")      { S.favEdit = null; S.ansicht = "liste"; return render(); }
   if (a === "tabUebersicht") { S.favEdit = null; S.ansicht = "uebersicht"; return ladeUebersicht(true); }
-  if (a === "neu")           { S.neu = leererBeleg();
+  if (a === "neu")           { S.neu = leererBeleg(); S.posIndex = null;
                                S.zurueckZu = istBreit() ? "desktop" : "liste";
                                S.ansicht = "erfassen"; return render(); }
   if (a === "bearbeiten")    { return belegBearbeiten(el.dataset.id, el.dataset.w); }
 
-  // ---------- Benutzerverwaltung (nur Admin) ----------
+  // ---------- Zeitraum ----------
+  if (a === "zeitraum") {
+    const v = el.dataset.v;
+    const z = v === "p0" ? periode(0) : v === "pm1" ? periode(-1) : kalendermonat(0);
+    S.uVon = z.von; S.uBis = z.bis; S.uGeraet = "";
+    return ladeUebersicht(true);
+  }
+
+  // ---------- Admin: Benutzer ----------
   if (a === "tabBenutzer") {
-    S.ansicht = "benutzer";
+    S.ansicht = "benutzer"; S.kontEdit = null;
     S.benEdit = istBreit() ? { neu:true, email:"", name:"", rolle:"user", gesperrt:false } : null;
     render();
 
     const j = await ladeBenutzer();
-
-    // Schickt die Funktion die Liste unter einem anderen Namen mit,
-    // hier noch einmal nachfassen, damit die Tabelle nicht leer bleibt.
-    if (j && (!S.benutzer || !S.benutzer.length)) {
-      const liste = Array.isArray(j) ? j
-                  : (j.benutzer || j.liste || j.daten || j.users || null);
-      if (Array.isArray(liste)) S.benutzer = liste;
-    }
-
     if (!j || j.ok === false) {
       alert("Benutzer konnten nicht geladen werden:\n" + ((j && j.fehler) || ""));
-    } else if (!S.benutzer || !S.benutzer.length) {
-      // Vorübergehend: zeigt, was die Funktion tatsächlich geantwortet hat.
-      alert("Die Funktion hat geantwortet, aber keine Benutzer geliefert.\n\n"
-            + "Antwort zur Fehlersuche:\n" + JSON.stringify(j).slice(0, 400));
     }
     return render();
   }
@@ -182,6 +192,64 @@ app.addEventListener("click", async (e) => {
     await ladeBenutzer(); return render();
   }
 
+  // ---------- Admin: Konten ----------
+  if (a === "tabKonten") {
+    S.ansicht = "konten"; S.benEdit = null; S.kontEdit = null;
+    render();
+    await ladeKonten();
+    if (istBreit()) S.kontEdit = leeresKonto();
+    return render();
+  }
+
+  if (a === "kontoNeu") {
+    S.kontEdit = leeresKonto();
+    if (!istBreit()) S.ansicht = "kontoForm";
+    return render();
+  }
+
+  if (a === "kontoBearbeiten") {
+    const k = S.konten.find(x => x.nummer === el.dataset.nr);
+    if (!k) return;
+    S.kontEdit = { neu:false, nummer:k.nummer, bezeichnung:k.bezeichnung || "",
+                   mwst:String(k.mwst), sortierung:String(k.sortierung ?? ""),
+                   aktiv: k.aktiv !== false };
+    if (!istBreit()) S.ansicht = "kontoForm";
+    return render();
+  }
+
+  if (a === "kontoMwst") { S.kontEdit.mwst = el.dataset.v; return render(); }
+
+  if (a === "kontoSichern") {
+    const k = S.kontEdit;
+    const nummer = String(k.nummer || "").trim();
+
+    if (k.neu) {
+      if (!nummer) { alert("Bitte eine Kontonummer eingeben."); return; }
+      if (S.konten.some(x => String(x.nummer) === nummer)) {
+        alert("Diese Kontonummer gibt es schon."); return;
+      }
+    }
+    if (!String(k.bezeichnung || "").trim()) {
+      alert("Bitte eine Bezeichnung eingeben."); return;
+    }
+
+    const urspruenglich = el.textContent;
+    el.disabled = true; el.textContent = "Speichere …";
+    const { error } = await kontoSpeichern({ ...k, nummer });
+    if (error) {
+      el.disabled = false; el.textContent = urspruenglich;
+      alert(istNetzfehler(error) ? NETZTEXT
+            : "Konnte nicht gespeichert werden:\n" + error.message);
+      return;
+    }
+
+    await ladeKonten();
+    S.meldung  = k.neu ? "Konto angelegt." : "Konto gespeichert.";
+    S.kontEdit = istBreit() ? leeresKonto() : null;
+    S.ansicht  = "konten";
+    return render();
+  }
+
   // ---------- Eigenes Passwort ----------
   if (a === "zuPasswort") { S.ansicht = "passwort"; return render(); }
 
@@ -260,10 +328,52 @@ app.addEventListener("click", async (e) => {
     return;
   }
 
+  // ---------- Beleg aufteilen ----------
+  if (a === "aufteilen") {
+    const n = S.neu;
+    n.positionen = [
+      { betragText: n.betragText || "", mwst: n.mwst, konto: n.konto, auftrag: n.auftrag },
+      leerePosition({ konto: n.konto, auftrag: n.auftrag })
+    ];
+    S.posIndex = null;
+    return render();
+  }
+
+  if (a === "posNeu") {
+    const n = S.neu;
+    const vor = n.positionen[n.positionen.length - 1];
+    n.positionen.push(leerePosition({ konto: vor.konto, auftrag: vor.auftrag }));
+    return render();
+  }
+
+  if (a === "posWeg") {
+    const n = S.neu;
+    n.positionen.splice(Number(el.dataset.i), 1);
+    // Unter zwei Positionen ist die Aufteilung sinnlos — zurück zum einfachen Beleg.
+    if (n.positionen.length < 2) {
+      const p = n.positionen[0];
+      if (p) { n.betragText = p.betragText; n.mwst = p.mwst;
+               n.konto = p.konto; n.auftrag = p.auftrag; }
+      n.positionen = null;
+    }
+    S.posIndex = null;
+    return render();
+  }
+
+  if (a === "aufteilenWeg") {
+    const n = S.neu;
+    const p = n.positionen && n.positionen[0];
+    if (p) { n.betragText = p.betragText; n.mwst = p.mwst;
+             n.konto = p.konto; n.auftrag = p.auftrag; }
+    n.positionen = null;
+    S.posIndex = null;
+    return render();
+  }
+
   // ---------- Zurück ----------
   if (a === "zurueck") {
     if (S.ansicht === "erfassen") {
-      const woher = S.zurueckZu; S.neu = null;
+      const woher = S.zurueckZu; S.neu = null; S.posIndex = null;
       S.ansicht = (woher === "uebersicht" && !istBreit()) ? "uebersicht" : "liste";
       return render();
     }
@@ -271,23 +381,39 @@ app.addEventListener("click", async (e) => {
     if (S.ansicht === "favoriten") { S.ansicht = "liste"; return render(); }
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
     if (S.ansicht === "benForm")   { S.benEdit = null; S.ansicht = "benutzer"; return render(); }
+    if (S.ansicht === "kontoForm") { S.kontEdit = null; S.ansicht = "konten"; return render(); }
+    if (S.ansicht === "benutzer" || S.ansicht === "konten") {
+      S.benEdit = null; S.kontEdit = null; S.ansicht = "liste"; return render();
+    }
+    // bleibt: die Auswahlbildschirme für Konto und Auftrag
+    S.posIndex = null;
     S.ansicht = S.favEdit ? "favForm" : "erfassen"; return render();
   }
 
-  if (a === "kontoWahl")   { S.ansicht = "kontoWahl"; return render(); }
-  if (a === "auftragWahl") { S.suche = ""; S.ansicht = "auftragWahl"; return render(); }
-  if (a === "foto")        { document.getElementById("kamera").click(); return; }
-  if (a === "waehlen")     { document.getElementById("datei").click(); return; }
-  if (a === "belegAuf")    { return belegOeffnen(el.dataset.p); }
+  if (a === "kontoWahl") {
+    S.posIndex = (el.dataset.i != null) ? Number(el.dataset.i) : null;
+    S.ansicht = "kontoWahl"; return render();
+  }
+  if (a === "auftragWahl") {
+    S.posIndex = (el.dataset.i != null) ? Number(el.dataset.i) : null;
+    S.suche = ""; S.ansicht = "auftragWahl"; return render();
+  }
+  if (a === "foto")     { document.getElementById("kamera").click(); return; }
+  if (a === "waehlen")  { document.getElementById("datei").click(); return; }
+  if (a === "belegAuf") { return belegOeffnen(el.dataset.p); }
   if (a === "belegNeu") {
     S.neu.datei = null; S.neu.vorschau = null; S.neu.altPfad = null; S.neu.altUrl = null;
     return render();
   }
 
-  // Auswahl trifft entweder den Favoriten oder den Beleg
+  // Auswahl trifft den Favoriten, eine Position oder den ganzen Beleg
   if (a === "kontoSet") {
     const k = S.konten.find(x => x.nummer === el.dataset.nr);
     if (S.favEdit) { S.favEdit.konto = k; S.ansicht = "favForm"; return render(); }
+    if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
+      S.neu.positionen[S.posIndex].konto = k;
+      S.posIndex = null; S.ansicht = "erfassen"; return render();
+    }
     S.neu.konto = k;
     if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
     S.ansicht = "erfassen"; return render();
@@ -295,6 +421,10 @@ app.addEventListener("click", async (e) => {
   if (a === "auftragSet") {
     const auf = S.auftraege.find(x => x.id === el.dataset.id);
     if (S.favEdit) { S.favEdit.auftrag = auf; S.ansicht = "favForm"; return render(); }
+    if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
+      S.neu.positionen[S.posIndex].auftrag = auf;
+      S.posIndex = null; S.ansicht = "erfassen"; return render();
+    }
     S.neu.auftrag = auf;
     S.ansicht = "erfassen"; return render();
   }
@@ -304,7 +434,8 @@ app.addEventListener("click", async (e) => {
   // ---------- Export ----------
   if (a === "expCsv") {
     const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer) }));
-    SpesenExport.csv({ belege, gruppen: gruppiere(belege), monat: S.uMonat,
+    SpesenExport.csv({ belege, gruppen: gruppiere(belege),
+                       monat: S.uVon.slice(0,7), von: S.uVon, bis: S.uBis,
                        titel: uTitel(), dateiname: uDateiname().replace(".pdf", ".csv") });
     return;
   }
@@ -314,7 +445,8 @@ app.addEventListener("click", async (e) => {
     el.disabled = true;
     try {
       await SpesenExport.pdf({
-        sb, belege, gruppen: gruppiere(belege), monat: S.uMonat, titel: uTitel(),
+        sb, belege, gruppen: gruppiere(belege),
+        monat: S.uVon.slice(0,7), von: S.uVon, bis: S.uBis, titel: uTitel(),
         dateiname: uDateiname(),
         fortschritt: (i, n) => { el.textContent = `Beleg ${i} von ${n} …`; }
       });
@@ -344,7 +476,23 @@ app.addEventListener("click", async (e) => {
 
   // ---------- Beleg speichern ----------
   if (a === "speichern") {
-    const n = S.neu, betrag = betragVon(n.betragText);
+    const n = S.neu;
+    const geteilt = Array.isArray(n.positionen);
+
+    // Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
+    // die erste Position steht zusätzlich oben, damit alte Auswertungen
+    // und die Belegliste weiter funktionieren.
+    const positionen = geteilt ? n.positionen.map(p => ({
+      betrag:       betragVon(p.betragText),
+      mwst:         parseFloat(p.mwst),
+      konto_nummer: p.konto.nummer,
+      auftrag_nr:   p.auftrag.id
+    })) : null;
+
+    const betrag = geteilt
+      ? Math.round(positionen.reduce((t,p) => t + p.betrag, 0) * 100) / 100
+      : betragVon(n.betragText);
+
     const urspruenglich = el.textContent;
     el.disabled = true;
 
@@ -370,9 +518,10 @@ app.addEventListener("click", async (e) => {
     const daten = {
       beleg_datum:  n.datum,
       betrag:       betrag,
-      mwst:         parseFloat(n.mwst),
-      konto_nummer: n.konto.nummer,
-      auftrag_nr:   n.auftrag.id,
+      mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
+      konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
+      auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : n.auftrag.id,
+      positionen:   positionen,
       zahlart:      n.zahlart,
       datei_pfad:   pfad,
       monat:        n.datum.slice(0, 7)
@@ -406,31 +555,62 @@ app.addEventListener("click", async (e) => {
 // ---------- Feldänderungen ----------
 app.addEventListener("change", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
-  if (f === "datum")    { S.neu.datum   = e.target.value; }
-  if (f === "zahlart")  { S.neu.zahlart = e.target.value; }
-  // Mit true wird erst gezeichnet, wenn die Daten da sind. Ohne das Argument
-  // wurde das Monatsfeld mitten im Laden neu gebaut und die Auswahl ging verloren.
-  if (f === "umonat")   { S.uMonat = e.target.value; S.uGeraet = ""; ladeUebersicht(true); }
-  if (f === "ugeraet")  { S.uGeraet = e.target.value; render(); }
-  if (f === "uzahlart") { S.uZahlart = e.target.value; render(); }
+  if (!f) return;
+
+  if (f === "datum")   { S.neu.datum   = e.target.value; return; }
+  if (f === "zahlart") { S.neu.zahlart = e.target.value; return; }
+
+  // MwSt einer Position — kein Neuzeichnen nötig, das Feld zeigt den Wert schon
+  if (f === "posmwst" && S.neu && Array.isArray(S.neu.positionen)) {
+    S.neu.positionen[Number(e.target.dataset.i)].mwst = e.target.value;
+    return;
+  }
+
+  if (f === "kaktiv" && S.kontEdit) { S.kontEdit.aktiv = e.target.checked; return; }
+
+  // Zeitraum. Mit true wird erst gezeichnet, wenn die Daten da sind —
+  // sonst wird das Datumsfeld mitten im Laden neu gebaut.
+  if (f === "uvon") {
+    if (!e.target.value) return;
+    S.uVon = e.target.value;
+    if (S.uBis < S.uVon) S.uBis = S.uVon;
+    S.uGeraet = ""; ladeUebersicht(true); return;
+  }
+  if (f === "ubis") {
+    if (!e.target.value) return;
+    S.uBis = e.target.value;
+    if (S.uBis < S.uVon) S.uVon = S.uBis;
+    S.uGeraet = ""; ladeUebersicht(true); return;
+  }
+
+  if (f === "ugeraet")  { S.uGeraet  = e.target.value; render(); return; }
+  if (f === "uzahlart") { S.uZahlart = e.target.value; render(); return; }
 });
 
-// Betrag und Favoritenname schon beim Tippen übernehmen,
-// ohne neu zu zeichnen — sonst verliert das Feld den Fokus.
+// Beim Tippen übernehmen, ohne neu zu zeichnen — sonst verliert das Feld den Fokus.
 app.addEventListener("input", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
+  if (!f) return;
+
   if (f === "betrag" && S.neu) {
     S.neu.betragText = e.target.value;
-    const knopf = app.querySelector('[data-akt="speichern"]');
-    if (knopf) {
-      const fertig = betragVon(S.neu.betragText) > 0 && S.neu.konto
-                     && S.neu.auftrag && (S.neu.datei || S.neu.altPfad);
-      knopf.disabled = !fertig;
-      knopf.textContent = fertig ? (S.neu.id ? "Änderungen speichern" : "Speichern")
-                                 : "Beleg, Konto, Auftrag und Betrag nötig";
-    }
+    knopfStand();
+    return;
   }
-  if (f === "favname" && S.favEdit) { S.favEdit.name = e.target.value; }
+
+  if (f === "posbetrag" && S.neu && Array.isArray(S.neu.positionen)) {
+    S.neu.positionen[Number(e.target.dataset.i)].betragText = e.target.value;
+    const gesamt = document.getElementById("gesamt");
+    if (gesamt) gesamt.textContent = "CHF " + chf(positionenSumme(S.neu.positionen));
+    knopfStand();
+    return;
+  }
+
+  if (f === "favname" && S.favEdit) { S.favEdit.name = e.target.value; return; }
+
+  if (f === "knummer" && S.kontEdit) { S.kontEdit.nummer      = e.target.value; return; }
+  if (f === "kbez"    && S.kontEdit) { S.kontEdit.bezeichnung = e.target.value; return; }
+  if (f === "ksort"   && S.kontEdit) { S.kontEdit.sortierung  = e.target.value; return; }
 });
 
 start();
