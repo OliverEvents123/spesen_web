@@ -18,22 +18,29 @@ function render() {
     return S.ansicht === "benForm" ? renderBenForm() : renderBenutzer();
   }
 
+  if (S.ansicht === "konten" || S.ansicht === "kontoForm") {
+    if (breit) return renderKontenBreit();
+    return S.ansicht === "kontoForm" ? renderKontoForm() : renderKonten();
+  }
+
   if (breit) return renderDesktop();
   return S.ansicht === "uebersicht" ? renderUebersicht() : renderListe();
 }
 
 // ---------- Kopf ----------
-function kopf(titel, sub, zurueck) {
+// zurueck = Pfeil links. auchKnoepfe = Pfeil UND die Knöpfe rechts,
+// das brauchen die Admin-Seiten.
+function kopf(titel, sub, zurueck, auchKnoepfe) {
+  const adminAn = ["benutzer","benForm","konten","kontoForm"].includes(S.ansicht) ? "an" : "";
   const knoepfe = `<div class="kopfknoepfe">
-      ${S.istAdmin ? `<button class="${S.ansicht==="benutzer"||S.ansicht==="benForm"?"an":""}"
-          data-akt="tabBenutzer">Benutzer</button>` : ""}
+      ${S.istAdmin ? `<button class="${adminAn}" data-akt="tabBenutzer">Admin</button>` : ""}
       <button data-akt="zuPasswort">Passwort</button>
       <button data-akt="abmelden">Abmelden</button>
     </div>`;
   return `<div class="kopf">
     ${zurueck ? `<button class="rund" data-akt="zurueck" aria-label="Zurück">‹</button>` : ""}
     <div class="wachs"><h1>${esc(titel)}</h1><div class="sub">${esc(sub)}</div></div>
-    ${zurueck ? "" : knoepfe}
+    ${(!zurueck || auchKnoepfe) ? knoepfe : ""}
   </div>`;
 }
 
@@ -43,6 +50,16 @@ function reiter() {
   return `<div class="reiter">
     <button class="${S.ansicht==="liste"?"an":""}" data-akt="tabListe">Meine Belege</button>
     <button class="${S.ansicht==="uebersicht"?"an":""}" data-akt="tabUebersicht">Übersicht</button>
+  </div>`;
+}
+
+// Reiter der Admin-Seite — auf Handy und Rechner gleichermassen
+function adminReiter() {
+  const ben = (S.ansicht==="benutzer" || S.ansicht==="benForm") ? "an" : "";
+  const kon = (S.ansicht==="konten"   || S.ansicht==="kontoForm") ? "an" : "";
+  return `<div class="reiter">
+    <button class="${ben}" data-akt="tabBenutzer">Benutzer</button>
+    <button class="${kon}" data-akt="tabKonten">Konten</button>
   </div>`;
 }
 
@@ -88,13 +105,33 @@ function zeigeLogin(meldung) {
    Bausteine — werden von Handy und Rechner gleichermassen benutzt
    ========================================================== */
 
+// Ein Schnellknopf für den Zeitraum. Die Beschriftung zeigt die Daten mit,
+// damit man nicht raten muss, welche Periode gemeint ist.
+function zeitKnopf(kennung, titel, z) {
+  const an = (S.uVon === z.von && S.uBis === z.bis);
+  return `<button data-akt="zeitraum" data-v="${kennung}"
+    style="flex:1 1 150px;min-height:52px;border-radius:9px;cursor:pointer;
+           font-family:inherit;font-size:14px;line-height:1.3;padding:6px 12px;
+           border:1px solid ${an ? "var(--blau)" : "var(--rand)"};
+           background:${an ? "var(--blau)" : "#fff"};
+           color:${an ? "#fff" : "var(--blau)"};
+           font-weight:${an ? "700" : "400"};">
+    ${esc(titel)}<br>
+    <span style="font-size:12px;opacity:.85;">${kurzDatum(z.von)}–${kurzDatum(z.bis)}</span>
+  </button>`;
+}
+
 function blockFilter() {
   const geraete = [...new Set(S.uBelege.map(b => b.geraet))].sort();
   return `<div class="karte">
     <div class="paar">
       <div>
-        <label for="umonat">Monat</label>
-        <input id="umonat" type="month" value="${S.uMonat}" data-feld="umonat">
+        <label for="uvon">Von</label>
+        <input id="uvon" type="date" value="${S.uVon}" data-feld="uvon">
+      </div>
+      <div>
+        <label for="ubis">Bis</label>
+        <input id="ubis" type="date" value="${S.uBis}" data-feld="ubis">
       </div>
       <div>
         <label for="uzahlart">Zahlungsart</label>
@@ -114,6 +151,12 @@ function blockFilter() {
         </select>
       </div>` : ""}
     </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      ${zeitKnopf("p0",  "Aktuelle Periode", periode(0))}
+      ${zeitKnopf("pm1", "Letzte Periode",   periode(-1))}
+      ${zeitKnopf("km",  "Kalendermonat",    kalendermonat(0))}
+    </div>
   </div>`;
 }
 
@@ -129,7 +172,7 @@ function blockKontierung(gruppen) {
     <div class="rollen"><table>
       <thead><tr>
         <th>Konto</th><th>Bezeichnung</th><th>Auftrag</th><th>MwSt</th><th>Bezahlt</th>
-        <th class="re">Belege</th><th class="re">Brutto</th>
+        <th class="re">Posten</th><th class="re">Brutto</th>
         <th class="re">MwSt-Betrag</th><th class="re">Netto</th>
       </tr></thead>
       <tbody>
@@ -166,6 +209,13 @@ function blockExport(anzahl) {
   </div>`;
 }
 
+// Kurzbeschreibung einer Belegzeile — aufgeteilte Belege bekommen eine Marke
+function belegText(b) {
+  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen`;
+  return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}`
+       + ` · ${esc(b.auftrag_nr)} · ${b.mwst} %`;
+}
+
 // Belegliste. woher steuert, wohin das Bearbeiten zurückkehrt.
 function blockBelege(liste, woher, titel) {
   const breit = istBreit();
@@ -176,8 +226,7 @@ function blockBelege(liste, woher, titel) {
       : liste.map((b,i) => breit ? `
         <div class="belegzeile">
           <span class="datum">${datumCH(b.beleg_datum)}</span>
-          <span class="haupt">${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}
-            · ${esc(b.auftrag_nr)} · ${b.mwst} %</span>
+          <span class="haupt">${belegText(b)}</span>
           <span class="neben">${esc(b.geraet)}</span>
           <span class="neben" style="width:100px;">${esc(zahlartName(b.zahlart))}</span>
           <span class="zahl">${chf(b.betrag)}</span>
@@ -189,8 +238,7 @@ function blockBelege(liste, woher, titel) {
         </div>` : `
         <div class="zeile" style="padding:9px 0;border-bottom:1px solid #EDEFF5;">
           <div style="min-width:0;">
-            <div style="font-weight:600;">${i+1} · ${esc(b.konto_nummer)} ·
-              ${esc(b.auftrag_nr)} · ${b.mwst} %</div>
+            <div style="font-weight:600;">${i+1} · ${belegText(b)}</div>
             <div style="font-size:13px;color:var(--grau);">
               ${datumCH(b.beleg_datum)} · ${esc(zahlartName(b.zahlart))}${
                 S.istAdmin && !S.uGeraet ? " · " + esc(kurzName(b.geraet)) : ""}</div>
@@ -241,7 +289,7 @@ function renderDesktop() {
   const gefiltert = uGefiltert();
   const gruppen   = gruppiere(gefiltert);
 
-  app.innerHTML = kopf("Spesen", `${kurzName(S.session.user.email)} · ${monatName(S.uMonat)}`) + `
+  app.innerHTML = kopf("Spesen", `${kurzName(S.session.user.email)} · ${uZeitraumText()}`) + `
     <div class="inhalt">
       ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
       <div class="zweispalt">
@@ -293,10 +341,9 @@ function renderListe() {
         : S.belege.map(b => `
           <div class="karte zeile">
             <div style="min-width:0;">
-              <div style="font-weight:600;">${esc(b.konto_nummer)}
-                ${esc(kontoName(b.konto_nummer))} · ${esc(b.auftrag_nr)}</div>
+              <div style="font-weight:600;">${belegText(b)}</div>
               <div style="font-size:13px;color:var(--grau);">
-                ${datumCH(b.beleg_datum)} · MwSt ${b.mwst} % · ${esc(zahlartName(b.zahlart))}</div>
+                ${datumCH(b.beleg_datum)} · ${esc(zahlartName(b.zahlart))}</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
               ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf"
@@ -330,12 +377,58 @@ function renderUebersicht() {
 }
 
 // ---------- Beleg erfassen und bearbeiten ----------
+
+// Eine Position eines aufgeteilten Belegs: Betrag, Satz, Konto, Auftrag.
+function blockPosition(p, i, anzahl) {
+  return `<div class="karte" style="padding:12px 14px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <span style="flex-grow:1;font-size:14px;font-weight:700;color:var(--blau);">
+        Position ${i+1}</span>
+      ${anzahl > 1 ? `<button class="stift" data-akt="posWeg" data-i="${i}"
+          style="color:var(--rot);border-color:#E9C3C0;"
+          aria-label="Position ${i+1} entfernen">✕</button>` : ""}
+    </div>
+
+    <div class="paar" style="margin-bottom:10px;">
+      <div>
+        <label for="pb${i}">Betrag CHF</label>
+        <input id="pb${i}" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00"
+               value="${esc(p.betragText)}" data-feld="posbetrag" data-i="${i}">
+      </div>
+      <div>
+        <label for="pm${i}">MwSt</label>
+        <select id="pm${i}" data-feld="posmwst" data-i="${i}">
+          ${SAETZE.map(m =>
+            `<option value="${m}" ${p.mwst===m?"selected":""}>${m} %</option>`).join("")}
+        </select>
+      </div>
+    </div>
+
+    <button class="wahl ${p.konto ? "" : "offen"}" data-akt="kontoWahl" data-i="${i}">
+      <span class="titel">Konto</span>
+      <span class="wert" style="color:${p.konto ? "var(--dunkel)" : "var(--warn)"}">
+        ${p.konto ? esc(p.konto.nummer + "  " + p.konto.bezeichnung) : "wählen"}</span>
+      <span class="pfeil">›</span>
+    </button>
+
+    <button class="wahl ${p.auftrag ? "" : "offen"}" data-akt="auftragWahl" data-i="${i}">
+      <span class="titel">Auftrag</span>
+      <span class="wert" style="color:${p.auftrag ? "var(--dunkel)" : "var(--warn)"}">
+        ${p.auftrag ? esc(p.auftrag.id + (p.auftrag.name ? "  " + p.auftrag.name : ""))
+                    : "wählen"}</span>
+      <span class="pfeil">›</span>
+    </button>
+  </div>`;
+}
+
 function renderErfassen() {
   const n = S.neu;
   const bearbeiten = !!n.id;
-  const betrag = betragVon(n.betragText);
+  const geteilt = Array.isArray(n.positionen);
+  const betrag = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
   const hatBeleg = !!(n.datei || n.altPfad);
-  const fertig = betrag > 0 && n.konto && n.auftrag && hatBeleg;
+  const fertig = hatBeleg && (geteilt ? positionenFertig(n.positionen)
+                                      : (betrag > 0 && n.konto && n.auftrag));
 
   let belegInhalt = null;
   if (n.datei) {
@@ -363,12 +456,8 @@ function renderErfassen() {
          <div class="ziehhinweis">Datei hier ablegen</div>
        </div>`;
 
-  app.innerHTML = kopf(bearbeiten ? "Beleg bearbeiten" : "Beleg erfassen",
-                       bearbeiten ? "Werte ändern und speichern"
-                                  : "Angaben prüfen und speichern", true) + `
-    <div class="inhalt" style="max-width:620px;">
-      ${belegKarte}
-
+  // Der Normalfall: ein Betrag, ein Konto, ein Auftrag, vier Sätze.
+  const einfachTeil = `
       <button class="wahl ${n.konto ? "" : "offen"}" data-akt="kontoWahl">
         <span class="titel">Konto</span>
         <span class="wert" style="color:${n.konto ? "var(--dunkel)" : "var(--warn)"}">
@@ -392,9 +481,37 @@ function renderErfassen() {
       </div>
 
       <div class="mwst">
-        ${["8.1","2.6","3.8","0"].map(m =>
+        ${SAETZE.map(m =>
           `<button class="${n.mwst===m?"an":""}" data-akt="mwst" data-v="${m}">${m}&nbsp;%</button>`).join("")}
       </div>
+
+      <button class="favlink" data-akt="aufteilen"
+              style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        ${PLUS} Mehrere MwSt-Sätze auf diesem Beleg</button>`;
+
+  // Aufgeteilt: je Position ein vollständiges Paket.
+  const geteiltTeil = `
+      ${n.positionen.map((p,i) => blockPosition(p, i, n.positionen.length)).join("")}
+
+      <button class="zweit" data-akt="posNeu"
+              style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        ${PLUS} Weitere Position</button>
+
+      <div class="karte zeile" style="margin-top:10px;">
+        <div style="font-size:14px;color:var(--grau);">Beleg gesamt</div>
+        <div id="gesamt" style="font-size:22px;font-weight:700;">CHF ${chf(betrag)}</div>
+      </div>
+
+      <button class="favlink" data-akt="aufteilenWeg">Aufteilung aufheben</button>`;
+
+  app.innerHTML = kopf(bearbeiten ? "Beleg bearbeiten" : "Beleg erfassen",
+                       geteilt ? `${n.positionen.length} Positionen`
+                               : (bearbeiten ? "Werte ändern und speichern"
+                                             : "Angaben prüfen und speichern"), true) + `
+    <div class="inhalt" style="max-width:620px;">
+      ${belegKarte}
+
+      ${geteilt ? geteiltTeil : einfachTeil}
 
       <div class="karte">
         <div class="paar">
@@ -416,7 +533,7 @@ function renderErfassen() {
         ${fertig ? (bearbeiten ? "Änderungen speichern" : "Speichern")
                  : "Beleg, Konto, Auftrag und Betrag nötig"}</button>
 
-      ${bearbeiten && n.konto && n.auftrag ? `
+      ${bearbeiten && !geteilt && n.konto && n.auftrag ? `
         <button class="zweit" data-akt="favMerken" style="margin-top:10px;
                 display:flex;align-items:center;justify-content:center;gap:9px;">
           ${STERN} Als Favorit merken</button>` : ""}
@@ -426,11 +543,26 @@ function renderErfassen() {
 }
 
 // ---------- Auswahlbildschirme ----------
+// Zielt die Auswahl auf eine Position, auf den ganzen Beleg oder auf einen Favoriten?
+function wahlZiel() {
+  if (S.favEdit) return S.favEdit;
+  if (S.neu && S.posIndex != null && Array.isArray(S.neu.positionen)) {
+    return S.neu.positionen[S.posIndex];
+  }
+  return S.neu;
+}
+
 function renderKontoWahl() {
-  const gewaehlt = (S.favEdit || S.neu).konto;
-  app.innerHTML = kopf("Konto wählen", `${S.konten.length} Konten`, true) + `
+  const liste = aktiveKonten();
+  const ziel = wahlZiel();
+  const gewaehlt = ziel ? ziel.konto : null;
+  const sub = S.posIndex != null ? `Position ${S.posIndex + 1}` : `${liste.length} Konten`;
+
+  app.innerHTML = kopf("Konto wählen", sub, true) + `
     <div class="inhalt" style="max-width:620px;">
-      ${S.konten.map(k => `
+      ${liste.length === 0
+        ? `<div class="karte leer">Keine aktiven Konten. Unter Admin → Konten anlegen.</div>`
+        : liste.map(k => `
         <button class="eintrag ${gewaehlt && gewaehlt.nummer===k.nummer ? "an":""}"
                 data-akt="kontoSet" data-nr="${esc(k.nummer)}">
           <span class="nr">${esc(k.nummer)}</span>
@@ -441,7 +573,9 @@ function renderKontoWahl() {
 }
 
 function renderAuftragWahl() {
-  app.innerHTML = kopf("Auftrag wählen", `${S.auftraege.length} Nummern`, true) + `
+  const sub = S.posIndex != null ? `Position ${S.posIndex + 1}`
+                                 : `${S.auftraege.length} Nummern`;
+  app.innerHTML = kopf("Auftrag wählen", sub, true) + `
     <div class="inhalt" style="max-width:620px;">
       <input id="suche" type="search" placeholder="Nummer oder Name suchen"
              value="${esc(S.suche)}" style="margin-bottom:12px;">
@@ -455,18 +589,19 @@ function renderAuftragWahl() {
 // Nur die Trefferliste neu zeichnen, damit das Suchfeld den Fokus behält
 function zeichneTreffer() {
   const q = S.suche.trim().toLowerCase();
-  const gewaehlt = (S.favEdit || S.neu).auftrag;
+  const ziel = wahlZiel();
+  const gewaehlt = ziel ? ziel.auftrag : null;
   const liste = (q
     ? S.auftraege.filter(a => a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q))
     : S.auftraege).slice(0, 60);
-  const ziel = document.getElementById("treffer");
-  if (!ziel) return;
+  const feld = document.getElementById("treffer");
+  if (!feld) return;
   if (!S.auftraege.length) {
-    ziel.innerHTML = `<div class="fehler">Die Auftragsnummern konnten nicht aus FileMaker
+    feld.innerHTML = `<div class="fehler">Die Auftragsnummern konnten nicht aus FileMaker
       geladen werden. Seite neu laden oder später nochmal versuchen.</div>`;
     return;
   }
-  ziel.innerHTML = liste.length === 0
+  feld.innerHTML = liste.length === 0
     ? `<div class="karte leer">Nichts gefunden.</div>`
     : liste.map(a => `
       <button class="eintrag ${gewaehlt && gewaehlt.id===a.id ? "an":""}"
@@ -560,7 +695,7 @@ function renderFavForm() {
 }
 
 /* ==========================================================
-   Benutzerverwaltung
+   Admin — Benutzer
    ========================================================== */
 
 function blockBenForm() {
@@ -585,7 +720,7 @@ function blockBenForm() {
     </div>
     <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:14px;">
       ${b.rolle === "admin"
-        ? "Sieht alle Belege aller Geräte und darf Benutzer verwalten."
+        ? "Sieht alle Belege aller Geräte und darf Benutzer und Konten verwalten."
         : "Sieht und erfasst nur die eigenen Belege."}</div>
 
     <label for="bpw">${b.neu ? "Passwort" : "Neues Passwort (leer lassen, wenn unverändert)"}</label>
@@ -614,7 +749,7 @@ function blockBenListe() {
       <div class="rollen"><table>
         <thead><tr>
           <th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th>
-          <th>Zuletzt angemeldet</th><th class="re">Belege im Monat</th><th></th>
+          <th>Zuletzt angemeldet</th><th class="re">Belege im Zeitraum</th><th></th>
         </tr></thead>
         <tbody>
           ${S.benutzer.map(b => `<tr>
@@ -664,11 +799,15 @@ const BEN_HINWEIS = `<div class="karte" style="display:flex;gap:14px;align-items
       deshalb immer besser, als es zu löschen.</span>
   </div>`;
 
+function adminSub() {
+  const admins = S.benutzer.filter(b => b.rolle === "admin").length;
+  return `${S.benutzer.length} Benutzer · ${admins} ${admins===1?"Administrator":"Administratoren"}`
+       + ` · ${S.konten.length} Konten`;
+}
+
 // Rechner: Liste und Formular nebeneinander
 function renderBenutzerBreit() {
-  const admins = S.benutzer.filter(b => b.rolle === "admin").length;
-  app.innerHTML = kopf("Benutzer",
-      `${S.benutzer.length} angelegt · ${admins} ${admins===1?"Administrator":"Administratoren"}`) + `
+  app.innerHTML = kopf("Admin", adminSub(), true, true) + adminReiter() + `
     <div class="inhalt">
       ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
       <div class="zweispalt">
@@ -681,7 +820,7 @@ function renderBenutzerBreit() {
 
 // Handy: erst die Liste
 function renderBenutzer() {
-  app.innerHTML = kopf("Benutzer", `${S.benutzer.length} angelegt`) + reiter() + `
+  app.innerHTML = kopf("Admin", `${S.benutzer.length} Benutzer`, true, true) + adminReiter() + `
     <div class="inhalt">
       ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
       <button class="knopf" data-akt="benNeu" style="margin-bottom:14px;">+ Neuer Benutzer</button>
@@ -697,4 +836,157 @@ function renderBenForm() {
   app.innerHTML = kopf(b.neu ? "Neuer Benutzer" : "Benutzer ändern",
                        b.neu ? "Konto anlegen" : b.email, true) + `
     <div class="inhalt" style="max-width:620px;">${blockBenForm()}</div>`;
+}
+
+/* ==========================================================
+   Admin — Konten
+   ========================================================== */
+
+function blockKontoForm() {
+  const k = S.kontEdit || leeresKonto();
+  return `<div class="karte">
+    <div style="font-size:17px;font-weight:700;margin-bottom:14px;">
+      ${k.neu ? "Neues Konto" : esc(k.nummer + "  " + k.bezeichnung)}</div>
+
+    ${k.neu ? `
+      <label for="knummer">Nummer</label>
+      <input id="knummer" type="text" inputmode="numeric" value="${esc(k.nummer)}"
+             placeholder="4590" data-feld="knummer" style="margin-bottom:12px">`
+    : `<div style="font-size:14px;color:var(--grau);margin-bottom:12px;line-height:1.45;">
+         Nummer ${esc(k.nummer)} — bleibt fest, weil die Belege daran hängen.</div>`}
+
+    <label for="kbez">Bezeichnung</label>
+    <input id="kbez" type="text" value="${esc(k.bezeichnung)}" placeholder="Übernachtungen"
+           data-feld="kbez" style="margin-bottom:14px">
+
+    <label>MwSt-Standard</label>
+    <div class="mwst" style="margin-bottom:8px;">
+      ${SAETZE.map(m =>
+        `<button class="${String(k.mwst)===m?"an":""}" data-akt="kontoMwst"
+                 data-v="${m}">${m}&nbsp;%</button>`).join("")}
+    </div>
+    <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:14px;">
+      Wird beim neuen Beleg vorbelegt und lässt sich dort ändern.</div>
+
+    <label for="ksort">Reihenfolge in der Auswahl</label>
+    <input id="ksort" type="text" inputmode="numeric" value="${esc(k.sortierung)}"
+           data-feld="ksort" style="margin-bottom:6px">
+    <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:14px;">
+      Zehnerschritte, damit später etwas dazwischen passt.</div>
+
+    <div style="display:flex;align-items:center;gap:10px;min-height:44px;margin-bottom:8px;">
+      <input id="kaktiv" type="checkbox" ${k.aktiv ? "checked" : ""} data-feld="kaktiv"
+             style="width:20px;height:20px;margin:0;accent-color:var(--blau);">
+      <label for="kaktiv" style="margin:0;font-size:15px;color:var(--dunkel);">
+        Steht in der Auswahl</label>
+    </div>
+
+    <button class="knopf" data-akt="kontoSichern">
+      ${k.neu ? "Konto anlegen" : "Änderungen speichern"}</button>
+
+    ${!k.neu ? `<button class="zweit" data-akt="kontoNeu" style="margin-top:10px;">
+      Stattdessen neues anlegen</button>` : ""}
+  </div>`;
+}
+
+function blockKontenListe() {
+  const breit = istBreit();
+  return `<div class="karte">
+    <div style="font-size:17px;font-weight:700;margin-bottom:12px;">Alle Konten</div>
+    ${S.konten.length === 0
+      ? `<div class="leer">Noch keine Konten angelegt.</div>`
+      : breit ? `
+      <div class="rollen"><table>
+        <thead><tr>
+          <th>Nummer</th><th>Bezeichnung</th><th>MwSt-Standard</th><th>Reihenfolge</th>
+          <th>Status</th><th class="re">Posten im Zeitraum</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${S.konten.map(k => `<tr>
+            <td class="gross">${esc(k.nummer)}</td>
+            <td style="color:#3f5a80;">${esc(k.bezeichnung)}</td>
+            <td style="color:#3f5a80;">${k.mwst} %</td>
+            <td style="color:var(--grau);">${k.sortierung ?? ""}</td>
+            <td>${k.aktiv === false
+                  ? `<span class="rolle aus">inaktiv</span>`
+                  : `<span style="color:#3f5a80;">aktiv</span>`}</td>
+            <td class="re">${postenAufKonto(k.nummer)}</td>
+            <td class="re" style="width:52px;">
+              <button class="stift" data-akt="kontoBearbeiten" data-nr="${esc(k.nummer)}"
+                      style="display:inline-flex;" aria-label="Konto bearbeiten">${STIFT}</button>
+            </td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>`
+      : S.konten.map(k => `
+        <div class="zeile" style="padding:10px 0;border-bottom:1px solid #EDEFF5;">
+          <div style="min-width:0;">
+            <div style="font-weight:600;">${esc(k.nummer)} ${esc(k.bezeichnung)}</div>
+            <div style="font-size:13px;color:var(--grau);">
+              MwSt ${k.mwst} % · Reihenfolge ${k.sortierung ?? ""}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            ${k.aktiv === false ? `<span class="rolle aus">inaktiv</span>` : ""}
+            <button class="stift" data-akt="kontoBearbeiten" data-nr="${esc(k.nummer)}"
+                    aria-label="Konto bearbeiten">${STIFT}</button>
+          </div>
+        </div>`).join("")}
+  </div>`;
+}
+
+// Wie viele Posten laufen im gewählten Zeitraum auf dieses Konto?
+function postenAufKonto(nr) {
+  let n = 0;
+  for (const b of S.uBelege) {
+    for (const p of belegZeilen(b)) if (p.konto_nummer === nr) n += 1;
+  }
+  return n;
+}
+
+const KONTO_HINWEIS = `<div class="karte" style="display:flex;gap:14px;align-items:flex-start;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5A6478" stroke-width="2"
+         stroke-linecap="round" style="flex-shrink:0;margin-top:2px;" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8v.01"></path></svg>
+    <span style="font-size:14px;color:var(--grau);line-height:1.5;">
+      Ein Konto auf inaktiv zu stellen nimmt es aus der Auswahl, lässt es aber in alten
+      Belegen und Exporten stehen. Löschen gibt es bewusst nicht — die Belege hängen an
+      der Nummer.</span>
+  </div>`;
+
+// Rechner: Liste und Formular nebeneinander
+function renderKontenBreit() {
+  // Am Rechner steht das Formular immer da — also eines bereitlegen,
+  // sonst laufen die Tastatureingaben ins Leere.
+  if (!S.kontEdit) S.kontEdit = leeresKonto();
+  app.innerHTML = kopf("Admin", adminSub(), true, true) + adminReiter() + `
+    <div class="inhalt">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
+      <div class="zweispalt">
+        <div class="breit">${blockKontenListe()}${KONTO_HINWEIS}</div>
+        <div class="schmal" style="width:380px;">${blockKontoForm()}</div>
+      </div>
+    </div>`;
+  S.meldung = null;
+}
+
+// Handy: erst die Liste
+function renderKonten() {
+  app.innerHTML = kopf("Admin", `${S.konten.length} Konten`, true, true) + adminReiter() + `
+    <div class="inhalt">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
+      <button class="knopf" data-akt="kontoNeu" style="margin-bottom:14px;">+ Neues Konto</button>
+      ${blockKontenListe()}
+      ${KONTO_HINWEIS}
+    </div>`;
+  S.meldung = null;
+}
+
+// Handy: dann das Formular
+function renderKontoForm() {
+  if (!S.kontEdit) S.kontEdit = leeresKonto();
+  const k = S.kontEdit;
+  app.innerHTML = kopf(k.neu ? "Neues Konto" : "Konto ändern",
+                       k.neu ? "Nummer und Bezeichnung festlegen"
+                             : k.nummer + "  " + k.bezeichnung, true) + `
+    <div class="inhalt" style="max-width:620px;">${blockKontoForm()}</div>`;
 }
