@@ -490,7 +490,8 @@ function renderErfassen() {
         ${PLUS} Mehrere MwSt-Sätze auf diesem Beleg</button>`;
 
   // Aufgeteilt: je Position ein vollständiges Paket.
-  const geteiltTeil = `
+  // Nur bauen, wenn es Positionen gibt — sonst greift .map auf null zu.
+  const geteiltTeil = !geteilt ? "" : `
       ${n.positionen.map((p,i) => blockPosition(p, i, n.positionen.length)).join("")}
 
       <button class="zweit" data-akt="posNeu"
