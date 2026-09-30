@@ -4,6 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spesen</title>
+
+<!-- Macht die Seite auf Android zu einer installierbaren App -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#215aa8">
+
+<!-- iPhone kennt kein Manifest und braucht diese drei Angaben -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Spesen">
+
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
 <link rel="stylesheet" href="stil.css">
 </head>
 <body>
@@ -20,6 +33,15 @@
 <script src="ansichten.js"></script>
 <script src="export.js"></script>
 <script src="app.js"></script>
+
+<script>
+// Meldet den Service Worker an. Ohne ihn bietet Android kein "App installieren".
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
+</script>
 
 </body>
 </html>
