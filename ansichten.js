@@ -123,16 +123,39 @@ function zeitKnopf(kennung, titel, z) {
 
 function blockFilter() {
   const geraete = [...new Set(S.uBelege.map(b => b.geraet))].sort();
+  const breit = istBreit();
+
+  const p0 = periode(0), pm1 = periode(-1), km = kalendermonat(0);
+  const gleich = (z) => S.uVon === z.von && S.uBis === z.bis;
+  const jetzt = gleich(p0) ? "p0" : gleich(pm1) ? "pm1" : gleich(km) ? "km" : "";
+
+  const wahl = (w, titel, z) =>
+    `<option value="${w}" ${jetzt === w ? "selected" : ""}>` +
+    `${titel} · ${kurzDatum(z.von)}–${kurzDatum(z.bis)}</option>`;
+
+  // Am Handy ein Auswahlfeld statt drei Knöpfe — das spart eine halbe Seite.
+  const schnellFeld = `
+      <div>
+        <label for="uschnell">Zeitraum</label>
+        <select id="uschnell" data-feld="uschnell">
+          <option value="" ${jetzt === "" ? "selected" : ""}>Eigener Zeitraum</option>
+          ${wahl("p0",  "Aktuelle Periode", p0)}
+          ${wahl("pm1", "Letzte Periode",   pm1)}
+          ${wahl("km",  "Kalendermonat",    km)}
+        </select>
+      </div>`;
+
   return `<div class="karte">
     <div class="paar">
-      <div>
+      <div style="flex:1 1 140px;">
         <label for="uvon">Von</label>
         <input id="uvon" type="date" value="${S.uVon}" data-feld="uvon">
       </div>
-      <div>
+      <div style="flex:1 1 140px;">
         <label for="ubis">Bis</label>
         <input id="ubis" type="date" value="${S.uBis}" data-feld="ubis">
       </div>
+      ${breit ? "" : schnellFeld}
       <div>
         <label for="uzahlart">Zahlungsart</label>
         <select id="uzahlart" data-feld="uzahlart">
@@ -152,11 +175,11 @@ function blockFilter() {
       </div>` : ""}
     </div>
 
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-      ${zeitKnopf("p0",  "Aktuelle Periode", periode(0))}
-      ${zeitKnopf("pm1", "Letzte Periode",   periode(-1))}
-      ${zeitKnopf("km",  "Kalendermonat",    kalendermonat(0))}
-    </div>
+    ${breit ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      ${zeitKnopf("p0",  "Aktuelle Periode", p0)}
+      ${zeitKnopf("pm1", "Letzte Periode",   pm1)}
+      ${zeitKnopf("km",  "Kalendermonat",    km)}
+    </div>` : ""}
   </div>`;
 }
 
@@ -209,7 +232,22 @@ function blockExport(anzahl) {
   </div>`;
 }
 
-// Kurzbeschreibung einer Belegzeile — aufgeteilte Belege bekommen eine Marke
+// Am Handy auf zwei Zeilen verteilt: oben das Konto, unten der Rest.
+// Eine einzige lange Zeile drückt sonst die Knöpfe rechts aus der Karte.
+function belegKopf(b) {
+  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen`;
+  return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}`;
+}
+
+function belegDetail(b, mitGeraet) {
+  const teile = [];
+  if (!istAufgeteilt(b)) teile.push(auftragAnzeige(b.auftrag_nr), b.mwst + " %");
+  teile.push(datumCH(b.beleg_datum), zahlartName(b.zahlart));
+  if (mitGeraet) teile.push(kurzName(b.geraet));
+  return esc(teile.join(" · "));
+}
+
+// Eine Zeile am Stück — für das Rechner-Layout, dort ist Platz genug
 function belegText(b) {
   if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen`;
   return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}`
@@ -236,14 +274,13 @@ function blockBelege(liste, woher, titel) {
           <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="${woher}"
                   aria-label="Beleg bearbeiten">${STIFT}</button>
         </div>` : `
-        <div class="zeile" style="padding:9px 0;border-bottom:1px solid #EDEFF5;">
-          <div style="min-width:0;">
-            <div style="font-weight:600;">${i+1} · ${belegText(b)}</div>
+        <div class="zeile" style="padding:9px 0;border-bottom:1px solid #EDEFF5;gap:10px;">
+          <div style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere;">
+            <div style="font-weight:600;">${i+1} · ${belegKopf(b)}</div>
             <div style="font-size:13px;color:var(--grau);">
-              ${datumCH(b.beleg_datum)} · ${esc(zahlartName(b.zahlart))}${
-                S.istAdmin && !S.uGeraet ? " · " + esc(kurzName(b.geraet)) : ""}</div>
+              ${belegDetail(b, S.istAdmin && !S.uGeraet)}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
             ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf"
                 data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
             <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="${woher}"
@@ -339,13 +376,12 @@ function renderListe() {
       ${S.belege.length === 0
         ? `<div class="karte leer">Noch keine Belege in diesem Monat.</div>`
         : S.belege.map(b => `
-          <div class="karte zeile">
-            <div style="min-width:0;">
-              <div style="font-weight:600;">${belegText(b)}</div>
-              <div style="font-size:13px;color:var(--grau);">
-                ${datumCH(b.beleg_datum)} · ${esc(zahlartName(b.zahlart))}</div>
+          <div class="karte zeile" style="gap:10px;">
+            <div style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere;">
+              <div style="font-weight:600;">${belegKopf(b)}</div>
+              <div style="font-size:13px;color:var(--grau);">${belegDetail(b)}</div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
               ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf"
                   data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
               <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="liste"

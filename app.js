@@ -582,6 +582,15 @@ app.addEventListener("change", (e) => {
     S.uGeraet = ""; ladeUebersicht(true); return;
   }
 
+  // Auswahlfeld für den Zeitraum — am Handy statt der drei Knöpfe
+  if (f === "uschnell") {
+    const v = e.target.value;
+    if (!v) return;                       // "Eigener Zeitraum" lässt die Daten stehen
+    const z = v === "p0" ? periode(0) : v === "pm1" ? periode(-1) : kalendermonat(0);
+    S.uVon = z.von; S.uBis = z.bis; S.uGeraet = "";
+    ladeUebersicht(true); return;
+  }
+
   if (f === "ugeraet")  { S.uGeraet  = e.target.value; render(); return; }
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); return; }
 });
