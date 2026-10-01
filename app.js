@@ -104,6 +104,11 @@ app.addEventListener("click", async (e) => {
   }
 
   if (a === "periodeNeu") {
+    if (S.perioden.length >= MAX_PERIODEN) {
+      alert(`Es gehen höchstens ${MAX_PERIODEN} Perioden. `
+            + "Lösch zuerst eine über das ✕ an der Kachel.");
+      return;
+    }
     const vorschlag = `${kurzDatum(S.uVon)}–${kurzDatum(S.uBis)}`;
     const name = prompt("Name der Periode:", vorschlag);
     if (name === null) return;

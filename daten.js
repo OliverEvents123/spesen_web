@@ -15,6 +15,7 @@ const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
 const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
+const MAX_PERIODEN = 3;         // je Benutzer; die Datenbank hält dieselbe Grenze
 const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
 const SAETZE = ["8.1","2.6","3.8","0"];
 
@@ -191,7 +192,8 @@ async function ladeKonten() {
 }
 
 // ---------- Gespeicherte Perioden ----------
-// Gelten für alle; angelegt und gelöscht werden sie von Admins.
+// Jeder Benutzer hat seine eigenen, höchstens MAX_PERIODEN Stück.
+// Die Zugriffsregeln in Supabase zeigen ohnehin nur die eigenen.
 async function ladePerioden() {
   const { data } = await sb.from("spesen_periode")
     .select("*").order("sortierung").order("von", { ascending:false });
@@ -201,7 +203,8 @@ async function ladePerioden() {
 async function periodeSpeichern(name, von, bis) {
   const hoechste = S.perioden.reduce((m,p) => Math.max(m, p.sortierung || 0), 0);
   return sb.from("spesen_periode")
-    .insert({ name: String(name).trim(), von, bis, sortierung: hoechste + 10 });
+    .insert({ geraet: S.session.user.email, name: String(name).trim(),
+              von, bis, sortierung: hoechste + 10 });
 }
 
 async function periodeLoeschen(id) {

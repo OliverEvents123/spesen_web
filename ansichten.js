@@ -121,13 +121,13 @@ function periodeKachel(p) {
       ${esc(p.name)}<br>
       <span style="font-size:12px;opacity:.85;">${kurzDatum(p.von)}–${kurzDatum(p.bis)}</span>
     </button>
-    ${S.istAdmin ? `<button data-akt="periodeWeg" data-id="${p.id}"
+    <button data-akt="periodeWeg" data-id="${p.id}"
       aria-label="Periode ${esc(p.name)} löschen"
       style="position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;
              border-radius:6px;font-size:13px;line-height:1;font-family:inherit;cursor:pointer;
              border:1px solid ${an ? "rgba(255,255,255,.55)" : "var(--rand)"};
              background:${an ? "transparent" : "#fff"};
-             color:${an ? "#fff" : "var(--grau)"};">✕</button>` : ""}
+             color:${an ? "#fff" : "var(--grau)"};">✕</button>
   </span>`;
 }
 
@@ -146,23 +146,28 @@ function blockFilter() {
         <label for="ubis">Bis</label>
         <input id="ubis" type="date" value="${S.uBis}" data-feld="ubis">
       </div>
-      ${S.istAdmin ? `
       <div style="flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;">
         <button data-akt="periodeNeu" title="Diesen Zeitraum als Periode merken"
           aria-label="Diesen Zeitraum als Periode merken"
+          ${S.perioden.length >= MAX_PERIODEN ? "disabled" : ""}
           style="min-height:46px;min-width:46px;border:1px solid var(--blau);
                  border-radius:10px;background:#fff;color:var(--blau);
-                 font-size:20px;line-height:1;font-family:inherit;cursor:pointer;">+</button>
-      </div>` : ""}
+                 font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
+                 opacity:${S.perioden.length >= MAX_PERIODEN ? ".4" : "1"};">+</button>
+      </div>
     </div>
 
     ${S.perioden.length ? `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
       ${S.perioden.map(periodeKachel).join("")}
-    </div>` : `
+    </div>
+    ${S.perioden.length >= MAX_PERIODEN ? `
+    <div style="font-size:12px;color:var(--grau);line-height:1.45;margin-top:6px;">
+      ${MAX_PERIODEN} von ${MAX_PERIODEN} belegt — zum Merken zuerst eine über das ✕ löschen.
+    </div>` : ""}` : `
     <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-top:8px;">
-      ${S.istAdmin ? "Noch keine Perioden gemerkt — Zeitraum eintragen und auf + tippen."
-                   : "Noch keine Perioden gemerkt."}</div>`}
+      Noch keine Perioden gemerkt — Zeitraum eintragen und auf + tippen.
+      Höchstens ${MAX_PERIODEN}, und nur du siehst sie.</div>`}
 
     <div class="paar" style="margin-top:10px;">
       <div>
