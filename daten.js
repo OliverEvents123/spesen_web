@@ -23,6 +23,13 @@ const SAETZE = ["8.1","2.6","3.8","0"];
 // braucht DocuWare etwas anderes, nur hier die id ändern.
 const OHNE_KST = { id:"ohne KST", name:"ohne KST", fix:true };
 
+// Notfall-Administratoren: behalten immer die Rolle admin und lassen sich
+// nicht sperren. Die Edge Function prüft dasselbe noch einmal — dort ist die
+// verbindliche Stelle, hier wird nur die Oberfläche entsprechend gesperrt.
+const GESCHUETZTE_KONTEN = ["admin@eventorganisation.ch"];
+const istGeschuetzt = (mail) =>
+  GESCHUETZTE_KONTEN.includes(String(mail || "").trim().toLowerCase());
+
 // Wie eine Auftragsnummer im Text erscheint
 const auftragAnzeige = (nr) => nr === OHNE_KST.id ? OHNE_KST.name : nr;
 const auftragText = (a) => !a ? "wählen"
@@ -87,13 +94,6 @@ function periode(versatz) {
   return { von: isoDatum(von), bis: isoDatum(bis) };
 }
 
-function kalendermonat(versatz) {
-  const h = new Date();
-  const m = h.getMonth() + (versatz || 0);
-  return { von: isoDatum(new Date(h.getFullYear(), m, 1)),
-           bis: isoDatum(new Date(h.getFullYear(), m + 1, 0)) };
-}
-
 function istNetzfehler(err) {
   if (!navigator.onLine) return true;
   const t = String((err && (err.message || err.error_description)) || err || "").toLowerCase();
@@ -107,10 +107,11 @@ const START = periode(0);
 
 let S = {
   session:null, istAdmin:false, konten:[], auftraege:[], belege:[], favoriten:[],
-  benutzer:[], benEdit:null, kontEdit:null,
+  benutzer:[], benEdit:null, kontEdit:null, perioden:[],
   monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null, posIndex:null,
   suche:"", meldung:null, zurueckZu:"liste",
-  uVon: START.von, uBis: START.bis, uGeraet:"", uZahlart:"", uBelege:[], uLaedt:false
+  uVon: START.von, uBis: START.bis, uBelege:[], uLaedt:false,
+  uGeraet:"", uZahlart:"", uKonto:"", uAuftrag:""
 };
 
 const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", betragText:"",
@@ -153,17 +154,19 @@ const istAufgeteilt = (b) => Array.isArray(b.positionen) && b.positionen.length 
 const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv";
 
 async function ladeAlles() {
-  const [k, b, f, adm] = await Promise.all([
+  const [k, b, f, adm, per] = await Promise.all([
     sb.from("spesen_konto").select(KONTO_SPALTEN).order("sortierung").order("nummer"),
     sb.from("spesen_beleg").select("*").eq("monat", S.monat).eq("geraet", S.session.user.email)
       .order("beleg_datum",{ascending:false}).order("id",{ascending:false}),
     sb.from("spesen_favorit").select("*").order("sortierung").order("id"),
-    sb.rpc("ist_admin")
+    sb.rpc("ist_admin"),
+    sb.from("spesen_periode").select("*").order("sortierung").order("von",{ascending:false})
   ]);
   S.konten    = k.data || [];
   S.belege    = b.data || [];
   S.favoriten = f.data || [];
   S.istAdmin  = adm.data === true;
+  S.perioden  = per.data || [];
 
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
   if (!S.auftraege.length) {
@@ -185,6 +188,24 @@ async function ladeKonten() {
   const { data } = await sb.from("spesen_konto")
     .select(KONTO_SPALTEN).order("sortierung").order("nummer");
   S.konten = data || [];
+}
+
+// ---------- Gespeicherte Perioden ----------
+// Gelten für alle; angelegt und gelöscht werden sie von Admins.
+async function ladePerioden() {
+  const { data } = await sb.from("spesen_periode")
+    .select("*").order("sortierung").order("von", { ascending:false });
+  S.perioden = data || [];
+}
+
+async function periodeSpeichern(name, von, bis) {
+  const hoechste = S.perioden.reduce((m,p) => Math.max(m, p.sortierung || 0), 0);
+  return sb.from("spesen_periode")
+    .insert({ name: String(name).trim(), von, bis, sortierung: hoechste + 10 });
+}
+
+async function periodeLoeschen(id) {
+  return sb.from("spesen_periode").delete().eq("id", id);
 }
 
 // Zählt mit, welche Abfrage die neueste ist. Stellt man den Zeitraum schnell
@@ -269,6 +290,7 @@ function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
     for (const p of belegZeilen(b)) {
+      if (!zeilePasst(p)) continue;   // gefilterte Positionen zählen nicht mit
       const s = `${p.konto_nummer}|${p.auftrag_nr}|${p.mwst}|${b.zahlart || "karte"}`;
       if (!m.has(s)) m.set(s, { konto:p.konto_nummer, bezeichnung:kontoName(p.konto_nummer),
                                 auftrag:p.auftrag_nr, satz:Number(p.mwst),
@@ -289,20 +311,48 @@ function gruppiere(belege) {
   return liste;
 }
 
+// Passt eine einzelne Position zu den Filtern für Konto und Auftrag?
+// Bei aufgeteilten Belegen zählt jede Position für sich.
+const zeilePasst = (p) =>
+  (!S.uKonto   || p.konto_nummer === S.uKonto) &&
+  (!S.uAuftrag || p.auftrag_nr   === S.uAuftrag);
+
+// Ein Beleg erscheint, wenn mindestens eine seiner Positionen passt.
 const uGefiltert = () => S.uBelege.filter(b =>
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
-  (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart));
+  (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
+  belegZeilen(b).some(zeilePasst));
+
+// Was kommt im geladenen Zeitraum überhaupt vor? Füllt die Auswahlfelder.
+function kontenImZeitraum() {
+  const s = new Set();
+  for (const b of S.uBelege) for (const p of belegZeilen(b)) s.add(p.konto_nummer);
+  return [...s].sort((a,b) => String(a).localeCompare(String(b),"de",{numeric:true}));
+}
+
+function auftraegeImZeitraum() {
+  const s = new Set();
+  for (const b of S.uBelege) for (const p of belegZeilen(b)) s.add(p.auftrag_nr);
+  return [...s].sort((a,b) => String(a).localeCompare(String(b),"de",{numeric:true}));
+}
 
 const uZeitraumText = () => `${langDatum(S.uVon)} – ${langDatum(S.uBis)}`;
 
-const uTitel = () => [
-  uZeitraumText(),
-  S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email),
-  S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
-].join(" · ");
+const uTitel = () => {
+  const teile = [
+    uZeitraumText(),
+    S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email),
+    S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
+  ];
+  if (S.uKonto)   teile.push("Konto " + S.uKonto);
+  if (S.uAuftrag) teile.push("Auftrag " + auftragAnzeige(S.uAuftrag));
+  return teile.join(" · ");
+};
 
 const uDateiname = () =>
   `Spesen_${S.uVon}_bis_${S.uBis}` +
+  (S.uKonto   ? "_K" + S.uKonto   : "") +
+  (S.uAuftrag ? "_A" + String(S.uAuftrag).replace(/\s+/g, "") : "") +
   (S.uZahlart ? "_" + S.uZahlart : "") +
   (S.uGeraet ? "_" + kurzName(S.uGeraet) : (S.istAdmin ? "_alle" : "")) + ".pdf";
 

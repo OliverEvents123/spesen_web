@@ -105,63 +105,88 @@ function zeigeLogin(meldung) {
    Bausteine — werden von Handy und Rechner gleichermassen benutzt
    ========================================================== */
 
-// Ein Schnellknopf für den Zeitraum. Die Beschriftung zeigt die Daten mit,
-// damit man nicht raten muss, welche Periode gemeint ist.
-function zeitKnopf(kennung, titel, z) {
-  const an = (S.uVon === z.von && S.uBis === z.bis);
-  return `<button data-akt="zeitraum" data-v="${kennung}"
-    style="flex:1 1 150px;min-height:52px;border-radius:9px;cursor:pointer;
-           font-family:inherit;font-size:14px;line-height:1.3;padding:6px 12px;
-           border:1px solid ${an ? "var(--blau)" : "var(--rand)"};
-           background:${an ? "var(--blau)" : "#fff"};
-           color:${an ? "#fff" : "var(--blau)"};
-           font-weight:${an ? "700" : "400"};">
-    ${esc(titel)}<br>
-    <span style="font-size:12px;opacity:.85;">${kurzDatum(z.von)}–${kurzDatum(z.bis)}</span>
-  </button>`;
+// Eine gespeicherte Periode als Kachel. Das ✕ muss ein eigener Knopf sein —
+// ein Knopf innerhalb eines Knopfes ist in HTML nicht erlaubt.
+function periodeKachel(p) {
+  const an = (S.uVon === p.von && S.uBis === p.bis);
+  return `<span style="position:relative;flex:1 1 150px;display:flex;">
+    <button data-akt="periodeWahl" data-id="${p.id}"
+      style="flex:1 1 auto;min-width:0;min-height:54px;border-radius:9px;cursor:pointer;
+             font-family:inherit;font-size:14px;line-height:1.3;text-align:left;
+             padding:6px 30px 6px 12px;
+             border:1px solid ${an ? "var(--blau)" : "var(--rand)"};
+             background:${an ? "var(--blau)" : "#fff"};
+             color:${an ? "#fff" : "var(--blau)"};
+             font-weight:${an ? "700" : "400"};">
+      ${esc(p.name)}<br>
+      <span style="font-size:12px;opacity:.85;">${kurzDatum(p.von)}–${kurzDatum(p.bis)}</span>
+    </button>
+    ${S.istAdmin ? `<button data-akt="periodeWeg" data-id="${p.id}"
+      aria-label="Periode ${esc(p.name)} löschen"
+      style="position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;
+             border-radius:6px;font-size:13px;line-height:1;font-family:inherit;cursor:pointer;
+             border:1px solid ${an ? "rgba(255,255,255,.55)" : "var(--rand)"};
+             background:${an ? "transparent" : "#fff"};
+             color:${an ? "#fff" : "var(--grau)"};">✕</button>` : ""}
+  </span>`;
 }
 
 function blockFilter() {
-  const geraete = [...new Set(S.uBelege.map(b => b.geraet))].sort();
-  const breit = istBreit();
-
-  const p0 = periode(0), pm1 = periode(-1), km = kalendermonat(0);
-  const gleich = (z) => S.uVon === z.von && S.uBis === z.bis;
-  const jetzt = gleich(p0) ? "p0" : gleich(pm1) ? "pm1" : gleich(km) ? "km" : "";
-
-  const wahl = (w, titel, z) =>
-    `<option value="${w}" ${jetzt === w ? "selected" : ""}>` +
-    `${titel} · ${kurzDatum(z.von)}–${kurzDatum(z.bis)}</option>`;
-
-  // Am Handy ein Auswahlfeld statt drei Knöpfe — das spart eine halbe Seite.
-  const schnellFeld = `
-      <div>
-        <label for="uschnell">Zeitraum</label>
-        <select id="uschnell" data-feld="uschnell">
-          <option value="" ${jetzt === "" ? "selected" : ""}>Eigener Zeitraum</option>
-          ${wahl("p0",  "Aktuelle Periode", p0)}
-          ${wahl("pm1", "Letzte Periode",   pm1)}
-          ${wahl("km",  "Kalendermonat",    km)}
-        </select>
-      </div>`;
+  const geraete   = [...new Set(S.uBelege.map(b => b.geraet))].sort();
+  const konten    = kontenImZeitraum();
+  const auftraege = auftraegeImZeitraum();
 
   return `<div class="karte">
     <div class="paar">
-      <div style="flex:1 1 140px;">
+      <div style="flex:1 1 130px;">
         <label for="uvon">Von</label>
         <input id="uvon" type="date" value="${S.uVon}" data-feld="uvon">
       </div>
-      <div style="flex:1 1 140px;">
+      <div style="flex:1 1 130px;">
         <label for="ubis">Bis</label>
         <input id="ubis" type="date" value="${S.uBis}" data-feld="ubis">
       </div>
-      ${breit ? "" : schnellFeld}
+      ${S.istAdmin ? `
+      <div style="flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;">
+        <button data-akt="periodeNeu" title="Diesen Zeitraum als Periode merken"
+          aria-label="Diesen Zeitraum als Periode merken"
+          style="min-height:46px;min-width:46px;border:1px solid var(--blau);
+                 border-radius:10px;background:#fff;color:var(--blau);
+                 font-size:20px;line-height:1;font-family:inherit;cursor:pointer;">+</button>
+      </div>` : ""}
+    </div>
+
+    ${S.perioden.length ? `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      ${S.perioden.map(periodeKachel).join("")}
+    </div>` : `
+    <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-top:8px;">
+      ${S.istAdmin ? "Noch keine Perioden gemerkt — Zeitraum eintragen und auf + tippen."
+                   : "Noch keine Perioden gemerkt."}</div>`}
+
+    <div class="paar" style="margin-top:10px;">
       <div>
         <label for="uzahlart">Zahlungsart</label>
         <select id="uzahlart" data-feld="uzahlart">
           <option value="" ${S.uZahlart===""?"selected":""}>Alle</option>
           ${Object.entries(ZAHLART).map(([w,n]) =>
             `<option value="${w}" ${S.uZahlart===w?"selected":""}>${n}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <label for="ukonto">Konto</label>
+        <select id="ukonto" data-feld="ukonto">
+          <option value="">Alle Konten</option>
+          ${konten.map(k => `<option value="${esc(k)}" ${S.uKonto===k?"selected":""}
+            >${esc(k)}${kontoName(k) ? " " + esc(kontoName(k)) : ""}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <label for="uauftrag">Auftrag</label>
+        <select id="uauftrag" data-feld="uauftrag">
+          <option value="">Alle Aufträge</option>
+          ${auftraege.map(a => `<option value="${esc(a)}" ${S.uAuftrag===a?"selected":""}
+            >${esc(auftragAnzeige(a))}</option>`).join("")}
         </select>
       </div>
       ${S.istAdmin ? `
@@ -174,12 +199,6 @@ function blockFilter() {
         </select>
       </div>` : ""}
     </div>
-
-    ${breit ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-      ${zeitKnopf("p0",  "Aktuelle Periode", p0)}
-      ${zeitKnopf("pm1", "Letzte Periode",   pm1)}
-      ${zeitKnopf("km",  "Kalendermonat",    km)}
-    </div>` : ""}
   </div>`;
 }
 
@@ -742,6 +761,7 @@ function renderFavForm() {
 
 function blockBenForm() {
   const b = S.benEdit || { neu:true, email:"", name:"", rolle:"user", gesperrt:false };
+  const fest = !b.neu && istGeschuetzt(b.email);   // Notfall-Administrator
   return `<div class="karte">
     <div style="font-size:17px;font-weight:700;margin-bottom:14px;">
       ${b.neu ? "Neuer Benutzer" : esc(b.name || kurzName(b.email))}</div>
@@ -749,21 +769,27 @@ function blockBenForm() {
     ${b.neu ? `
       <label for="bmail">E-Mail</label>
       <input id="bmail" type="email" inputmode="email" value="${esc(b.email)}"
-             placeholder="handy3@tit-pit.ch" style="margin-bottom:12px">
-      <label for="bname">Name</label>
-      <input id="bname" type="text" value="${esc(b.name)}" placeholder="Eventhandy 3"
-             style="margin-bottom:14px">`
-    : `<div style="font-size:14px;color:var(--grau);margin-bottom:14px;">${esc(b.email)}</div>`}
+             placeholder="handy3@tit-pit.ch" style="margin-bottom:12px">`
+    : `<div style="font-size:14px;color:var(--grau);margin-bottom:12px;line-height:1.45;">
+         ${esc(b.email)} — bleibt fest, die Belege hängen daran.</div>`}
+
+    <label for="bname">Name</label>
+    <input id="bname" type="text" value="${esc(b.name)}" placeholder="Eventhandy 3"
+           style="margin-bottom:14px">
 
     <label>Rolle</label>
     <div class="mwst" style="margin-bottom:8px;">
-      <button class="${b.rolle==="user"?"an":""}" data-akt="benRolle" data-v="user">User</button>
-      <button class="${b.rolle==="admin"?"an":""}" data-akt="benRolle" data-v="admin">Admin</button>
+      <button class="${b.rolle==="user"?"an":""}" data-akt="benRolle" data-v="user"
+              ${fest ? "disabled" : ""}>User</button>
+      <button class="${b.rolle==="admin"?"an":""}" data-akt="benRolle" data-v="admin"
+              ${fest ? "disabled" : ""}>Admin</button>
     </div>
     <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:14px;">
-      ${b.rolle === "admin"
-        ? "Sieht alle Belege aller Geräte und darf Benutzer und Konten verwalten."
-        : "Sieht und erfasst nur die eigenen Belege."}</div>
+      ${fest
+        ? "Notfall-Administrator. Rolle und Sperre sind festgelegt, damit immer ein Weg in die Verwaltung offen bleibt."
+        : (b.rolle === "admin"
+            ? "Sieht alle Belege aller Geräte und darf Benutzer und Konten verwalten."
+            : "Sieht und erfasst nur die eigenen Belege.")}</div>
 
     <label for="bpw">${b.neu ? "Passwort" : "Neues Passwort (leer lassen, wenn unverändert)"}</label>
     <input id="bpw" type="text" autocomplete="off" placeholder="mindestens 6 Zeichen">
@@ -773,9 +799,10 @@ function blockBenForm() {
     <button class="knopf" data-akt="benSichern">
       ${b.neu ? "Benutzer anlegen" : "Änderungen speichern"}</button>
 
-    ${!b.neu ? `
+    ${!b.neu && !fest ? `
       <button class="zweit" data-akt="benSperren" style="margin-top:10px;">
-        ${b.gesperrt ? "Wieder freischalten" : "Anmeldung sperren"}</button>
+        ${b.gesperrt ? "Wieder freischalten" : "Anmeldung sperren"}</button>` : ""}
+    ${!b.neu ? `
       <button class="zweit" data-akt="benNeu" style="margin-top:10px;">
         Stattdessen neuen anlegen</button>` : ""}
   </div>`;

@@ -93,11 +93,44 @@ app.addEventListener("click", async (e) => {
   if (a === "bearbeiten")    { return belegBearbeiten(el.dataset.id, el.dataset.w); }
 
   // ---------- Zeitraum ----------
-  if (a === "zeitraum") {
-    const v = el.dataset.v;
-    const z = v === "p0" ? periode(0) : v === "pm1" ? periode(-1) : kalendermonat(0);
-    S.uVon = z.von; S.uBis = z.bis; S.uGeraet = "";
+  // Beim Wechsel des Zeitraums fallen Gerät, Konto und Auftrag zurück auf
+  // "Alle" — sie könnten im neuen Zeitraum gar nicht vorkommen.
+  if (a === "periodeWahl") {
+    const p = S.perioden.find(x => String(x.id) === String(el.dataset.id));
+    if (!p) return;
+    S.uVon = p.von; S.uBis = p.bis;
+    S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
     return ladeUebersicht(true);
+  }
+
+  if (a === "periodeNeu") {
+    const vorschlag = `${kurzDatum(S.uVon)}–${kurzDatum(S.uBis)}`;
+    const name = prompt("Name der Periode:", vorschlag);
+    if (name === null) return;
+    const { error } = await periodeSpeichern(name || vorschlag, S.uVon, S.uBis);
+    if (error) {
+      alert(istNetzfehler(error) ? NETZTEXT
+            : "Konnte nicht gemerkt werden:\n" + error.message);
+      return;
+    }
+    await ladePerioden();
+    S.meldung = "Periode gemerkt.";
+    return render();
+  }
+
+  if (a === "periodeWeg") {
+    const p = S.perioden.find(x => String(x.id) === String(el.dataset.id));
+    if (!p) return;
+    if (!confirm(`Periode „${p.name}" löschen? Die Belege bleiben unberührt.`)) return;
+    const { error } = await periodeLoeschen(p.id);
+    if (error) {
+      alert(istNetzfehler(error) ? NETZTEXT
+            : "Konnte nicht gelöscht werden:\n" + error.message);
+      return;
+    }
+    await ladePerioden();
+    S.meldung = "Periode gelöscht.";
+    return render();
   }
 
   // ---------- Admin: Benutzer ----------
@@ -168,6 +201,13 @@ app.addEventListener("click", async (e) => {
       }
       S.meldung = "Benutzer angelegt.";
     } else {
+      const name = (document.getElementById("bname") || {}).value || "";
+      const jn = await benutzerRuf({ aktion:"name", email:b.email, name });
+      if (!jn.ok) {
+        el.disabled = false; el.textContent = urspruenglich;
+        alert(jn.fehler || "Name konnte nicht gespeichert werden."); return;
+      }
+
       const j1 = await benutzerRuf({ aktion:"rolle", email:b.email, rolle:b.rolle });
       if (!j1.ok) {
         el.disabled = false; el.textContent = urspruenglich;
@@ -573,25 +613,20 @@ app.addEventListener("change", (e) => {
     if (!e.target.value) return;
     S.uVon = e.target.value;
     if (S.uBis < S.uVon) S.uBis = S.uVon;
-    S.uGeraet = ""; ladeUebersicht(true); return;
+    S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
+    ladeUebersicht(true); return;
   }
   if (f === "ubis") {
     if (!e.target.value) return;
     S.uBis = e.target.value;
     if (S.uBis < S.uVon) S.uVon = S.uBis;
-    S.uGeraet = ""; ladeUebersicht(true); return;
-  }
-
-  // Auswahlfeld für den Zeitraum — am Handy statt der drei Knöpfe
-  if (f === "uschnell") {
-    const v = e.target.value;
-    if (!v) return;                       // "Eigener Zeitraum" lässt die Daten stehen
-    const z = v === "p0" ? periode(0) : v === "pm1" ? periode(-1) : kalendermonat(0);
-    S.uVon = z.von; S.uBis = z.bis; S.uGeraet = "";
+    S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
     ladeUebersicht(true); return;
   }
 
   if (f === "ugeraet")  { S.uGeraet  = e.target.value; render(); return; }
+  if (f === "ukonto")   { S.uKonto   = e.target.value; render(); return; }
+  if (f === "uauftrag") { S.uAuftrag = e.target.value; render(); return; }
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); return; }
 });
 
