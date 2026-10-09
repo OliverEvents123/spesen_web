@@ -74,6 +74,8 @@ function knopfStand() {
   knopf.disabled = !fertig;
   knopf.textContent = fertig ? (n.id ? "Änderungen speichern" : "Speichern")
                              : "Beleg, Konto, Auftrag und Betrag nötig";
+  const frei = app.querySelector('[data-akt="speichernFrei"]');
+  if (frei) frei.disabled = !fertig;
 }
 
 // ---------- Klicks ----------
@@ -506,6 +508,43 @@ app.addEventListener("click", async (e) => {
     return;
   }
 
+  // ---------- Zur Prüfung freigeben ----------
+  if (a === "freigebenAlle") {
+    const quelle = el.dataset.w === "liste" ? S.belege : uGefiltert();
+    const ids = eigeneErfasste(quelle).map(b => b.id);
+    if (!ids.length) return;
+    if (!confirm(`${ids.length === 1 ? "Diesen Beleg" : "Diese " + ids.length + " Belege"} `
+                 + "zur Prüfung freigeben?\nDanach lassen sie sich nicht mehr ändern.")) return;
+    el.disabled = true; el.textContent = "Gebe frei …";
+    const { anzahl, error } = await belegeFreigeben(ids);
+    if (error) {
+      el.disabled = false;
+      alert(istNetzfehler(error) ? NETZTEXT : "Freigabe hat nicht geklappt:\n" + error.message);
+      return render();
+    }
+    S.meldung = anzahl === 1 ? "1 Beleg zur Prüfung freigegeben."
+                             : `${anzahl} Belege zur Prüfung freigegeben.`;
+    await ladeAlles();
+    if (istBreit() || S.ansicht === "uebersicht") await ladeUebersicht(true); else render();
+    return;
+  }
+
+  if (a === "zurueckErfasst") {
+    const n = S.neu;
+    if (!confirm("Diesen Beleg zurück auf „erfasst“ setzen?\n"
+                 + "Der Erfasser kann ihn dann wieder ändern und löschen.")) return;
+    el.disabled = true;
+    const { data, error } = await sb.from("spesen_beleg")
+      .update({ status: "offen" }).eq("id", n.id).select("id");
+    if (error || !(data && data.length)) {
+      el.disabled = false;
+      alert(error ? (istNetzfehler(error) ? NETZTEXT : error.message) : GESPERRT_TEXT);
+      return;
+    }
+    await zurueckNachSpeichern("Beleg ist wieder erfasst und lässt sich ändern.");
+    return;
+  }
+
   // ---------- Beleg löschen ----------
   if (a === "loeschen") {
     const n = S.neu;
@@ -531,9 +570,12 @@ app.addEventListener("click", async (e) => {
   }
 
   // ---------- Beleg speichern ----------
-  if (a === "speichern") {
+  if (a === "speichern" || a === "speichernFrei") {
     const n = S.neu;
     const geteilt = Array.isArray(n.positionen);
+    const freigeben = a === "speichernFrei";
+    if (freigeben && !confirm("Beleg speichern und zur Prüfung freigeben?\n"
+                              + "Danach lässt er sich nicht mehr ändern.")) return;
 
     // Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
     // die erste Position steht zusätzlich oben, damit alte Auswertungen
@@ -583,7 +625,12 @@ app.addEventListener("click", async (e) => {
       monat:        n.datum.slice(0, 7)
     };
 
-    let error;
+    // Beim Ändern geht die Freigabe im selben Schritt mit. Ein neuer Beleg
+    // muss erst als "offen" angelegt werden — so will es die Datenbank —
+    // und wird gleich danach freigegeben.
+    if (freigeben && n.id) daten.status = "eingereicht";
+
+    let error, neueId = null;
     if (n.id) {
       let zeilen;
       ({ data: zeilen, error } = await sb.from("spesen_beleg")
@@ -591,8 +638,10 @@ app.addEventListener("click", async (e) => {
       // Wie beim Löschen: eine gesperrte Änderung meldet keinen Fehler, nur null Zeilen.
       if (!error && !(zeilen && zeilen.length)) error = { message: GESPERRT_TEXT, gesperrt: true };
     } else {
-      ({ error } = await sb.from("spesen_beleg")
-        .insert({ ...daten, geraet: S.session.user.email }));
+      let neu;
+      ({ data: neu, error } = await sb.from("spesen_beleg")
+        .insert({ ...daten, geraet: S.session.user.email }).select("id"));
+      if (!error && neu && neu[0]) neueId = neu[0].id;
     }
 
     if (error) {
@@ -612,8 +661,16 @@ app.addEventListener("click", async (e) => {
     }
     if (n.vorschau) URL.revokeObjectURL(n.vorschau);
 
-    await zurueckNachSpeichern(n.id ? "Beleg geändert."
-                                    : `Beleg über CHF ${chf(betrag)} gespeichert.`);
+    let text = n.id ? "Beleg geändert." : `Beleg über CHF ${chf(betrag)} gespeichert.`;
+    if (freigeben && neueId) {
+      const f = await belegeFreigeben([neueId]);
+      text = f.anzahl ? `Beleg über CHF ${chf(betrag)} gespeichert und zur Prüfung freigegeben.`
+                      : `Beleg über CHF ${chf(betrag)} gespeichert, aber NICHT freigegeben — `
+                        + "bitte in der Liste nochmals freigeben.";
+    } else if (freigeben) {
+      text = "Beleg gespeichert und zur Prüfung freigegeben.";
+    }
+    await zurueckNachSpeichern(text);
   }
 });
 
@@ -658,6 +715,7 @@ app.addEventListener("change", (e) => {
   if (f === "ukonto")   { S.uKonto   = e.target.value; render(); return; }
   if (f === "uauftrag") { S.uAuftrag = e.target.value; render(); return; }
   if (f === "uzahlart") { S.uZahlart = e.target.value; render(); return; }
+  if (f === "ustatus")  { S.uStatus  = e.target.value; render(); return; }
 });
 
 // Beim Tippen übernehmen, ohne neu zu zeichnen — sonst verliert das Feld den Fokus.

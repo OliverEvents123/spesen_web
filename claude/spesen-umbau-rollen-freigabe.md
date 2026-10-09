@@ -104,6 +104,16 @@ Marke. Noch keine Prüfer — alles wird eingereicht und bleibt dort liegen.
 
 Kleinste Etappe, grösster Nutzen: ab hier ist klar, welche Belege fertig sind.
 
+**Stand 09.10.2026: gebaut in `test/`.** Datenbank: `supabase/etappe1-status.sql`
+(Status `offen` = „erfasst" und `eingereicht`, Spalte `eingereicht_am` per
+Trigger, RLS). Frage 3 vorläufig mit Ja beantwortet: ein Admin kann einen
+eingereichten Beleg zurück auf „erfasst" setzen (Policy
+`beleg_admin_eingereicht`). App: Status-Marke in allen Listen, „Speichern und
+zur Prüfung freigeben", „N erfasste Belege freigeben", eingereichte Belege nur
+lesbar, Statusfilter in der Übersicht.
+**Reihenfolge beim Live-Schalten: zuerst das SQL im Live-Projekt, dann die App.**
+Die alte App läuft mit dem neuen SQL unverändert weiter.
+
 ### Etappe 2 — Projektleiter
 
 Tabelle `spesen_zuweisung` (E-Mail × Auftragsnummer). Neue Rolle

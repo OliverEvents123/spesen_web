@@ -13,9 +13,16 @@ const app = document.getElementById("app");
 const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
 const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 
+// Status eines Belegs. In der Datenbank heisst "erfasst" noch "offen".
+const STATUS = { offen:"erfasst", eingereicht:"eingereicht", abgeschlossen:"abgeschlossen" };
+const statusVon  = (b) => (b && b.status) || "offen";
+const statusName = (s) => STATUS[s || "offen"] || s;
+// Nur ein erfasster Beleg lässt sich ändern oder löschen.
+const istGesperrt = (b) => statusVon(b) !== "offen";
+
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
 const GESPERRT_TEXT = "Dieser Beleg lässt sich nicht mehr ändern oder löschen — "
-                    + "er ist abgeschlossen oder gehört einem anderen Gerät.";
+                    + "er ist zur Prüfung freigegeben oder gehört einem anderen Gerät.";
 const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
 const MAX_PERIODEN = 3;         // je Benutzer; die Datenbank hält dieselbe Grenze
 const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
@@ -114,10 +121,10 @@ let S = {
   monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null, posIndex:null,
   suche:"", meldung:null, zurueckZu:"liste",
   uVon: START.von, uBis: START.bis, uBelege:[], uLaedt:false,
-  uGeraet:"", uZahlart:"", uKonto:"", uAuftrag:""
+  uGeraet:"", uZahlart:"", uKonto:"", uAuftrag:"", uStatus:""
 };
 
-const leererBeleg = () => ({ id:null, konto:null, auftrag:null, mwst:"8.1", betragText:"",
+const leererBeleg = () => ({ id:null, status:"offen", konto:null, auftrag:null, mwst:"8.1", betragText:"",
                              positionen:null,
                              datum: heute(), zahlart:"karte", datei:null, vorschau:null,
                              altPfad:null, altUrl:null });
@@ -353,6 +360,7 @@ function belegImFilter(b) {
 const uGefiltert = () => S.uBelege.filter(b =>
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
+  (!S.uStatus  || statusVon(b) === S.uStatus) &&
   belegZeilen(b).some(zeilePasst)).map(belegImFilter);
 
 // Was kommt im geladenen Zeitraum überhaupt vor? Füllt die Auswahlfelder.
@@ -376,6 +384,7 @@ const uTitel = () => {
     S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email),
     S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
   ];
+  if (S.uStatus)  teile.push("Status " + statusName(S.uStatus));
   if (S.uKonto)   teile.push("Konto " + S.uKonto);
   if (S.uAuftrag) teile.push("Auftrag " + auftragAnzeige(S.uAuftrag));
   return teile.join(" · ");
@@ -456,6 +465,7 @@ async function belegBearbeiten(id, woher) {
 
   S.neu = {
     id: b.id,
+    status: statusVon(b), eingereichtAm: b.eingereicht_am || null, geraet: b.geraet,
     konto:   kontoObjekt(b.konto_nummer),
     auftrag: auftragObjekt(b.auftrag_nr),
     mwst: String(b.mwst),
@@ -482,6 +492,21 @@ const positionenSumme = (pos) =>
 const positionenFertig = (pos) =>
   Array.isArray(pos) && pos.length > 0 &&
   pos.every(p => betragVon(p.betragText) > 0 && p.konto && p.auftrag);
+
+// ---------- Zur Prüfung freigeben ----------
+// Setzt erfasste Belege auf "eingereicht". Gibt zurück, wie viele es wirklich
+// wurden — die Datenbank lässt nur eigene, noch erfasste Belege zu.
+async function belegeFreigeben(ids) {
+  if (!ids.length) return { anzahl: 0 };
+  const { data, error } = await sb.from("spesen_beleg")
+    .update({ status: "eingereicht" })
+    .in("id", ids).eq("status", "offen").select("id");
+  return { anzahl: (data || []).length, error };
+}
+
+// Eigene, noch erfasste Belege aus einer Liste — die lassen sich freigeben.
+const eigeneErfasste = (liste) => (liste || []).filter(b =>
+  b.geraet === S.session.user.email && !istGesperrt(b));
 
 // ---------- Nach dem Speichern zurück ----------
 async function zurueckNachSpeichern(text) {
