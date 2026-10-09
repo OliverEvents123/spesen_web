@@ -12,12 +12,7 @@ geändert.
 
 ## Klären
 
-- **Auftragsnummern auch aus dem Vorjahr** (entschieden 09.10.: immer das
-  ganze Vorjahr mitladen). Gebaut in `test/daten.js` (`ladeAuftraege`), noch
-  nicht live.
-- **Edge Functions im Testprojekt** benutzen `SUPABASE_ANON_KEY` /
-  `SUPABASE_SERVICE_ROLE_KEY`. Ob ein neues Projekt die noch bereitstellt,
-  zeigt der erste Test.
+- (nichts offen)
 
 ## Anmerken
 
@@ -41,6 +36,9 @@ geändert.
 - Tabelle `spesen_admin` ist Altlast, kann nach Prüfung weg.
 
 ## Bewusst so gelassen
+
+- Auftragsnummern: laufendes Jahr **und** ganzes Vorjahr (entschieden 09.10.,
+  in test/ geprüft, `ladeAuftraege` in `daten.js`).
 
 - „Meine Belege" zeigt den Kalendermonat, nicht die Abrechnungsperiode
   16.–15. Für andere Zeiträume gibt es die gespeicherten Perioden.
