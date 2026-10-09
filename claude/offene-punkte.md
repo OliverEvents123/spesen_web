@@ -9,17 +9,15 @@ geändert.
   Auftrag und MwSt nur der *ersten* Position. Die Kontierung stimmt. Hängt an
   der Frage, wie eine Teilgenehmigung exportiert wird
   (`spesen-umbau-rollen-freigabe.md`, offene Frage 2).
-- **Testumgebung teilt die Datenbank** mit der echten App. Getrennte
-  Supabase-Projekte geplant; der Code ist dafür vorbereitet (`konfig.js`).
 
 ## Klären
 
-- **Auftragsnummern nur fürs laufende Jahr.** Die App ruft
-  `auftragsnummern?jahr=<laufendes Jahr>` auf. Die Function sucht in FileMaker
-  `ANr_Jahr == jahr` **oder** eine der Nummern in `IMMER_DABEI`. Im Januar
-  fehlen also alle Aufträge des Vorjahrs — ein Dezember-Beleg, der erst im
-  Januar erfasst wird, lässt sich keinem Dezember-Event zuordnen. Lösung in der
-  App möglich (Anfang Jahr zusätzlich das Vorjahr laden), Function bleibt gleich.
+- **Auftragsnummern auch aus dem Vorjahr** (entschieden 09.10.: immer das
+  ganze Vorjahr mitladen). Gebaut in `test/daten.js` (`ladeAuftraege`), noch
+  nicht live.
+- **Edge Functions im Testprojekt** benutzen `SUPABASE_ANON_KEY` /
+  `SUPABASE_SERVICE_ROLE_KEY`. Ob ein neues Projekt die noch bereitstellt,
+  zeigt der erste Test.
 
 ## Anmerken
 

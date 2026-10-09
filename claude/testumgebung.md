@@ -1,5 +1,10 @@
 # Testumgebung einrichten
 
+**Eingerichtet am 09.10.2026:** Projekt `jqegbngpuflymvpuvvvf`
+(https://jqegbngpuflymvpuvvvf.supabase.co), eigene Organisation.
+Edge Functions mit „Verify JWT with legacy secret" **aus** — sie prüfen die
+Anmeldung selbst, und neue Projekte signieren nicht mehr mit dem alten Secret.
+
 Ziel: `spesen.tit-pit.ch/test/` läuft auf einem eigenen Supabase-Projekt.
 Was dort passiert, berührt die echten Belege nicht.
 
