@@ -259,9 +259,13 @@ function blockExport(anzahl) {
 // Am Handy auf zwei Zeilen verteilt: oben das Konto, unten der Rest.
 // Eine einzige lange Zeile drückt sonst die Knöpfe rechts aus der Karte.
 function belegKopf(b) {
-  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen`;
-  return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}`;
+  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen` + anteilText(b);
+  return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}` + anteilText(b);
 }
+
+// Nur ein Teil eines aufgeteilten Belegs passt zum Filter
+const anteilText = (b) =>
+  b.gesamtBetrag != null ? ` · Anteil von CHF ${chf(b.gesamtBetrag)}` : "";
 
 function belegDetail(b, mitGeraet) {
   const teile = [];
@@ -273,9 +277,9 @@ function belegDetail(b, mitGeraet) {
 
 // Eine Zeile am Stück — für das Rechner-Layout, dort ist Platz genug
 function belegText(b) {
-  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen`;
+  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen` + anteilText(b);
   return `${esc(b.konto_nummer)} ${esc(kontoName(b.konto_nummer))}`
-       + ` · ${esc(auftragAnzeige(b.auftrag_nr))} · ${b.mwst} %`;
+       + ` · ${esc(auftragAnzeige(b.auftrag_nr))} · ${b.mwst} %` + anteilText(b);
 }
 
 // Belegliste. woher steuert, wohin das Bearbeiten zurückkehrt.

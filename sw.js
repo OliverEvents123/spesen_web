@@ -11,13 +11,15 @@ const DATEIEN = [
   "./",
   "./index.html",
   "./stil.css",
+  "./konfig.js",
   "./daten.js",
   "./ansichten.js",
   "./export.js",
   "./app.js",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./icon-maskable-512.png"
 ];
 
 self.addEventListener("install", (e) => {
@@ -48,11 +50,19 @@ self.addEventListener("fetch", (e) => {
   const ziel = new URL(anfrage.url);
   if (ziel.origin !== location.origin) return;
 
+  // Die Testfassung unter /test/ läuft bewusst ohne Zwischenspeicher —
+  // sonst würde ohne Netz die echte App an ihrer Stelle erscheinen.
+  if (ziel.pathname.includes("/test/")) return;
+
   e.respondWith(
     fetch(anfrage)
       .then((antwort) => {
-        const kopie = antwort.clone();
-        caches.open(CACHE).then((c) => c.put(anfrage, kopie)).catch(() => {});
+        // Nur gute Antworten merken — eine Fehlerseite soll ohne Netz
+        // nicht die letzte funktionierende Fassung verdrängen.
+        if (antwort.ok) {
+          const kopie = antwort.clone();
+          caches.open(CACHE).then((c) => c.put(anfrage, kopie)).catch(() => {});
+        }
         return antwort;
       })
       .catch(() => caches.match(anfrage)
