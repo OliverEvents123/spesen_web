@@ -147,7 +147,12 @@ gebaut hat — darum zuletzt.
 - **Frage 2 — Teilgenehmigung.** Der Projektleiter tippt „Teilweise
   genehmigen", gibt den genehmigten Betrag ein (z. B. 45.00 von 60.00) und
   einen Kommentar (z. B. „weniger, da Alkohol"). Betrag und Kommentar sind
-  Pflicht. Noch offen: was davon im Export/DocuWare gebucht wird.
+  Pflicht. **Gebucht wird der genehmigte Betrag** (die 45.00) — so geht er in
+  Export und DocuWare.
+- **Frage 4 — Benachrichtigung:** vorerst keine Mail. Der User sieht den
+  Entscheid in der App.
+- **Vorgehen:** Etappen in `test/` bauen und gemeinsam live schalten statt
+  jede einzeln.
 
 ## Offene Fragen, vor dem Bauen zu klären
 
