@@ -1,10 +1,10 @@
 // daten.js
 // Verbindung zu Supabase, der Zustand der App und alle Datenzugriffe.
-// Hier ändern: Zugangsdaten, Laden, Speichern, Gruppierung, Bildaufbereitung,
+// Hier ändern: Laden, Speichern, Gruppierung, Bildaufbereitung,
 // Favoriten, Benutzer, Konten, Zeitraum.
 
-const SUPABASE_URL = "https://ieziwunnhyoiacleyspw.supabase.co";
-const SUPABASE_KEY = "sb_publishable_vFDhfRba41suO17FZOHdAg_wa0jonFy";
+// SUPABASE_URL und SUPABASE_KEY stehen in konfig.js — je eine für die echte
+// App und für test/, damit beide auf ihre eigene Datenbank zeigen können.
 
 const sb  = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById("app");
@@ -14,6 +14,8 @@ const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
 const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
+const GESPERRT_TEXT = "Dieser Beleg lässt sich nicht mehr ändern oder löschen — "
+                    + "er ist abgeschlossen oder gehört einem anderen Gerät.";
 const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
 const MAX_PERIODEN = 3;         // je Benutzer; die Datenbank hält dieselbe Grenze
 const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
@@ -320,11 +322,25 @@ const zeilePasst = (p) =>
   (!S.uKonto   || p.konto_nummer === S.uKonto) &&
   (!S.uAuftrag || p.auftrag_nr   === S.uAuftrag);
 
+// Ist nach Konto oder Auftrag gefiltert, zählt von einem aufgeteilten Beleg
+// nur der passende Teil — sonst zeigt die Belegliste mehr als die Kontierung.
+// gesamtBetrag hält dann fest, wie viel der ganze Beleg ausmacht.
+function belegImFilter(b) {
+  if (!S.uKonto && !S.uAuftrag) return b;
+  if (!Array.isArray(b.positionen) || b.positionen.length < 2) return b;
+  const teile = b.positionen.filter(zeilePasst);
+  if (teile.length === b.positionen.length) return b;
+  const betrag = Math.round(teile.reduce((t,p) => t + parseFloat(p.betrag), 0) * 100) / 100;
+  return { ...b, positionen: teile, betrag, gesamtBetrag: b.betrag,
+           mwst: teile[0].mwst, konto_nummer: teile[0].konto_nummer,
+           auftrag_nr: teile[0].auftrag_nr };
+}
+
 // Ein Beleg erscheint, wenn mindestens eine seiner Positionen passt.
 const uGefiltert = () => S.uBelege.filter(b =>
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
-  belegZeilen(b).some(zeilePasst));
+  belegZeilen(b).some(zeilePasst)).map(belegImFilter);
 
 // Was kommt im geladenen Zeitraum überhaupt vor? Füllt die Auswahlfelder.
 function kontenImZeitraum() {
@@ -472,14 +488,20 @@ async function zurueckNachSpeichern(text) {
 // ---------- Benutzerverwaltung (nur Admin) ----------
 // Alles läuft über die Edge Function, weil Passwörter setzen und Konten
 // anlegen nur mit dem service_role-Schlüssel geht — und der bleibt dort.
+// Wirft nie: bei Netzfehler oder kaputter Antwort kommt { ok:false } zurück,
+// sonst bliebe der Knopf auf "Speichere …" hängen.
 async function benutzerRuf(daten) {
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/benutzer`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${S.session.access_token}`,
-               apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify(daten)
-  });
-  return await r.json();
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/benutzer`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${S.session.access_token}`,
+                 apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(daten)
+    });
+    return await r.json();
+  } catch (e) {
+    return { ok: false, fehler: istNetzfehler(e) ? NETZTEXT : String(e.message || e) };
+  }
 }
 
 async function ladeBenutzer() {

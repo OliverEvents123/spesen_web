@@ -11,6 +11,7 @@ const DATEIEN = [
   "./",
   "./index.html",
   "./stil.css",
+  "./konfig.js",
   "./daten.js",
   "./ansichten.js",
   "./export.js",

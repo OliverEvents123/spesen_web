@@ -511,7 +511,15 @@ app.addEventListener("click", async (e) => {
     const n = S.neu;
     if (!confirm("Diesen Beleg wirklich löschen? Der Scan wird mitgelöscht.")) return;
     el.disabled = true; el.textContent = "Lösche …";
-    const { error } = await sb.from("spesen_beleg").delete().eq("id", n.id);
+    const { data: weg, error } = await sb.from("spesen_beleg")
+      .delete().eq("id", n.id).select("id");
+    // Verbietet die Datenbank das Löschen, kommt kein Fehler, sondern einfach
+    // nichts zurück. Dann auch den Scan nicht anrühren.
+    if (!error && !(weg && weg.length)) {
+      el.disabled = false; el.textContent = "Diesen Beleg löschen";
+      alert(GESPERRT_TEXT);
+      return;
+    }
     if (error) {
       el.disabled = false; el.textContent = "Diesen Beleg löschen";
       alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gelöscht werden:\n" + error.message);
@@ -577,8 +585,11 @@ app.addEventListener("click", async (e) => {
 
     let error;
     if (n.id) {
-      ({ error } = await sb.from("spesen_beleg")
-        .update({ ...daten, geaendert: new Date().toISOString() }).eq("id", n.id));
+      let zeilen;
+      ({ data: zeilen, error } = await sb.from("spesen_beleg")
+        .update({ ...daten, geaendert: new Date().toISOString() }).eq("id", n.id).select("id"));
+      // Wie beim Löschen: eine gesperrte Änderung meldet keinen Fehler, nur null Zeilen.
+      if (!error && !(zeilen && zeilen.length)) error = { message: GESPERRT_TEXT, gesperrt: true };
     } else {
       ({ error } = await sb.from("spesen_beleg")
         .insert({ ...daten, geraet: S.session.user.email }));
@@ -591,7 +602,8 @@ app.addEventListener("click", async (e) => {
         try { await sb.storage.from("belege").remove([pfad]); } catch {}
       }
       el.disabled = false; el.textContent = urspruenglich;
-      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
+      alert(error.gesperrt ? GESPERRT_TEXT
+            : istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
       return;
     }
 

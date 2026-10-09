@@ -95,7 +95,9 @@ const SpesenExport = (function () {
     function kopfzeile(seite, b, zusatz) {
       const t = `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
                 `Auftrag ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)} · ` +
-                `CHF ${chf(b.betrag)}${zusatz || ""}`;
+                `CHF ${chf(b.betrag)}` +
+                (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "") +
+                (zusatz || "");
       seite.drawText(t, { x:RAND, y:HOEHE-RAND+4, size:9, font, color:grau });
       seite.drawLine({ start:{x:RAND, y:HOEHE-RAND-6}, end:{x:BREITE-RAND, y:HOEHE-RAND-6},
                        thickness:0.5, color:linie });
@@ -151,10 +153,11 @@ const SpesenExport = (function () {
                        size:14, font:fett, color:blau });
     y -= 34;
 
-    const sp = [{ w:48 }, { w:118 }, { w:58 }, { w:44 },
-                { w:38, re:true }, { w:72, re:true }, { w:72, re:true }, { w:65, re:true }];
-    zeile(s1, y, sp, ["Konto","Bezeichnung","Auftrag","MwSt","Belege","Brutto","MwSt-Betrag","Netto"],
-          fett, 9, grau);
+    // Gruppiert wird auch nach Zahlungsart — ohne die Spalte sähen zwei Zeilen gleich aus.
+    const sp = [{ w:48 }, { w:84 }, { w:58 }, { w:40 }, { w:64 },
+                { w:38, re:true }, { w:62, re:true }, { w:62, re:true }, { w:59, re:true }];
+    zeile(s1, y, sp, ["Konto","Bezeichnung","Auftrag","MwSt","Bezahlt",
+                      "Belege","Brutto","MwSt-Betrag","Netto"], fett, 9, grau);
     y -= 6;
     s1.drawLine({ start:{x:RAND,y}, end:{x:BREITE-RAND,y}, thickness:1, color:linie });
     y -= 16;
@@ -162,7 +165,7 @@ const SpesenExport = (function () {
     for (const g of gruppen) {
       if (y < RAND + 60) { s1 = doc.addPage([BREITE,HOEHE]); y = HOEHE - RAND - 10; }
       zeile(s1, y, sp, [g.konto, g.bezeichnung || "", g.auftrag, g.satz + " %",
-                        g.anzahl, chf(g.brutto), chf(g.steuer), chf(g.netto)], font, 10);
+                        zahlartName(g.zahlart), g.anzahl, chf(g.brutto), chf(g.steuer), chf(g.netto)], font, 10);
       y -= 8;
       s1.drawLine({ start:{x:RAND,y}, end:{x:BREITE-RAND,y}, thickness:0.5, color:linie });
       y -= 16;
@@ -170,7 +173,7 @@ const SpesenExport = (function () {
 
     y -= 4;
     s1.drawRectangle({ x:RAND, y:y-6, width:BREITE-2*RAND, height:24, color:rgb(0.93,0.95,0.98) });
-    zeile(s1, y, sp, ["Total","","","", tA, chf(tB), chf(tS), chf(tN)], fett, 10);
+    zeile(s1, y, sp, ["Total","","","","", tA, chf(tB), chf(tS), chf(tN)], fett, 10);
     s1.drawText(`Erstellt am ${datumCH(new Date())}`,
                 { x:RAND, y:RAND-12, size:8, font, color:grau });
 

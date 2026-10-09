@@ -27,7 +27,9 @@
 <input type="file" id="datei"  accept="image/*,application/pdf" hidden>
 
 <!-- Reihenfolge ist wichtig: daten vor ansichten vor app -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Feste Version: ein Update von Supabase soll die App nicht ungefragt ändern -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+<script src="konfig.js"></script>
 <script src="daten.js"></script>
 <script src="ansichten.js"></script>
 <script src="export.js"></script>
