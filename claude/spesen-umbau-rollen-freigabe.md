@@ -129,6 +129,16 @@ dieselbe Freigabeansicht wie beim Projektleiter, nur über die andere Achse
 gefiltert. Technisch die kleinste Etappe, weil Etappe 2 die Maschinerie schon
 gebaut hat — darum zuletzt.
 
+## Entscheide vom 09.10.2026
+
+- **Frage 1 — Konto aus der KST?** Nein. FileMaker liefert kein Konto, und es
+  braucht keines: die Kostenstelle (Auftragsnummer) ist die Referenz, das Konto
+  wählt der User beim Erfassen weiterhin selbst. Die Kontoauswahl bleibt.
+- **Frage 2 — Teilgenehmigung.** Der Projektleiter tippt „Teilweise
+  genehmigen", gibt den genehmigten Betrag ein (z. B. 45.00 von 60.00) und
+  einen Kommentar (z. B. „weniger, da Alkohol"). Betrag und Kommentar sind
+  Pflicht. Noch offen: was davon im Export/DocuWare gebucht wird.
+
 ## Offene Fragen, vor dem Bauen zu klären
 
 1. **Liefert FileMaker zu einer Auftragsnummer das Konto mit?** Wenn ja, fällt

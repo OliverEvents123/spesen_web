@@ -13,6 +13,14 @@ ohne Build, Daten in Supabase, ausgeliefert über GitHub Pages.
 - `supabase/functions/` — Code der Edge Functions. Abschrift dessen, was in
   Supabase deployt ist; Änderungen hier deployt Oli im Dashboard.
 
+## Begriffe
+
+- **Auftragsnummer = Kostenstelle = KST** — dasselbe. Kommt aus FileMaker,
+  im Code `auftrag_nr` / `S.auftraege`. In der Oberfläche heisst es teils
+  „Auftrag". Sonderwert `ohne KST`.
+- **Konto** — Sachkonto aus dem Kontenplan (`spesen_konto`), wählt der User
+  beim Erfassen frei.
+
 ## Regeln
 
 - Alles auf Deutsch: Oberfläche, Namen im Code, Kommentare, Commits.
