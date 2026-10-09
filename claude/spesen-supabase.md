@@ -57,7 +57,7 @@ aufgeteilt ist.
 | `konto_nummer` | `text not null` | dito erste Position |
 | `auftrag_nr` | `text not null` | FileMaker-Nummer, oder der Text `ohne KST` |
 | `positionen` | `jsonb` | **null im Normalfall.** Bei Aufteilung ein Array aus `{betrag, mwst, konto_nummer, auftrag_nr}` |
-| `zahlart` | `text` | `karte` (Vorgabe, wenn leer) · `bar` · `vorauskasse` |
+| `zahlart` | `text not null default 'karte'` | `karte` · `bar` · `vorkasse` (Check-Constraint `spesen_beleg_zahlart_pruefung`) |
 | `bemerkung` | `text` | |
 | `datei_pfad` | `text` | Pfad im Bucket `belege` |
 | `monat` | `text not null` | z. B. `2026-09` — Altlast aus der Monatslogik, die Übersicht filtert heute über `beleg_datum` |
@@ -95,6 +95,9 @@ enthält nur E-Mail und Passwort.
 | `name` | `text` |
 | `rolle` | `text` — heute `admin` · `user`; beim Umbau kommen `supervisor` und `projektleiter` dazu |
 | `aktiv` | `boolean` |
+| `erstellt` | `timestamptz default now()` |
+
+Check: `rolle in ('admin','user')` — beim Umbau erweitern.
 
 Fehlt hier die Zeile zu einem Anmeldekonto, ist die Person eine Karteileiche:
 sie kann sich anmelden und erfassen, erscheint aber in keiner Liste und gilt als
@@ -152,6 +155,25 @@ $$;
 `security definer` ist nötig, weil die Funktion sonst in die eigene RLS läuft
 und sich selbst aussperrt. `set search_path = public` gehört dazu, sonst ist die
 Funktion manipulierbar.
+
+## Echter Stand
+
+Am 09.10.2026 mit `supabase/stand-abfragen.sql` abgeglichen. Das vollständige
+Schema steht in **`supabase/schema.sql`** — das ist die verbindliche
+Beschreibung; dieses Blatt erklärt sie nur. Abweichungen zur früheren Doku:
+
+- Zahlart heisst in der Datenbank `vorkasse`, nicht `vorauskasse`.
+- `spesen_konto` hat zwei gleiche Lese-Policies (`konto_lesen` und
+  `konto_lesen_alle`) — harmlos, eine kann weg.
+- Konten: anlegen und ändern nur Admin (`konto_admin_neu`, `konto_admin_aendern`).
+- `spesen_benutzer`: Lese-Policy `benutzer_lesen` (sich selbst, Admin alle).
+- Perioden: vier Policies, alle nur auf die eigenen Zeilen.
+- `anon` und `authenticated` haben auf allen Tabellen alle Rechte (Supabase-
+  Vorgabe). Geschützt wird ausschliesslich über die RLS — darum darf auf
+  keiner Tabelle RLS je ausgeschaltet werden.
+- Storage-Policies auf `storage.objects`: ablegen und löschen nur im eigenen
+  Ordner (E-Mail mit `_` statt `@` und `.`), lesen eigener Ordner oder Admin.
+  Kein Update.
 
 ## Row Level Security — das Muster
 

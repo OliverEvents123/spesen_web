@@ -172,14 +172,27 @@ async function ladeAlles() {
   S.perioden  = per.data || [];
 
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
-  if (!S.auftraege.length) {
+  if (!S.auftraege.length) S.auftraege = await ladeAuftraege();
+}
+
+// Laufendes Jahr und das ganze Vorjahr — ein Dezember-Beleg wird oft erst im
+// Januar erfasst. Die übergreifenden Nummern liefern beide Jahre; doppelte
+// fallen weg. Reihenfolge: erst das laufende Jahr, dann das Vorjahr.
+// Scheitert ein Jahr, kommt das andere trotzdem; scheitern beide, bleibt die
+// Liste leer und die Auswahl zeigt den Hinweis.
+async function ladeAuftraege() {
+  const jahr = new Date().getFullYear();
+  const holen = async (j) => {
     try {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${new Date().getFullYear()}`,
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${j}`,
         { headers:{ Authorization:`Bearer ${S.session.access_token}`, apikey: SUPABASE_KEY } });
-      const j = await r.json();
-      if (j.ok) S.auftraege = j.auftragsnummern;
-    } catch (e) { /* Hinweis erscheint bei der Auswahl */ }
-  }
+      const d = await r.json();
+      return d.ok ? d.auftragsnummern : [];
+    } catch (e) { return []; }
+  };
+  const [jetzt, vorher] = await Promise.all([holen(jahr), holen(jahr - 1)]);
+  const gesehen = new Set();
+  return [...jetzt, ...vorher].filter(a => !gesehen.has(a.id) && gesehen.add(a.id));
 }
 
 async function ladeFavoriten() {

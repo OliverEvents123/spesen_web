@@ -9,21 +9,36 @@ geändert.
   Auftrag und MwSt nur der *ersten* Position. Die Kontierung stimmt. Hängt an
   der Frage, wie eine Teilgenehmigung exportiert wird
   (`spesen-umbau-rollen-freigabe.md`, offene Frage 2).
-- **Testumgebung teilt die Datenbank** mit der echten App. Getrennte
-  Supabase-Projekte geplant; der Code ist dafür vorbereitet (`konfig.js`).
 
 ## Klären
 
-- **Auftragsnummern nur fürs laufende Jahr.** Die App ruft die Edge Function
-  `auftragsnummern` mit `?jahr=<laufendes Jahr>` auf. Was die Function damit
-  filtert, steht in ihrem Code (liegt nicht im Repo). Im Januar fehlen
-  womöglich die Aufträge vom Dezember.
+- **Auftragsnummern auch aus dem Vorjahr** (entschieden 09.10.: immer das
+  ganze Vorjahr mitladen). Gebaut in `test/daten.js` (`ladeAuftraege`), noch
+  nicht live.
+- **Edge Functions im Testprojekt** benutzen `SUPABASE_ANON_KEY` /
+  `SUPABASE_SERVICE_ROLE_KEY`. Ob ein neues Projekt die noch bereitstellt,
+  zeigt der erste Test.
 
 ## Anmerken
 
 - **Ladefehler werden verschluckt.** Scheitert das Laden (kein Netz, Sitzung
   abgelaufen), zeigt die App einfach „Keine Belege" statt eines Hinweises
   (`ladeAlles`, `ladeUebersicht` in `daten.js`).
+
+- **Edge Function `benutzer`:** Die Aktionen `rolle` und `aktiv` prüfen die
+  Antwort der Datenbank nicht — scheitert das Speichern, meldet sie trotzdem
+  „ok". Kennt nur die Rollen `admin` und `user` (Umbau: erweitern).
+- **Gesperrte Benutzer** können noch bis zu einer Stunde weiterarbeiten: die
+  Sperre greift bei der nächsten Token-Erneuerung, und die RLS prüft
+  `spesen_benutzer.aktiv` nicht.
+
+- **Admin ersetzt die Datei eines fremden Belegs:** Die neue Datei landet im
+  Ordner des Admins, die alte bleibt liegen — löschen darf jeder nur im
+  eigenen Ordner (Storage-Policy `beleg_datei_loeschen`).
+- **Admin kann fremde Belege nicht löschen** (Policy `beleg_loeschen`), nur
+  ändern. Die App meldet das seit 09.10. korrekt. Gewollt? Beim Umbau klären.
+- `spesen_konto` hat eine doppelte Lese-Policy (`konto_lesen_alle`), kann weg.
+- Tabelle `spesen_admin` ist Altlast, kann nach Prüfung weg.
 
 ## Bewusst so gelassen
 
