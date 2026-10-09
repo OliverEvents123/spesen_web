@@ -14,11 +14,29 @@ const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
 const zahlartName = (z) => ZAHLART[z || "karte"] || z;
 
 // Status eines Belegs. In der Datenbank heisst "erfasst" noch "offen".
-const STATUS = { offen:"erfasst", eingereicht:"eingereicht", abgeschlossen:"abgeschlossen" };
+// Kreditkarte/Bar enden mit geprueft oder besprechung,
+// Vorauskasse mit genehmigt, teilweise oder abgelehnt.
+const STATUS = {
+  offen:"erfasst", eingereicht:"eingereicht",
+  geprueft:"geprüft", besprechung:"zur Besprechung",
+  genehmigt:"genehmigt", teilweise:"teilweise genehmigt", abgelehnt:"abgelehnt",
+  abgeschlossen:"abgeschlossen"
+};
 const statusVon  = (b) => (b && b.status) || "offen";
 const statusName = (s) => STATUS[s || "offen"] || s;
-// Nur ein erfasster Beleg lässt sich ändern oder löschen.
-const istGesperrt = (b) => statusVon(b) !== "offen";
+// Ändern und löschen geht nur, solange erfasst oder abgelehnt.
+const istGesperrt = (b) => !["offen", "abgelehnt"].includes(statusVon(b));
+// Schon entschieden (von jemandem oder automatisch)?
+const istEntschieden = (b) =>
+  ["geprueft","besprechung","genehmigt","teilweise","abgelehnt"].includes(statusVon(b));
+
+// Was gebucht wird: bei Teilgenehmigung der genehmigte Betrag, abgelehnt nichts.
+const buchungsBetrag = (b) => {
+  const s = statusVon(b);
+  if (s === "abgelehnt") return 0;
+  if (s === "teilweise" && b.genehmigt_betrag != null) return parseFloat(b.genehmigt_betrag);
+  return parseFloat(b.betrag);
+};
 
 const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhinein hochladen.";
 const GESPERRT_TEXT = "Dieser Beleg lässt sich nicht mehr ändern oder löschen — "
@@ -121,7 +139,8 @@ let S = {
   monat: heute().slice(0,7), ansicht:"liste", neu:null, favEdit:null, posIndex:null,
   suche:"", meldung:null, zurueckZu:"liste",
   uVon: START.von, uBis: START.bis, uBelege:[], uLaedt:false,
-  uGeraet:"", uZahlart:"", uKonto:"", uAuftrag:"", uStatus:""
+  uGeraet:"", uZahlart:"", uKonto:"", uAuftrag:"", uStatus:"",
+  istPruefer:false, freigabe:[], zuweisungen:[], zuweisungenKonto:[]
 };
 
 const leererBeleg = () => ({ id:null, status:"offen", konto:null, auftrag:null, mwst:"8.1", betragText:"",
@@ -178,6 +197,11 @@ async function ladeAlles() {
   S.istAdmin  = adm.data === true;
   S.perioden  = per.data || [];
 
+  // Fehlt die Funktion (Datenbank ohne Etappe 2), bleibt alles wie bisher.
+  const pr = await sb.rpc("ist_pruefer");
+  S.istPruefer = !pr.error && pr.data === true;
+  if (S.istPruefer) await ladeFreigabe();
+
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
   if (!S.auftraege.length) S.auftraege = await ladeAuftraege();
 }
@@ -211,6 +235,34 @@ async function ladeKonten() {
   const { data } = await sb.from("spesen_konto")
     .select(KONTO_SPALTEN).order("sortierung").order("nummer");
   S.konten = data || [];
+}
+
+// ---------- Freigabe ----------
+// Alles, was die angemeldete Person gerade entscheiden muss.
+async function ladeFreigabe() {
+  const { data } = await sb.rpc("freigabe_liste");
+  S.freigabe = data || [];
+}
+
+async function entscheiden(id, status, betrag, grund) {
+  return sb.rpc("beleg_entscheiden", { p_id: id, p_status: status,
+                                       p_betrag: betrag ?? null, p_grund: grund || null });
+}
+async function umkontieren(id, konto, auftrag) {
+  return sb.rpc("beleg_umkontieren", { p_id: id, p_konto: konto, p_auftrag: auftrag });
+}
+async function zuruecksetzen(id, ziel) {
+  return sb.rpc("beleg_zuruecksetzen", { p_id: id, p_ziel: ziel });
+}
+
+// ---------- Zuweisungen (nur Admin) ----------
+async function ladeZuweisungen() {
+  const [z, k] = await Promise.all([
+    sb.from("spesen_zuweisung").select("email,auftrag_nr").order("auftrag_nr"),
+    sb.from("spesen_zuweisung_konto").select("email,konto_nummer").order("konto_nummer")
+  ]);
+  S.zuweisungen      = z.data || [];
+  S.zuweisungenKonto = k.data || [];
 }
 
 // ---------- Gespeicherte Perioden ----------
@@ -314,8 +366,13 @@ function favAnwenden(id) {
 function gruppiere(belege) {
   const m = new Map();
   for (const b of belege) {
-    for (const p of belegZeilen(b)) {
-      if (!zeilePasst(p)) continue;   // gefilterte Positionen zählen nicht mit
+    // Teilgenehmigt: jede Position im selben Verhältnis kürzen. Abgelehnt: 0.
+    if (statusVon(b) === "abgelehnt") continue;   // wird nicht gebucht
+    const faktor = parseFloat(b.betrag) ? buchungsBetrag(b) / parseFloat(b.betrag) : 1;
+    for (const p0 of belegZeilen(b)) {
+      if (!zeilePasst(p0)) continue;  // gefilterte Positionen zählen nicht mit
+      const p = faktor === 1 ? p0
+        : { ...p0, betrag: Math.round(parseFloat(p0.betrag) * faktor * 100) / 100 };
       const s = `${p.konto_nummer}|${p.auftrag_nr}|${p.mwst}|${b.zahlart || "karte"}`;
       if (!m.has(s)) m.set(s, { konto:p.konto_nummer, bezeichnung:kontoName(p.konto_nummer),
                                 auftrag:p.auftrag_nr, satz:Number(p.mwst),
@@ -351,7 +408,10 @@ function belegImFilter(b) {
   const teile = b.positionen.filter(zeilePasst);
   if (teile.length === b.positionen.length) return b;
   const betrag = Math.round(teile.reduce((t,p) => t + parseFloat(p.betrag), 0) * 100) / 100;
-  return { ...b, positionen: teile, betrag, gesamtBetrag: b.betrag,
+  const genehmigt = b.genehmigt_betrag != null && parseFloat(b.betrag)
+    ? Math.round(parseFloat(b.genehmigt_betrag) * betrag / parseFloat(b.betrag) * 100) / 100
+    : b.genehmigt_betrag;
+  return { ...b, positionen: teile, betrag, gesamtBetrag: b.betrag, genehmigt_betrag: genehmigt,
            mwst: teile[0].mwst, konto_nummer: teile[0].konto_nummer,
            auftrag_nr: teile[0].auftrag_nr };
 }
@@ -449,10 +509,12 @@ function auftragObjekt(id, ersatzName) {
 }
 
 async function belegBearbeiten(id, woher) {
-  const quelle = woher === "liste" ? S.belege : S.uBelege;
+  const quelle = woher === "liste" ? S.belege
+               : woher === "freigabe" ? S.freigabe : S.uBelege;
   const b = (quelle.find(x => String(x.id) === String(id)))
             || S.belege.find(x => String(x.id) === String(id))
-            || S.uBelege.find(x => String(x.id) === String(id));
+            || S.uBelege.find(x => String(x.id) === String(id))
+            || S.freigabe.find(x => String(x.id) === String(id));
   if (!b) return;
 
   let url = null;
@@ -466,6 +528,12 @@ async function belegBearbeiten(id, woher) {
   S.neu = {
     id: b.id,
     status: statusVon(b), eingereichtAm: b.eingereicht_am || null, geraet: b.geraet,
+    zahlartDb: b.zahlart || "karte", betragDb: b.betrag,
+    genehmigtBetrag: b.genehmigt_betrag, entscheidGrund: b.entscheid_grund || "",
+    entscheidVon: b.entscheid_von || "", entscheidAm: b.entscheid_am || null,
+    // Prüfen: aus der Freigabeliste geöffnet und noch offen für einen Entscheid
+    pruefen: woher === "freigabe" && statusVon(b) === "eingereicht",
+    kontoAlt: b.konto_nummer, auftragAlt: b.auftrag_nr,
     konto:   kontoObjekt(b.konto_nummer),
     auftrag: auftragObjekt(b.auftrag_nr),
     mwst: String(b.mwst),
@@ -496,24 +564,31 @@ const positionenFertig = (pos) =>
 // ---------- Zur Prüfung freigeben ----------
 // Setzt erfasste Belege auf "eingereicht". Gibt zurück, wie viele es wirklich
 // wurden — die Datenbank lässt nur eigene, noch erfasste Belege zu.
+// "direkt" zählt die, die ohne Prüfer gleich durchgegangen sind.
 async function belegeFreigeben(ids) {
-  if (!ids.length) return { anzahl: 0 };
+  if (!ids.length) return { anzahl: 0, direkt: 0 };
   const { data, error } = await sb.from("spesen_beleg")
     .update({ status: "eingereicht" })
-    .in("id", ids).eq("status", "offen").select("id");
-  return { anzahl: (data || []).length, error };
+    .in("id", ids).eq("status", "offen").select("id,status");
+  const zeilen = data || [];
+  return { anzahl: zeilen.length,
+           direkt: zeilen.filter(z => z.status !== "eingereicht").length, error };
 }
 
 // Eigene, noch erfasste Belege aus einer Liste — die lassen sich freigeben.
 const eigeneErfasste = (liste) => (liste || []).filter(b =>
-  b.geraet === S.session.user.email && !istGesperrt(b));
+  b.geraet === S.session.user.email && statusVon(b) === "offen");
 
 // ---------- Nach dem Speichern zurück ----------
 async function zurueckNachSpeichern(text) {
   S.meldung = text;
   const woher = S.zurueckZu;
   S.neu = null; S.posIndex = null; S.zurueckZu = istBreit() ? "desktop" : "liste";
-  if (istBreit()) {
+  if (woher === "freigabe") {
+    // Zurück in die Freigabeliste — am Handy wie am Rechner.
+    S.zurueckZu = "freigabe";
+    S.ansicht = "freigabe"; await ladeAlles(); render();
+  } else if (istBreit()) {
     S.ansicht = "liste";
     await ladeAlles(); await ladeUebersicht(true);
   } else if (woher === "uebersicht") {

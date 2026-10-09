@@ -133,6 +133,8 @@ td { border-bottom:1px solid #EDEFF5; }
 .pfeil { width:36px; height:36px; border:1px solid #C9D6E8; border-radius:8px; background:#fff;
          color:var(--blau); font-size:17px; flex-shrink:0; }
 .pfeil[disabled] { color:#C9D6E8; }
+/* In den Auswahlfeldern ist der Pfeil nur ein Zeichen, kein Knopf */
+.wahl .pfeil { width:auto; height:auto; border:0; background:none; }
 
 /* Benutzerverwaltung */
 .rolle { font-size:11px; border-radius:4px; padding:3px 8px; font-weight:600; }
@@ -141,8 +143,24 @@ td { border-bottom:1px solid #EDEFF5; }
 .rolle.aus   { background:#FCEEED; color:#8E201B; }
 /* Status eines Belegs */
 .rolle.st-offen         { background:#FFF4DC; color:#7A5A12; }
-.rolle.st-eingereicht   { background:#E9F3ED; color:#124F32; }
+.rolle.st-eingereicht   { background:#E8F0FA; color:#215aa8; }
+.rolle.st-geprueft,
+.rolle.st-genehmigt     { background:#E9F3ED; color:#124F32; }
+.rolle.st-teilweise     { background:#E6F2F2; color:#145A5A; }
+.rolle.st-besprechung   { background:#FDEBD9; color:#8A4B0F; }
+.rolle.st-abgelehnt     { background:#FCEEED; color:#8E201B; }
 .rolle.st-abgeschlossen { background:#EDEFF5; color:#5A6478; }
+.rolle.projektleiter    { background:#E6F2F2; color:#145A5A; }
+.rolle.supervisor       { background:#F1EAF8; color:#5B2E8A; }
+.stempel { font-size:12px; color:var(--grau); margin-top:4px; }
+.freigabezeile { width:100%; font:inherit; color:inherit; cursor:pointer; gap:12px;
+                 border:1px solid var(--rand); }
+.chip { display:inline-flex; align-items:center; gap:6px; background:#EEF3FA; color:var(--dunkel);
+        border-radius:16px; padding:4px 6px 4px 12px; font-size:13px; }
+.chip button { border:0; background:#fff; color:var(--grau); border-radius:50%;
+               width:22px; height:22px; cursor:pointer; font-size:11px; }
+.rollenwahl { flex-wrap:wrap; }
+.rollenwahl button { flex:1 1 40%; }
 
 /* ---------- Rechner-Layout ab 900 px ---------- */
 .zweispalt { display:flex; gap:22px; align-items:flex-start; }

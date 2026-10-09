@@ -125,6 +125,16 @@ Protokolltabelle `spesen_verlauf`.
 
 Grösste Etappe. Hier entsteht der eigentliche Mehrwert.
 
+**Stand 09.10.2026: Etappe 2 und 4 zusammen gebaut in `test/`.**
+Datenbank: `supabase/etappe2-freigabe.sql` (nach Etappe 1). Regeln liegen in
+der Datenbank: Trigger `beleg_regeln` (direkt nur erfassen/einreichen,
+automatischer Durchgang ohne Prüfer), Funktionen `beleg_entscheiden`,
+`beleg_umkontieren`, `beleg_zuruecksetzen`, `freigabe_liste`, `ist_pruefer`,
+Protokoll `spesen_verlauf` per Trigger. Edge Function `benutzer`: vier Rollen,
+Aktion `pruefung`. App: Reiter „Freigabe", Entscheid-Feld je Zahlungsart,
+Umkontieren, Stempel (App und PDF), Admin → Zuweisungen, Export mit
+gebuchtem Betrag. Abgelehnte Belege zählen nicht in der Kontierung.
+
 ### Etappe 3 — Karten je Kostenstelle
 
 Tabelle `spesen_karte` (Bezeichnung, letzte vier Stellen, Konto bzw.
@@ -153,6 +163,22 @@ gebaut hat — darum zuletzt.
   Entscheid in der App.
 - **Vorgehen:** Etappen in `test/` bauen und gemeinsam live schalten statt
   jede einzeln.
+
+## Entscheide zu Etappe 2/4 (09.10.2026)
+
+1. **Belege ohne Prüfer** (KST ohne Projektleiter, Konto ohne Supervisor,
+   `ohne KST`) gehen beim Einreichen direkt durch — **ausser** beim User ist
+   „Prüfung einrichten" angehakt (`spesen_benutzer.pruefung`). Dann muss ein
+   Admin oder ein Supervisor entscheiden.
+2. Ein Projektleiter **darf seine eigenen Belege** genehmigen.
+3. Mehrere Prüfer auf einer KST: jeder darf, der erste Entscheid gilt.
+4. Abgelehnt: User sieht den Grund, korrigiert, reicht neu ein.
+5. „Zur Besprechung vermerkt" gilt als erledigt und geht in den Export; der
+   Vermerk ist sichtbar.
+6. Export folgt immer dem aktuellen Filter, auch beim Status.
+7. Zuweisungen pflegt der Admin in der App (Admin → Zuweisungen).
+8. Projektleiter und Supervisor: **eine** Prüfung, wer zuerst entscheidet.
+   Auf dem Beleg ein Stempel „Genehmigt durch E-MAIL, Datum Uhrzeit".
 
 ## Offene Fragen, vor dem Bauen zu klären
 

@@ -12,6 +12,8 @@ function render() {
   if (S.ansicht === "passwort")    return renderPasswort();
   if (S.ansicht === "favoriten")   return renderFavoriten();
   if (S.ansicht === "favForm")     return renderFavForm();
+  if (S.ansicht === "freigabe")    return renderFreigabe();
+  if (S.ansicht === "zuweisungen") return renderZuweisungen();
 
   if (S.ansicht === "benutzer" || S.ansicht === "benForm") {
     if (breit) return renderBenutzerBreit();
@@ -31,8 +33,13 @@ function render() {
 // zurueck = Pfeil links. auchKnoepfe = Pfeil UND die Knöpfe rechts,
 // das brauchen die Admin-Seiten.
 function kopf(titel, sub, zurueck, auchKnoepfe) {
-  const adminAn = ["benutzer","benForm","konten","kontoForm"].includes(S.ansicht) ? "an" : "";
+  const adminAn = ["benutzer","benForm","konten","kontoForm","zuweisungen"]
+                    .includes(S.ansicht) ? "an" : "";
+  // Am Rechner gibt es keine Reiter — die Freigabe steht oben rechts.
+  const freiAn = S.ansicht === "freigabe" ? "an" : "";
   const knoepfe = `<div class="kopfknoepfe">
+      ${S.istPruefer && istBreit() ? `<button class="${freiAn}" data-akt="tabFreigabe"
+          >Freigabe${S.freigabe.length ? " (" + S.freigabe.length + ")" : ""}</button>` : ""}
       ${S.istAdmin ? `<button class="${adminAn}" data-akt="tabBenutzer">Admin</button>` : ""}
       <button data-akt="zuPasswort">Passwort</button>
       <button data-akt="abmelden">Abmelden</button>
@@ -50,6 +57,8 @@ function reiter() {
   return `<div class="reiter">
     <button class="${S.ansicht==="liste"?"an":""}" data-akt="tabListe">Meine Belege</button>
     <button class="${S.ansicht==="uebersicht"?"an":""}" data-akt="tabUebersicht">Übersicht</button>
+    ${S.istPruefer ? `<button class="${S.ansicht==="freigabe"?"an":""}" data-akt="tabFreigabe"
+        >Freigabe${S.freigabe.length ? " (" + S.freigabe.length + ")" : ""}</button>` : ""}
   </div>`;
 }
 
@@ -57,9 +66,11 @@ function reiter() {
 function adminReiter() {
   const ben = (S.ansicht==="benutzer" || S.ansicht==="benForm") ? "an" : "";
   const kon = (S.ansicht==="konten"   || S.ansicht==="kontoForm") ? "an" : "";
+  const zuw = S.ansicht==="zuweisungen" ? "an" : "";
   return `<div class="reiter">
     <button class="${ben}" data-akt="tabBenutzer">Benutzer</button>
     <button class="${kon}" data-akt="tabKonten">Konten</button>
+    <button class="${zuw}" data-akt="tabZuweisungen">Zuweisungen</button>
   </div>`;
 }
 
@@ -202,7 +213,7 @@ function blockFilter() {
             >${esc(auftragAnzeige(a))}</option>`).join("")}
         </select>
       </div>
-      ${S.istAdmin ? `
+      ${S.istAdmin || S.istPruefer ? `
       <div>
         <label for="ugeraet">Gerät / Karte</label>
         <select id="ugeraet" data-feld="ugeraet">
@@ -264,6 +275,37 @@ function blockExport(anzahl) {
   </div>`;
 }
 
+// Betrag in Listen. Gekürzt oder abgelehnt: Belegbetrag durchgestrichen,
+// darunter, was gebucht wird.
+function betragZelle(b) {
+  const s = statusVon(b);
+  if (s !== "teilweise" && s !== "abgelehnt") return chf(b.betrag);
+  return `<s style="color:var(--grau);font-weight:400;font-size:13px;">${chf(b.betrag)}</s><br>`
+       + chf(buchungsBetrag(b));
+}
+
+// Rollen der Benutzer
+const ROLLEN = {
+  user:          ["User",          "Sieht und erfasst nur die eigenen Belege."],
+  projektleiter: ["Projektleiter", "Prüft und genehmigt die Belege seiner Kostenstellen (unter Zuweisungen)."],
+  supervisor:    ["Supervisor",    "Prüft und genehmigt die Belege seiner Konten (unter Zuweisungen) und "
+                                 + "die Belege von Benutzern mit eingerichteter Prüfung."],
+  admin:         ["Admin",         "Sieht alles, darf alles entscheiden und Benutzer, Konten und Zuweisungen verwalten."]
+};
+const rolleName = (r) => (ROLLEN[r] || [r])[0];
+
+// Zeitstempel kurz: 09.10.2026, 14:03
+const zeitCH = (t) => t ? new Date(t).toLocaleString("de-CH", { day:"2-digit", month:"2-digit",
+                            year:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+
+// Der "Stempel": wer hat wann wie entschieden
+function stempelText(n) {
+  if (!n.entscheidVon) return "";
+  if (n.entscheidVon === "automatisch")
+    return `Ohne Prüfung durchgegangen (keine zuständige Person) · ${zeitCH(n.entscheidAm)}`;
+  return `${statusName(n.status)} durch ${n.entscheidVon} · ${zeitCH(n.entscheidAm)}`;
+}
+
 // Farbige Marke für den Status eines Belegs
 const statusMarke = (b) =>
   `<span class="rolle st-${esc(statusVon(b))}">${esc(statusName(statusVon(b)))}</span>`;
@@ -318,7 +360,7 @@ function blockBelege(liste, woher, titel) {
           <span class="haupt">${belegText(b)}</span>
           <span class="neben">${esc(b.geraet)}</span>
           <span class="neben" style="width:100px;">${esc(zahlartName(b.zahlart))}</span>
-          <span class="zahl">${chf(b.betrag)}</span>
+          <span class="zahl">${betragZelle(b)}</span>
           ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf"
               data-p="${esc(b.datei_pfad)}">Beleg</button>`
             : `<span style="width:62px;"></span>`}
@@ -329,14 +371,14 @@ function blockBelege(liste, woher, titel) {
           <div style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere;">
             <div style="font-weight:600;">${i+1} · ${belegKopf(b)} ${statusMarke(b)}</div>
             <div style="font-size:13px;color:var(--grau);">
-              ${belegDetail(b, S.istAdmin && !S.uGeraet)}</div>
+              ${belegDetail(b, (S.istAdmin || S.istPruefer) && !S.uGeraet)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
             ${b.datei_pfad ? `<button class="beleglink" data-akt="belegAuf"
                 data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
             <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="${woher}"
                     aria-label="Beleg bearbeiten">${STIFT}</button>
-            <div style="font-weight:700;">${chf(b.betrag)}</div>
+            <div style="font-weight:700;text-align:right;">${betragZelle(b)}</div>
           </div>
         </div>`).join("")}
   </div>`;
@@ -438,7 +480,7 @@ function renderListe() {
                   data-p="${esc(b.datei_pfad)}">Beleg</button>` : ""}
               <button class="stift" data-akt="bearbeiten" data-id="${b.id}" data-w="liste"
                       aria-label="Beleg bearbeiten">${STIFT}</button>
-              <div style="font-size:17px;font-weight:700;">${chf(b.betrag)}</div>
+              <div style="font-size:17px;font-weight:700;text-align:right;">${betragZelle(b)}</div>
             </div>
           </div>`).join("")}
     </div>`;
@@ -597,6 +639,13 @@ function renderErfassen() {
                                : (bearbeiten ? "Werte ändern und speichern"
                                              : "Angaben prüfen und speichern"), true) + `
     <div class="inhalt" style="max-width:620px;">
+      ${n.status === "abgelehnt" ? `
+      <div class="fehler" style="line-height:1.5;">
+        <b>Abgelehnt</b>${n.entscheidVon ? " von " + esc(n.entscheidVon) : ""}
+        ${n.entscheidAm ? " · " + esc(zeitCH(n.entscheidAm)) : ""}<br>
+        „${esc(n.entscheidGrund)}“<br>
+        <span style="font-size:13px;">Korrigieren und neu zur Prüfung freigeben — oder löschen.</span>
+      </div>` : ""}
       ${belegKarte}
 
       ${geteilt ? geteiltTeil : einfachTeil}
@@ -633,8 +682,9 @@ function renderErfassen() {
     </div>`;
 }
 
-// Eingereichter Beleg: nur noch lesen. Ein Admin kann ihn zurück auf
-// "erfasst" setzen, danach lässt er sich wieder ändern.
+// Eingereichter oder entschiedener Beleg: nur noch lesen. Mit Stempel.
+// Aus der Freigabeliste geöffnet (n.pruefen) kommt das Entscheid-Feld dazu.
+// Admins haben den Rückweg.
 function renderGesperrt(n) {
   const geteilt = Array.isArray(n.positionen);
   const betrag  = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
@@ -651,38 +701,128 @@ function renderGesperrt(n) {
                  style="margin-top:10px;">Beleg öffnen</button>`
     : `<div class="leer">Kein Beleg hinterlegt.</div>`;
 
-  const eingereicht = n.eingereichtAm
-    ? new Date(n.eingereichtAm).toLocaleString("de-CH", { day:"2-digit", month:"2-digit",
-        year:"numeric", hour:"2-digit", minute:"2-digit" })
-    : "";
+  // Kontierung: beim Prüfen eines einfachen Belegs anklickbar (umkontieren)
+  const umkont = n.pruefen && !geteilt;
+  const geaendert = umkont && n.konto && n.auftrag &&
+    (n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt);
+  const kontierung = geteilt
+    ? n.positionen.map((p, i) => zeile(`Position ${i+1}`,
+        `CHF ${chf(betragVon(p.betragText))} · ${esc(p.mwst)} %<br>
+         ${kontoText(p.konto)}<br>${esc(auftragText(p.auftrag))}`)).join("")
+    : umkont ? `
+        <button class="wahl" data-akt="kontoWahl" style="margin:0 0 8px;">
+          <span class="titel">Konto</span>
+          <span class="wert">${kontoText(n.konto)}</span><span class="pfeil">›</span></button>
+        <button class="wahl" data-akt="auftragWahl" style="margin:0 0 8px;">
+          <span class="titel">KST</span>
+          <span class="wert">${esc(auftragText(n.auftrag))}</span><span class="pfeil">›</span></button>
+        ${geaendert ? `<button class="knopf" data-akt="umkontieren" style="margin-bottom:10px;">
+          Kontierung ändern</button>
+          <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:10px;">
+            Bei einer anderen KST geht der Beleg an deren Projektleiter — wieder ungeprüft.</div>` : ""}
+        ${zeile("MwSt", esc(n.mwst) + " %")}`
+    : zeile("Konto", kontoText(n.konto))
+      + zeile("KST", esc(auftragText(n.auftrag)))
+      + zeile("MwSt", esc(n.mwst) + " %");
 
-  app.innerHTML = kopf("Beleg ansehen", statusName(n.status), true) + `
+  const s = n.status;
+  const stempel = stempelText(n);
+
+  app.innerHTML = kopf(n.pruefen ? "Beleg prüfen" : "Beleg ansehen", statusName(s), true) + `
     <div class="inhalt" style="max-width:620px;">
-      <div class="ok" style="background:#EEF3FA;border-color:#C9D8EE;color:var(--dunkel);">
-        ${statusMarke(n)} ${eingereicht ? "am " + eingereicht + " — " : ""}
-        nicht mehr änderbar.</div>
+      <div class="ok" style="background:#EEF3FA;border-color:#C9D8EE;color:var(--dunkel);
+                             line-height:1.5;">
+        ${statusMarke(n)}
+        ${n.eingereichtAm ? ` <span style="font-size:13px;">· eingereicht am ${esc(zeitCH(n.eingereichtAm))}</span>` : ""}
+        ${stempel ? `<div class="stempel">${esc(stempel)}</div>` : ""}
+        ${s === "teilweise" ? `<div style="font-weight:700;">Genehmigt: CHF
+            ${chf(n.genehmigtBetrag)} von ${chf(betrag)}</div>` : ""}
+        ${n.entscheidGrund ? `<div>„${esc(n.entscheidGrund)}“</div>` : ""}
+      </div>
+
+      ${n.pruefen ? blockEntscheid(n, betrag) : ""}
 
       <div class="karte ablage">${beleg}</div>
 
       <div class="karte">
-        ${geteilt
-          ? n.positionen.map((p, i) => zeile(`Position ${i+1}`,
-              `CHF ${chf(betragVon(p.betragText))} · ${esc(p.mwst)} %<br>
-               ${kontoText(p.konto)}<br>${esc(auftragText(p.auftrag))}`)).join("")
-          : zeile("Konto", kontoText(n.konto))
-            + zeile("Auftrag", esc(auftragText(n.auftrag)))
-            + zeile("MwSt", esc(n.mwst) + " %")}
+        ${kontierung}
         ${zeile("Betrag", "CHF " + chf(betrag))}
         ${zeile("Belegdatum", esc(datumCH(n.datum)))}
         ${zeile("Bezahlt mit", esc(zahlartName(n.zahlart)))}
-        ${S.istAdmin && n.geraet ? zeile("Gerät", esc(n.geraet)) : ""}
+        ${n.geraet && n.geraet !== S.session.user.email ? zeile("Erfasst von", esc(n.geraet)) : ""}
       </div>
 
-      ${S.istAdmin && n.status === "eingereicht" ? `
-        <button class="zweit" data-akt="zurueckErfasst">Zurück auf „erfasst“ setzen</button>
-        <div style="font-size:13px;color:var(--grau);padding-top:8px;line-height:1.45;">
-          Nur für Versehen. Danach kann der Beleg wieder geändert werden.</div>` : ""}
+      ${S.istAdmin && s !== "offen" && s !== "abgelehnt" ? `
+        <div class="karte">
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Admin: Rückweg</div>
+          ${istEntschieden(n) ? `<button class="zweit" data-akt="zuruecksetzen" data-v="eingereicht"
+              style="margin-bottom:8px;">Entscheid zurücknehmen — neu prüfen</button>` : ""}
+          <button class="zweit" data-akt="zuruecksetzen" data-v="offen">
+            Zurück auf „erfasst“ — Erfasser kann ändern</button>
+        </div>` : ""}
     </div>`;
+}
+
+// Das Entscheid-Feld. Kreditkarte/Bar: Geld ist weg, nur prüfen oder
+// vermerken. Vorauskasse: genehmigen, teilweise, ablehnen.
+function blockEntscheid(n, betrag) {
+  const vorkasse = n.zahlartDb === "vorkasse";
+  return `<div class="karte" style="border:2px solid var(--blau);">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Entscheid</div>
+    <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:12px;">
+      ${vorkasse ? "Vorauskasse — eigenes Geld. Du entscheidest über die Rückerstattung."
+                 : "Firmengeld ist schon ausgegeben — es geht nur um die Richtigkeit."}</div>
+
+    ${vorkasse ? `
+      <button class="knopf" data-akt="entscheid" data-v="genehmigt" style="margin-bottom:8px;">
+        Genehmigen — CHF ${chf(betrag)}</button>
+      <label for="egbetrag" style="margin-top:6px;">Teilweise: genehmigter Betrag CHF</label>
+      <input id="egbetrag" type="text" inputmode="decimal" placeholder="z. B. 45.00"
+             style="margin-bottom:8px;">`
+    : `<button class="knopf" data-akt="entscheid" data-v="geprueft" style="margin-bottom:8px;">
+        Geprüft — stimmt</button>`}
+
+    <label for="egrund" style="margin-top:6px;">Kommentar
+      ${vorkasse ? "(nötig für teilweise und ablehnen)" : "(nötig für Besprechung)"}</label>
+    <textarea id="egrund" rows="2" style="width:100%;margin-bottom:10px;font:inherit;
+              padding:10px;border:1px solid var(--rand);border-radius:10px;"
+              placeholder="${vorkasse ? "z. B. weniger, da Alkohol" : "z. B. Quittung fehlt"}"></textarea>
+
+    ${vorkasse ? `
+      <button class="zweit" data-akt="entscheid" data-v="teilweise" style="margin-bottom:8px;">
+        Teilweise genehmigen</button>
+      <button class="loeschen" data-akt="entscheid" data-v="abgelehnt" style="margin-top:0;">
+        Ablehnen</button>`
+    : `<button class="zweit" data-akt="entscheid" data-v="besprechung">
+        Zur Besprechung vermerken</button>`}
+  </div>`;
+}
+
+// ---------- Freigabe: was ich entscheiden muss ----------
+function renderFreigabe() {
+  const liste = S.freigabe;
+  app.innerHTML = kopf("Zur Freigabe",
+      liste.length === 1 ? "1 Beleg wartet" : `${liste.length} Belege warten`,
+      istBreit(), istBreit()) + reiter() + `
+    <div class="inhalt" style="max-width:760px;">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
+      ${liste.length === 0
+        ? `<div class="karte leer">Nichts zu prüfen.</div>`
+        : liste.map(b => `
+          <button class="karte zeile freigabezeile" data-akt="bearbeiten" data-id="${b.id}"
+                  data-w="freigabe">
+            <div style="flex:1 1 auto;min-width:0;text-align:left;overflow-wrap:anywhere;">
+              <div style="font-weight:600;">${belegKopf(b)}</div>
+              <div style="font-size:13px;color:var(--grau);">${belegDetail(b, true)}</div>
+              <div style="font-size:12px;color:var(--grau);">eingereicht ${esc(zeitCH(b.eingereicht_am))}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:17px;font-weight:700;">${chf(b.betrag)}</div>
+              <div style="font-size:13px;color:var(--blau);">prüfen ›</div>
+            </div>
+          </button>`).join("")}
+    </div>`;
+  S.meldung = null;
 }
 
 // ---------- Auswahlbildschirme ----------
@@ -857,28 +997,34 @@ function blockBenForm() {
 
     ${b.neu ? `
       <label for="bmail">E-Mail</label>
-      <input id="bmail" type="email" inputmode="email" value="${esc(b.email)}"
+      <input id="bmail" type="email" inputmode="email" value="${esc(b.email)}" data-feld="bmail"
              placeholder="handy3@tit-pit.ch" style="margin-bottom:12px">`
     : `<div style="font-size:14px;color:var(--grau);margin-bottom:12px;line-height:1.45;">
          ${esc(b.email)} — bleibt fest, die Belege hängen daran.</div>`}
 
     <label for="bname">Name</label>
-    <input id="bname" type="text" value="${esc(b.name)}" placeholder="Eventhandy 3"
+    <input id="bname" type="text" value="${esc(b.name)}" placeholder="Eventhandy 3" data-feld="bname"
            style="margin-bottom:14px">
 
     <label>Rolle</label>
-    <div class="mwst" style="margin-bottom:8px;">
-      <button class="${b.rolle==="user"?"an":""}" data-akt="benRolle" data-v="user"
-              ${fest ? "disabled" : ""}>User</button>
-      <button class="${b.rolle==="admin"?"an":""}" data-akt="benRolle" data-v="admin"
-              ${fest ? "disabled" : ""}>Admin</button>
+    <div class="mwst rollenwahl" style="margin-bottom:8px;">
+      ${Object.entries(ROLLEN).map(([w, [name]]) =>
+        `<button class="${b.rolle===w?"an":""}" data-akt="benRolle" data-v="${w}"
+                 ${fest ? "disabled" : ""}>${name}</button>`).join("")}
     </div>
     <div style="font-size:13px;color:var(--grau);line-height:1.45;margin-bottom:14px;">
       ${fest
         ? "Notfall-Administrator. Rolle und Sperre sind festgelegt, damit immer ein Weg in die Verwaltung offen bleibt."
-        : (b.rolle === "admin"
-            ? "Sieht alle Belege aller Geräte und darf Benutzer und Konten verwalten."
-            : "Sieht und erfasst nur die eigenen Belege.")}</div>
+        : esc((ROLLEN[b.rolle] || ROLLEN.user)[1])}</div>
+
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;">
+      <input id="bpruefung" type="checkbox" ${b.pruefung ? "checked" : ""} data-feld="bpruefung"
+             style="width:20px;height:20px;margin:2px 0 0;flex-shrink:0;accent-color:var(--blau);">
+      <label for="bpruefung" style="margin:0;font-size:14px;color:var(--dunkel);line-height:1.45;">
+        <b>Prüfung einrichten</b><br>
+        <span style="color:var(--grau);">Belege ohne zuständigen Projektleiter gehen nicht
+        automatisch durch, sondern warten auf einen Admin oder Supervisor.</span></label>
+    </div>
 
     <label for="bpw">${b.neu ? "Passwort" : "Neues Passwort (leer lassen, wenn unverändert)"}</label>
     <input id="bpw" type="text" autocomplete="off" placeholder="mindestens 6 Zeichen">
@@ -913,7 +1059,8 @@ function blockBenListe() {
           ${S.benutzer.map(b => `<tr>
             <td style="font-weight:600;">${esc(b.name || kurzName(b.email))}</td>
             <td style="color:#3f5a80;">${esc(b.email)}</td>
-            <td><span class="rolle ${b.rolle}">${b.rolle === "admin" ? "Admin" : "User"}</span></td>
+            <td><span class="rolle ${b.rolle}">${esc(rolleName(b.rolle))}</span>${
+                  b.pruefung ? ` <span class="rolle st-eingereicht">Prüfung</span>` : ""}</td>
             <td>${b.gesperrt || !b.aktiv
                   ? `<span class="rolle aus">gesperrt</span>`
                   : `<span style="color:#3f5a80;">aktiv</span>`}</td>
@@ -939,7 +1086,7 @@ function blockBenListe() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
             <span class="rolle ${b.gesperrt || !b.aktiv ? "aus" : b.rolle}">${
-              b.gesperrt || !b.aktiv ? "gesperrt" : (b.rolle === "admin" ? "Admin" : "User")}</span>
+              b.gesperrt || !b.aktiv ? "gesperrt" : esc(rolleName(b.rolle))}</span>
             <button class="stift" data-akt="benBearbeiten" data-e="${esc(b.email)}"
                     aria-label="Benutzer bearbeiten">${STIFT}</button>
           </div>
@@ -1147,4 +1294,79 @@ function renderKontoForm() {
                        k.neu ? "Nummer und Bezeichnung festlegen"
                              : k.nummer + "  " + k.bezeichnung, true) + `
     <div class="inhalt" style="max-width:620px;">${blockKontoForm()}</div>`;
+}
+
+/* ==========================================================
+   Admin — Zuweisungen: wer prüft welche KST, welche Konten
+   ========================================================== */
+
+function renderZuweisungen() {
+  const pls  = S.benutzer.filter(b => b.rolle === "projektleiter"
+                 || S.zuweisungen.some(z => z.email === b.email));
+  const sups = S.benutzer.filter(b => b.rolle === "supervisor"
+                 || S.zuweisungenKonto.some(z => z.email === b.email));
+  const kstName = (nr) => {
+    if (nr === OHNE_KST.id) return OHNE_KST.name;
+    const a = S.auftraege.find(x => x.id === nr);
+    return a && a.name ? nr + " " + a.name : nr;
+  };
+  const chip = (text, akt, email, wert) => `<span class="chip">${esc(text)}
+      <button data-akt="${akt}" data-e="${esc(email)}" data-v="${esc(wert)}"
+              aria-label="${esc(text)} entfernen">✕</button></span>`;
+
+  const karte = (b, art) => {
+    const eigene = art === "kst"
+      ? S.zuweisungen.filter(z => z.email === b.email)
+      : S.zuweisungenKonto.filter(z => z.email === b.email);
+    const feld = `zw-${art}-${b.email.replace(/[^a-z0-9]/gi, "_")}`;
+    return `<div class="karte">
+      <div class="zeile" style="margin-bottom:8px;">
+        <div><div style="font-weight:700;">${esc(b.name || kurzName(b.email))}</div>
+             <div style="font-size:13px;color:var(--grau);">${esc(b.email)}</div></div>
+        <span class="rolle ${b.rolle}">${esc(rolleName(b.rolle))}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        ${eigene.length ? eigene.map(z => art === "kst"
+            ? chip(kstName(z.auftrag_nr), "zuwWeg", b.email, z.auftrag_nr)
+            : chip(z.konto_nummer + " " + kontoName(z.konto_nummer), "zuwKontoWeg", b.email, z.konto_nummer)
+          ).join("")
+          : `<span style="font-size:13px;color:var(--grau);">noch ${art === "kst" ? "keine KST" : "keine Konten"}</span>`}
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${art === "kst"
+          ? `<input id="${feld}" list="kstliste" placeholder="KST-Nummer eingeben" style="flex:1;">`
+          : `<select id="${feld}" style="flex:1;">
+               <option value="">Konto wählen</option>
+               ${aktiveKonten().map(k => `<option value="${esc(k.nummer)}">${esc(k.nummer)}
+                 ${esc(k.bezeichnung)}</option>`).join("")}</select>`}
+        <button class="zweit" style="width:auto;padding:0 16px;" data-akt="${art === "kst" ? "zuwNeu" : "zuwKontoNeu"}"
+                data-e="${esc(b.email)}" data-f="${feld}">Hinzufügen</button>
+      </div>
+    </div>`;
+  };
+
+  app.innerHTML = kopf("Admin", "Zuweisungen", true, true) + adminReiter() + `
+    <div class="inhalt" style="max-width:760px;">
+      ${S.meldung ? `<div class="ok">${esc(S.meldung)}</div>` : ""}
+      <datalist id="kstliste">
+        <option value="${esc(OHNE_KST.id)}">${esc(OHNE_KST.name)}</option>
+        ${S.auftraege.map(a => `<option value="${esc(a.id)}">${esc(a.name || "")}</option>`).join("")}
+      </datalist>
+
+      <span class="abschnitt">PROJEKTLEITER × KOSTENSTELLEN</span>
+      <div style="height:8px;"></div>
+      ${pls.length ? pls.map(b => karte(b, "kst")).join("")
+        : `<div class="karte leer">Noch niemand mit der Rolle Projektleiter. Unter Benutzer die Rolle setzen.</div>`}
+
+      <span class="abschnitt" style="padding-top:10px;">SUPERVISOREN × KONTEN</span>
+      <div style="height:8px;"></div>
+      ${sups.length ? sups.map(b => karte(b, "konto")).join("")
+        : `<div class="karte leer">Noch niemand mit der Rolle Supervisor. Unter Benutzer die Rolle setzen.</div>`}
+
+      <div style="font-size:13px;color:var(--grau);line-height:1.5;padding-top:6px;">
+        Ein Beleg geht an alle, denen seine KST oder sein Konto zugewiesen ist — wer zuerst
+        entscheidet, gilt. Hat er niemanden, läuft er ohne Prüfung durch, ausser beim
+        Erfasser ist „Prüfung einrichten“ angehakt.</div>
+    </div>`;
+  S.meldung = null;
 }

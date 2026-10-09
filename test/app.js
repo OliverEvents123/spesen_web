@@ -165,7 +165,8 @@ app.addEventListener("click", async (e) => {
     const b = S.benutzer.find(x => x.email === el.dataset.e);
     if (!b) return;
     S.benEdit = { neu:false, email:b.email, name:b.name || "",
-                  rolle:b.rolle, gesperrt: b.gesperrt || !b.aktiv };
+                  rolle:b.rolle, gesperrt: b.gesperrt || !b.aktiv,
+                  pruefung: !!b.pruefung, pruefungAlt: !!b.pruefung };
     if (!istBreit()) S.ansicht = "benForm";
     return render();
   }
@@ -203,7 +204,7 @@ app.addEventListener("click", async (e) => {
         alert("Das Passwort braucht mindestens sechs Zeichen."); return;
       }
       const j = await benutzerRuf({ aktion:"anlegen", email:mail, passwort:pw,
-                                    name, rolle:b.rolle });
+                                    name, rolle:b.rolle, pruefung: !!b.pruefung });
       if (!j.ok) {
         el.disabled = false; el.textContent = urspruenglich;
         alert(j.fehler || "Anlegen fehlgeschlagen."); return;
@@ -233,6 +234,13 @@ app.addEventListener("click", async (e) => {
           alert(j2.fehler || "Passwort konnte nicht gesetzt werden."); return;
         }
       }
+      if (!!b.pruefung !== !!b.pruefungAlt) {
+        const j3 = await benutzerRuf({ aktion:"pruefung", email:b.email, pruefung: !!b.pruefung });
+        if (!j3.ok) {
+          el.disabled = false; el.textContent = urspruenglich;
+          alert(j3.fehler || "„Prüfung einrichten“ konnte nicht gespeichert werden."); return;
+        }
+      }
       S.meldung = "Gespeichert.";
     }
 
@@ -242,6 +250,41 @@ app.addEventListener("click", async (e) => {
   }
 
   // ---------- Admin: Konten ----------
+  if (a === "tabZuweisungen") {
+    S.ansicht = "zuweisungen"; S.benEdit = null; S.kontEdit = null;
+    render();
+    await Promise.all([ladeBenutzer(), ladeZuweisungen()]);
+    return render();
+  }
+
+  if (a === "zuwNeu" || a === "zuwKontoNeu") {
+    const feld = document.getElementById(el.dataset.f);
+    const wert = String((feld && feld.value) || "").trim();
+    if (!wert) { alert(a === "zuwNeu" ? "Bitte eine KST eingeben." : "Bitte ein Konto wählen."); return; }
+    if (a === "zuwNeu" && wert !== OHNE_KST.id && S.auftraege.length
+        && !S.auftraege.some(x => x.id === wert)
+        && !confirm(`KST ${wert} ist in FileMaker (dieses und letztes Jahr) nicht bekannt. Trotzdem zuweisen?`)) return;
+    const { error } = a === "zuwNeu"
+      ? await sb.from("spesen_zuweisung").insert({ email: el.dataset.e, auftrag_nr: wert })
+      : await sb.from("spesen_zuweisung_konto").insert({ email: el.dataset.e, konto_nummer: wert });
+    if (error) {
+      alert(error.code === "23505" ? "Ist schon zugewiesen."
+            : istNetzfehler(error) ? NETZTEXT : "Nicht gespeichert:\n" + error.message);
+      return;
+    }
+    await ladeZuweisungen(); return render();
+  }
+
+  if (a === "zuwWeg" || a === "zuwKontoWeg") {
+    const { error } = a === "zuwWeg"
+      ? await sb.from("spesen_zuweisung").delete()
+          .eq("email", el.dataset.e).eq("auftrag_nr", el.dataset.v)
+      : await sb.from("spesen_zuweisung_konto").delete()
+          .eq("email", el.dataset.e).eq("konto_nummer", el.dataset.v);
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
+    await ladeZuweisungen(); return render();
+  }
+
   if (a === "tabKonten") {
     S.ansicht = "konten"; S.benEdit = null; S.kontEdit = null;
     render();
@@ -423,7 +466,8 @@ app.addEventListener("click", async (e) => {
     if (S.ansicht === "erfassen") {
       if (S.neu && S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
       const woher = S.zurueckZu; S.neu = null; S.posIndex = null;
-      S.ansicht = (woher === "uebersicht" && !istBreit()) ? "uebersicht" : "liste";
+      S.ansicht = woher === "freigabe" ? "freigabe"
+                : (woher === "uebersicht" && !istBreit()) ? "uebersicht" : "liste";
       return render();
     }
     if (S.ansicht === "passwort")  { S.ansicht = "liste"; return render(); }
@@ -431,7 +475,8 @@ app.addEventListener("click", async (e) => {
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
     if (S.ansicht === "benForm")   { S.benEdit = null; S.ansicht = "benutzer"; return render(); }
     if (S.ansicht === "kontoForm") { S.kontEdit = null; S.ansicht = "konten"; return render(); }
-    if (S.ansicht === "benutzer" || S.ansicht === "konten") {
+    if (S.ansicht === "freigabe") { S.ansicht = "liste"; return render(); }
+    if (S.ansicht === "benutzer" || S.ansicht === "konten" || S.ansicht === "zuweisungen") {
       S.benEdit = null; S.kontEdit = null; S.ansicht = "liste"; return render();
     }
     // bleibt: die Auswahlbildschirme für Konto und Auftrag
@@ -483,7 +528,8 @@ app.addEventListener("click", async (e) => {
 
   // ---------- Export ----------
   if (a === "expCsv") {
-    const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer) }));
+    const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer),
+                                            gebucht: buchungsBetrag(b), statusText: statusName(statusVon(b)) }));
     SpesenExport.csv({ belege, gruppen: gruppiere(belege),
                        monat: S.uVon.slice(0,7), von: S.uVon, bis: S.uBis,
                        titel: uTitel(), dateiname: uDateiname().replace(".pdf", ".csv") });
@@ -491,7 +537,8 @@ app.addEventListener("click", async (e) => {
   }
 
   if (a === "expPdf") {
-    const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer) }));
+    const belege = uGefiltert().map(b => ({ ...b, bezeichnung: kontoName(b.konto_nummer),
+                                            gebucht: buchungsBetrag(b), statusText: statusName(statusVon(b)) }));
     el.disabled = true;
     try {
       await SpesenExport.pdf({
@@ -516,32 +563,84 @@ app.addEventListener("click", async (e) => {
     if (!confirm(`${ids.length === 1 ? "Diesen Beleg" : "Diese " + ids.length + " Belege"} `
                  + "zur Prüfung freigeben?\nDanach lassen sie sich nicht mehr ändern.")) return;
     el.disabled = true; el.textContent = "Gebe frei …";
-    const { anzahl, error } = await belegeFreigeben(ids);
+    const { anzahl, direkt, error } = await belegeFreigeben(ids);
     if (error) {
       el.disabled = false;
       alert(istNetzfehler(error) ? NETZTEXT : "Freigabe hat nicht geklappt:\n" + error.message);
       return render();
     }
-    S.meldung = anzahl === 1 ? "1 Beleg zur Prüfung freigegeben."
-                             : `${anzahl} Belege zur Prüfung freigegeben.`;
+    S.meldung = (anzahl === 1 ? "1 Beleg zur Prüfung freigegeben."
+                              : `${anzahl} Belege zur Prüfung freigegeben.`)
+              + (direkt ? ` ${direkt} davon ohne Prüfung direkt erledigt.` : "");
     await ladeAlles();
     if (istBreit() || S.ansicht === "uebersicht") await ladeUebersicht(true); else render();
     return;
   }
 
-  if (a === "zurueckErfasst") {
+  if (a === "tabFreigabe") {
+    S.favEdit = null; S.ansicht = "freigabe"; S.zurueckZu = "freigabe";
+    render();
+    await ladeFreigabe(); return render();
+  }
+
+  if (a === "entscheid") {
     const n = S.neu;
-    if (!confirm("Diesen Beleg zurück auf „erfasst“ setzen?\n"
-                 + "Der Erfasser kann ihn dann wieder ändern und löschen.")) return;
+    const status = el.dataset.v;
+    const grund  = ((document.getElementById("egrund") || {}).value || "").trim();
+    let betrag = null;
+    if (["besprechung", "teilweise", "abgelehnt"].includes(status) && !grund) {
+      alert("Bitte einen Kommentar angeben."); return;
+    }
+    if (status === "teilweise") {
+      betrag = betragVon((document.getElementById("egbetrag") || {}).value);
+      if (!(betrag > 0 && betrag < parseFloat(n.betragDb))) {
+        alert(`Bitte den genehmigten Betrag eingeben — mehr als 0 und weniger als ${chf(n.betragDb)}.`);
+        return;
+      }
+    }
+    if (status === "abgelehnt" && !confirm("Beleg ablehnen? Der Erfasser sieht deinen Kommentar.")) return;
     el.disabled = true;
-    const { data, error } = await sb.from("spesen_beleg")
-      .update({ status: "offen" }).eq("id", n.id).select("id");
-    if (error || !(data && data.length)) {
+    const { error } = await entscheiden(n.id, status, betrag, grund);
+    if (error) {
       el.disabled = false;
-      alert(error ? (istNetzfehler(error) ? NETZTEXT : error.message) : GESPERRT_TEXT);
+      alert(istNetzfehler(error) ? NETZTEXT : error.message);
       return;
     }
-    await zurueckNachSpeichern("Beleg ist wieder erfasst und lässt sich ändern.");
+    await zurueckNachSpeichern(status === "teilweise"
+      ? `Teilweise genehmigt: CHF ${chf(betrag)}.` : `Beleg ${statusName(status)}.`);
+    return;
+  }
+
+  if (a === "umkontieren") {
+    const n = S.neu;
+    el.disabled = true;
+    const { error } = await umkontieren(n.id, n.konto.nummer, n.auftrag.id);
+    if (error) {
+      el.disabled = false;
+      alert(istNetzfehler(error) ? NETZTEXT : error.message);
+      return;
+    }
+    await zurueckNachSpeichern(n.auftrag.id !== n.auftragAlt
+      ? "Kontierung geändert — der Beleg liegt jetzt bei der neuen KST."
+      : "Kontierung geändert.");
+    return;
+  }
+
+  if (a === "zuruecksetzen") {
+    const n = S.neu;
+    const ziel = el.dataset.v;
+    if (!confirm(ziel === "offen"
+        ? "Zurück auf „erfasst“? Der Erfasser kann den Beleg dann wieder ändern und löschen."
+        : "Entscheid zurücknehmen? Der Beleg muss dann neu geprüft werden.")) return;
+    el.disabled = true;
+    const { error } = await zuruecksetzen(n.id, ziel);
+    if (error) {
+      el.disabled = false;
+      alert(istNetzfehler(error) ? NETZTEXT : error.message);
+      return;
+    }
+    await zurueckNachSpeichern(ziel === "offen" ? "Beleg ist wieder erfasst."
+                                                : "Entscheid zurückgenommen.");
     return;
   }
 
@@ -629,14 +728,17 @@ app.addEventListener("click", async (e) => {
     // muss erst als "offen" angelegt werden — so will es die Datenbank —
     // und wird gleich danach freigegeben.
     if (freigeben && n.id) daten.status = "eingereicht";
+    // Ein abgelehnter Beleg wird beim Korrigieren wieder "erfasst".
+    else if (n.id && n.status === "abgelehnt") daten.status = "offen";
 
-    let error, neueId = null;
+    let error, neueId = null, neuerStatus = null;
     if (n.id) {
       let zeilen;
       ({ data: zeilen, error } = await sb.from("spesen_beleg")
-        .update({ ...daten, geaendert: new Date().toISOString() }).eq("id", n.id).select("id"));
+        .update({ ...daten, geaendert: new Date().toISOString() }).eq("id", n.id).select("id,status"));
       // Wie beim Löschen: eine gesperrte Änderung meldet keinen Fehler, nur null Zeilen.
       if (!error && !(zeilen && zeilen.length)) error = { message: GESPERRT_TEXT, gesperrt: true };
+      if (!error && freigeben) neuerStatus = zeilen[0].status;
     } else {
       let neu;
       ({ data: neu, error } = await sb.from("spesen_beleg")
@@ -664,11 +766,14 @@ app.addEventListener("click", async (e) => {
     let text = n.id ? "Beleg geändert." : `Beleg über CHF ${chf(betrag)} gespeichert.`;
     if (freigeben && neueId) {
       const f = await belegeFreigeben([neueId]);
-      text = f.anzahl ? `Beleg über CHF ${chf(betrag)} gespeichert und zur Prüfung freigegeben.`
-                      : `Beleg über CHF ${chf(betrag)} gespeichert, aber NICHT freigegeben — `
-                        + "bitte in der Liste nochmals freigeben.";
+      text = !f.anzahl ? `Beleg über CHF ${chf(betrag)} gespeichert, aber NICHT freigegeben — `
+                         + "bitte in der Liste nochmals freigeben."
+           : f.direkt ? `Beleg über CHF ${chf(betrag)} gespeichert — ohne Prüfung direkt erledigt.`
+           : `Beleg über CHF ${chf(betrag)} gespeichert und zur Prüfung freigegeben.`;
     } else if (freigeben) {
-      text = "Beleg gespeichert und zur Prüfung freigegeben.";
+      text = neuerStatus && neuerStatus !== "eingereicht"
+        ? "Beleg gespeichert — ohne Prüfung direkt erledigt."
+        : "Beleg gespeichert und zur Prüfung freigegeben.";
     }
     await zurueckNachSpeichern(text);
   }
@@ -693,6 +798,7 @@ app.addEventListener("change", (e) => {
   }
 
   if (f === "kaktiv" && S.kontEdit) { S.kontEdit.aktiv = e.target.checked; return; }
+  if (f === "bpruefung" && S.benEdit) { S.benEdit.pruefung = e.target.checked; return; }
 
   // Zeitraum. Mit true wird erst gezeichnet, wenn die Daten da sind —
   // sonst wird das Datumsfeld mitten im Laden neu gebaut.
@@ -738,6 +844,9 @@ app.addEventListener("input", (e) => {
   }
 
   if (f === "favname" && S.favEdit) { S.favEdit.name = e.target.value; return; }
+  // Damit ein Klick auf eine Rolle die Eingaben nicht verwirft
+  if (f === "bname" && S.benEdit) { S.benEdit.name  = e.target.value; return; }
+  if (f === "bmail" && S.benEdit) { S.benEdit.email = e.target.value; return; }
 
   if (f === "knummer" && S.kontEdit) { S.kontEdit.nummer      = e.target.value; return; }
   if (f === "kbez"    && S.kontEdit) { S.kontEdit.bezeichnung = e.target.value; return; }

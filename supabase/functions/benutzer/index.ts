@@ -1,6 +1,6 @@
 // Benutzerverwaltung für Admins.
 // Aufruf: POST .../benutzer  mit { aktion: "...", ... }
-// Aktionen: liste | anlegen | name | passwort | rolle | aktiv
+// Aktionen: liste | anlegen | name | passwort | rolle | aktiv | pruefung
 //
 // Der service_role-Schlüssel wird von Supabase automatisch bereitgestellt.
 // Er verlässt diese Function nie.
@@ -31,6 +31,22 @@ const kopf = () => ({ apikey: KEY!, Authorization: `Bearer ${KEY}`,
 const GESCHUETZT = ["admin@eventorganisation.ch"];
 const istGeschuetzt = (mail: string) =>
   GESCHUETZT.includes(String(mail ?? "").trim().toLowerCase());
+
+// Erlaubte Rollen — muss zum Check in spesen_benutzer passen.
+const ROLLEN = ["admin", "supervisor", "projektleiter", "user"];
+const rolleVon = (r: unknown) => ROLLEN.includes(String(r)) ? String(r) : "user";
+
+// PATCH auf spesen_benutzer, mit Prüfung der Antwort
+async function benutzerAendern(email: string, felder: Record<string, unknown>) {
+  const r = await fetch(`${URL_}/rest/v1/spesen_benutzer?email=eq.${encodeURIComponent(email)}`, {
+    method: "PATCH", headers: { ...kopf(), Prefer: "return=representation" },
+    body: JSON.stringify(felder),
+  });
+  if (!r.ok) return "Datenbank: " + await r.text();
+  const zeilen = await r.json();
+  if (!Array.isArray(zeilen) || !zeilen.length) return "Benutzer nicht gefunden.";
+  return null;
+}
 
 // ---- Wer ruft an, und ist er Admin? ----
 async function pruefeAdmin(req: Request) {
@@ -125,7 +141,10 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { ...kopf(), Prefer: "resolution=merge-duplicates" },
         body: JSON.stringify({ email, name: anfrage.name ?? null,
-                               rolle: anfrage.rolle === "admin" ? "admin" : "user", aktiv: true }),
+                               rolle: rolleVon(anfrage.rolle), aktiv: true,
+                               // nur mitschicken, wenn an — so läuft die Function
+                               // auch auf einer Datenbank ohne die Spalte
+                               ...(anfrage.pruefung === true ? { pruefung: true } : {}) }),
       });
 
       if (!r2.ok) {
@@ -177,15 +196,15 @@ Deno.serve(async (req) => {
 
     // ---------- Rolle ändern ----------
     if (aktion === "rolle") {
-      const rolle = anfrage.rolle === "admin" ? "admin" : "user";
+      const rolle = rolleVon(anfrage.rolle);
 
-      if (rolle === "user" && istGeschuetzt(email)) {
+      if (rolle !== "admin" && istGeschuetzt(email)) {
         return json({ ok:false, fehler:
           "Dieses Konto ist als Notfall-Administrator festgelegt und behält die Rolle." }, 400);
       }
 
       // Aussperrschutz: der letzte Admin bleibt Admin
-      if (rolle === "user") {
+      if (rolle !== "admin") {
         const r0 = await fetch(
           `${URL_}/rest/v1/spesen_benutzer?rolle=eq.admin&aktiv=is.true&select=email`,
           { headers: kopf() });
@@ -196,9 +215,17 @@ Deno.serve(async (req) => {
         }
       }
 
-      await fetch(`${URL_}/rest/v1/spesen_benutzer?email=eq.${encodeURIComponent(email)}`, {
-        method: "PATCH", headers: kopf(), body: JSON.stringify({ rolle }),
-      });
+      const fehler = await benutzerAendern(email, { rolle });
+      if (fehler) return json({ ok:false, fehler: "Rolle nicht gespeichert. " + fehler }, 400);
+      return json({ ok: true });
+    }
+
+    // ---------- Prüfung einrichten ----------
+    // An: Belege ohne Projektleiter/Supervisor gehen nicht automatisch durch,
+    // sondern warten auf einen Admin oder Supervisor.
+    if (aktion === "pruefung") {
+      const fehler = await benutzerAendern(email, { pruefung: anfrage.pruefung === true });
+      if (fehler) return json({ ok:false, fehler: "Nicht gespeichert. " + fehler }, 400);
       return json({ ok: true });
     }
 
@@ -223,9 +250,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ ban_duration: aktiv ? "none" : "876000h" }),
         });
       }
-      await fetch(`${URL_}/rest/v1/spesen_benutzer?email=eq.${encodeURIComponent(email)}`, {
-        method: "PATCH", headers: kopf(), body: JSON.stringify({ aktiv }),
-      });
+      const fehler = await benutzerAendern(email, { aktiv });
+      if (fehler) return json({ ok:false, fehler: "Status nicht gespeichert. " + fehler }, 400);
       return json({ ok: true });
     }
 

@@ -14,6 +14,26 @@ const SpesenExport = (function () {
   const zahlartName = (z) => ZAHLART[z || "karte"] || z;
   const chf = (z) => Number(z).toFixed(2);
   const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
+  const zeitCH  = (t) => new Date(t).toLocaleString("de-CH", { day:"2-digit", month:"2-digit",
+                           year:"numeric", hour:"2-digit", minute:"2-digit" });
+
+  // Die eingebaute PDF-Schrift kennt nur westeuropäische Zeichen. Ein Emoji im
+  // Kommentar würde sonst das ganze PDF scheitern lassen.
+  const pdfText = (t) => String(t ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[^\x20-\x7E\xA0-\xFF\u2013\u2014\u2018\u2019\u201A\u201C\u201D\u201E\u2022\u2026\u20AC]/gu, "?");
+
+  // Was gebucht wird (bei Teilgenehmigung weniger als der Beleg)
+  const gebucht = (b) => b.gebucht != null ? b.gebucht : parseFloat(b.betrag);
+
+  // Stempel: wer hat wann wie entschieden
+  function stempelText(b) {
+    if (!b.entscheid_von) return "";
+    const wer = b.entscheid_von === "automatisch" ? "ohne Prüfung durchgegangen"
+                                                  : (b.statusText || b.status) + " durch " + b.entscheid_von;
+    return wer + " · " + zeitCH(b.entscheid_am)
+         + (b.entscheid_grund ? " · „" + b.entscheid_grund + "“" : "");
+  }
 
   function skriptLaden(src) {
     return new Promise((ok, fehler) => {
@@ -82,7 +102,7 @@ const SpesenExport = (function () {
     function zeile(seite, y, spalten, werte, schrift, groesse, farbe) {
       let x = RAND;
       spalten.forEach((sp, i) => {
-        let t = String(werte[i] ?? "");
+        let t = pdfText(werte[i]);
         // zu lange Texte kürzen, damit nichts überlappt
         while (t && schrift.widthOfTextAtSize(t, groesse) > sp.w - 6) t = t.slice(0, -1);
         const b = schrift.widthOfTextAtSize(t, groesse);
@@ -93,12 +113,23 @@ const SpesenExport = (function () {
     }
 
     function kopfzeile(seite, b, zusatz) {
-      const t = `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
-                `Auftrag ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)} · ` +
-                `CHF ${chf(b.betrag)}` +
-                (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "") +
-                (zusatz || "");
+      const gekuerzt = Math.abs(gebucht(b) - parseFloat(b.betrag)) > 0.004;
+      let t = `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
+              `KST ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)} · ` +
+              `CHF ${chf(gebucht(b))}` +
+              (gekuerzt ? ` (von ${chf(b.betrag)})` : "") +
+              (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "") +
+              (zusatz || "");
+      t = pdfText(t);
+      while (font.widthOfTextAtSize(t, 9) > BREITE - 2*RAND) t = t.slice(0, -1);
       seite.drawText(t, { x:RAND, y:HOEHE-RAND+4, size:9, font, color:grau });
+
+      // Stempel unten auf der Seite
+      let st = pdfText(stempelText(b));
+      if (st) {
+        while (font.widthOfTextAtSize(st, 8) > BREITE - 2*RAND) st = st.slice(0, -1);
+        seite.drawText(st, { x:RAND, y:RAND-22, size:8, font:fett, color:blau });
+      }
       seite.drawLine({ start:{x:RAND, y:HOEHE-RAND-6}, end:{x:BREITE-RAND, y:HOEHE-RAND-6},
                        thickness:0.5, color:linie });
     }
@@ -108,8 +139,9 @@ const SpesenExport = (function () {
       const p = doc.addPage([BREITE, HOEHE]);
       kopfzeile(p, b);
 
+      const gekuerzt = Math.abs(gebucht(b) - parseFloat(b.betrag)) > 0.004;
       const kx = RAND + 40, kb = BREITE - 2*RAND - 80;
-      const ky = HOEHE/2 - 110, kh = 230;
+      const kh = gekuerzt ? 252 : 230, ky = HOEHE/2 - 110 - (kh - 230);
       p.drawRectangle({ x:kx, y:ky, width:kb, height:kh,
                         borderColor:linie, borderWidth:1.5, color:rgb(0.98,0.98,0.99) });
       p.drawText(grund, { x:kx + (kb - fett.widthOfTextAtSize(grund,17))/2,
@@ -122,12 +154,13 @@ const SpesenExport = (function () {
         ["Auftrag",   String(b.auftrag_nr)],
         ["MwSt",      `${b.mwst} %`],
         ["Bezahlt",   zahlartName(b.zahlart)],
-        ["Betrag",    `CHF ${chf(b.betrag)}`]
+        ["Betrag",    `CHF ${chf(b.betrag)}`],
+        ...(gekuerzt ? [["Gebucht", `CHF ${chf(gebucht(b))}`]] : [])
       ];
       let dy = ky + kh - 84;
       daten.forEach(([k, v]) => {
         p.drawText(k, { x:kx+26, y:dy, size:11, font, color:grau });
-        p.drawText(v, { x:kx+130, y:dy, size:12, font:fett, color:text });
+        p.drawText(pdfText(v), { x:kx+130, y:dy, size:12, font:fett, color:text });
         dy -= 22;
       });
     }
@@ -138,7 +171,7 @@ const SpesenExport = (function () {
 
     s1.drawText("Spesenabrechnung", { x:RAND, y, size:20, font:fett, color:blau });
     y -= 22;
-    s1.drawText(titel, { x:RAND, y, size:11, font, color:grau });
+    s1.drawText(pdfText(titel), { x:RAND, y, size:11, font, color:grau });
     y -= 30;
 
     const tB = gruppen.reduce((t,g) => t+g.brutto, 0);
@@ -183,8 +216,8 @@ const SpesenExport = (function () {
     s2.drawText("Belegliste", { x:RAND, y:z, size:16, font:fett, color:blau });
     z -= 26;
 
-    const spL = [{ w:30 }, { w:66 }, { w:48 }, { w:96 }, { w:50 }, { w:40 }, { w:80 }, { w:65, re:true }];
-    zeile(s2, z, spL, ["Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt","Bezahlt","Betrag"],
+    const spL = [{ w:30 }, { w:66 }, { w:48 }, { w:96 }, { w:50 }, { w:40 }, { w:96 }, { w:65, re:true }];
+    zeile(s2, z, spL, ["Nr","Datum","Konto","Bezeichnung","KST","MwSt","Status","Gebucht"],
           fett, 9, grau);
     z -= 6;
     s2.drawLine({ start:{x:RAND,y:z}, end:{x:BREITE-RAND,y:z}, thickness:1, color:linie });
@@ -193,7 +226,8 @@ const SpesenExport = (function () {
     for (const b of nummeriert) {
       if (z < RAND + 40) { s2 = doc.addPage([BREITE,HOEHE]); z = HOEHE - RAND - 10; }
       zeile(s2, z, spL, [b.nr, datumCH(b.beleg_datum), b.konto_nummer, b.bezeichnung || "",
-                         b.auftrag_nr, b.mwst + " %", zahlartName(b.zahlart), chf(b.betrag)], font, 10);
+                         b.auftrag_nr, b.mwst + " %", b.statusText || zahlartName(b.zahlart),
+                         chf(gebucht(b))], font, 10);
       z -= 8;
       s2.drawLine({ start:{x:RAND,y:z}, end:{x:BREITE-RAND,y:z}, thickness:0.5, color:linie });
       z -= 16;
@@ -303,10 +337,13 @@ const SpesenExport = (function () {
       chf(gruppen.reduce((t,g)=>t+g.netto,0)));
     r("");
     r("EINZELNE BELEGE");
-    r("Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt-Satz","Bezahlt mit","Betrag","Beleg","Gerät");
+    r("Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt-Satz","Bezahlt mit","Betrag","Beleg","Gerät",
+      "Status","Gebucht","Entschieden von","Entschieden am","Kommentar");
     belege.forEach((b, i) => r(i+1, datumCH(b.beleg_datum), b.konto_nummer, b.bezeichnung || "",
                                b.auftrag_nr, b.mwst, zahlartName(b.zahlart), chf(b.betrag),
-                               b.datei_pfad ? "ja" : "fehlt", b.geraet));
+                               b.datei_pfad ? "ja" : "fehlt", b.geraet,
+                               b.statusText || "", chf(gebucht(b)), b.entscheid_von || "",
+                               b.entscheid_am ? zeitCH(b.entscheid_am) : "", b.entscheid_grund || ""));
 
     speichern(new Blob(["\uFEFF" + z.join("\r\n")], { type:"text/csv;charset=utf-8" }),
               dateiname || `Spesen_${monat}.csv`);
