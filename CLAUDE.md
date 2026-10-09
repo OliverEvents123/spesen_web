@@ -5,6 +5,7 @@ ohne Build, Daten in Supabase, ausgeliefert über GitHub Pages.
 
 ## Mehr Kontext
 
+- **`claude/spesen-stand.md` — aktueller Stand und nächste Schritte. Zuerst lesen.**
 - `claude/spesen-supabase.md` — Tabellen, RLS, Edge Functions, Schlüssel
 - `claude/spesen-umbau-rollen-freigabe.md` — geplanter Umbau auf Rollen und Freigaben
 - `claude/offene-punkte.md` — bekannte Schwächen, die noch nicht angegangen sind
