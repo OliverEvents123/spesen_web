@@ -2,6 +2,13 @@
 // Startet die App und verarbeitet alle Klicks und Feldänderungen.
 // Die Bildschirme kommen aus ansichten.js, die Datenzugriffe aus daten.js.
 
+// Supabase erneuert das Anmelde-Token etwa stündlich. S.session muss mitziehen,
+// sonst schicken die Aufrufe der Edge Functions nach einer Stunde ein
+// abgelaufenes Token und scheitern.
+sb.auth.onAuthStateChange((ereignis, session) => {
+  if (session && S.session) S.session = session;
+});
+
 async function start() {
   const { data } = await sb.auth.getSession();
   if (!data.session) { zeigeLogin(); return; }
@@ -47,14 +54,9 @@ document.addEventListener("drop", (e) => {
   if (!ziehenErlaubt()) return;
   e.preventDefault(); ziehZaehler = 0; document.body.classList.remove("ziehen");
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-  if (!f) return;
-  // Liegt gerade kein Beleg offen, einen neuen öffnen und die Datei hineinlegen.
-  if (!S.neu) {
-    S.neu = leererBeleg();
-    S.zurueckZu = istBreit() ? "desktop" : "liste";
-    S.ansicht = "erfassen";
-  }
-  dateiGewaehlt(f);
+  // Liegt gerade kein Beleg offen, öffnet dateiGewaehlt einen neuen —
+  // aber erst, nachdem der Dateityp geprüft ist.
+  if (f) dateiGewaehlt(f);
 });
 
 // ---------- Speicherknopf nachziehen ----------
@@ -417,6 +419,7 @@ app.addEventListener("click", async (e) => {
   // ---------- Zurück ----------
   if (a === "zurueck") {
     if (S.ansicht === "erfassen") {
+      if (S.neu && S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
       const woher = S.zurueckZu; S.neu = null; S.posIndex = null;
       S.ansicht = (woher === "uebersicht" && !istBreit()) ? "uebersicht" : "liste";
       return render();
@@ -446,6 +449,7 @@ app.addEventListener("click", async (e) => {
   if (a === "waehlen")  { document.getElementById("datei").click(); return; }
   if (a === "belegAuf") { return belegOeffnen(el.dataset.p); }
   if (a === "belegNeu") {
+    if (S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
     S.neu.datei = null; S.neu.vorschau = null; S.neu.altPfad = null; S.neu.altUrl = null;
     return render();
   }
@@ -581,6 +585,11 @@ app.addEventListener("click", async (e) => {
     }
 
     if (error) {
+      // Die eben hochgeladene Datei wieder wegräumen, sonst bleibt sie
+      // ohne Beleg im Speicher liegen. Beim nächsten Versuch kommt sie neu.
+      if (n.datei && pfad !== n.altPfad) {
+        try { await sb.storage.from("belege").remove([pfad]); } catch {}
+      }
       el.disabled = false; el.textContent = urspruenglich;
       alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
       return;
@@ -601,7 +610,11 @@ app.addEventListener("change", (e) => {
   const f = e.target.dataset && e.target.dataset.feld;
   if (!f) return;
 
-  if (f === "datum")   { S.neu.datum   = e.target.value; return; }
+  // Ein geleertes Datumsfeld würde ohne Datum und Monat speichern — alten Wert zurück.
+  if (f === "datum") {
+    if (!e.target.value) { e.target.value = S.neu.datum; return; }
+    S.neu.datum = e.target.value; return;
+  }
   if (f === "zahlart") { S.neu.zahlart = e.target.value; return; }
 
   // MwSt einer Position — kein Neuzeichnen nötig, das Feld zeigt den Wert schon

@@ -472,14 +472,20 @@ async function zurueckNachSpeichern(text) {
 // ---------- Benutzerverwaltung (nur Admin) ----------
 // Alles läuft über die Edge Function, weil Passwörter setzen und Konten
 // anlegen nur mit dem service_role-Schlüssel geht — und der bleibt dort.
+// Wirft nie: bei Netzfehler oder kaputter Antwort kommt { ok:false } zurück,
+// sonst bliebe der Knopf auf "Speichere …" hängen.
 async function benutzerRuf(daten) {
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/benutzer`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${S.session.access_token}`,
-               apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify(daten)
-  });
-  return await r.json();
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/benutzer`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${S.session.access_token}`,
+                 apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(daten)
+    });
+    return await r.json();
+  } catch (e) {
+    return { ok: false, fehler: istNetzfehler(e) ? NETZTEXT : String(e.message || e) };
+  }
 }
 
 async function ladeBenutzer() {

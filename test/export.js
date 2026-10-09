@@ -279,7 +279,13 @@ const SpesenExport = (function () {
   // ---------- CSV ----------
   function csv({ belege, gruppen, monat, titel, dateiname }) {
     const z = [];
-    const r = (...felder) => z.push(felder.map(f => String(f ?? "")).join(";"));
+    // Enthält ein Feld ; oder " oder einen Zeilenumbruch, kommt es in
+    // Anführungszeichen — sonst verrutschen in Excel die Spalten.
+    const feld = (f) => {
+      const t = String(f ?? "");
+      return /[;"\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+    };
+    const r = (...felder) => z.push(felder.map(feld).join(";"));
 
     r("Spesenabrechnung", titel);
     r("");
