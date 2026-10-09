@@ -34,6 +34,14 @@ geändert.
   Sperre greift bei der nächsten Token-Erneuerung, und die RLS prüft
   `spesen_benutzer.aktiv` nicht.
 
+- **Admin ersetzt die Datei eines fremden Belegs:** Die neue Datei landet im
+  Ordner des Admins, die alte bleibt liegen — löschen darf jeder nur im
+  eigenen Ordner (Storage-Policy `beleg_datei_loeschen`).
+- **Admin kann fremde Belege nicht löschen** (Policy `beleg_loeschen`), nur
+  ändern. Die App meldet das seit 09.10. korrekt. Gewollt? Beim Umbau klären.
+- `spesen_konto` hat eine doppelte Lese-Policy (`konto_lesen_alle`), kann weg.
+- Tabelle `spesen_admin` ist Altlast, kann nach Prüfung weg.
+
 ## Bewusst so gelassen
 
 - „Meine Belege" zeigt den Kalendermonat, nicht die Abrechnungsperiode

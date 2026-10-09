@@ -8,6 +8,8 @@ ohne Build, Daten in Supabase, ausgeliefert über GitHub Pages.
 - `claude/spesen-supabase.md` — Tabellen, RLS, Edge Functions, Schlüssel
 - `claude/spesen-umbau-rollen-freigabe.md` — geplanter Umbau auf Rollen und Freigaben
 - `claude/offene-punkte.md` — bekannte Schwächen, die noch nicht angegangen sind
+- `claude/testumgebung.md` — Testprojekt einrichten, Ablauf Test → Live
+- `supabase/schema.sql` — vollständiger Aufbau der Datenbank (Stand Live)
 - `supabase/functions/` — Code der Edge Functions. Abschrift dessen, was in
   Supabase deployt ist; Änderungen hier deployt Oli im Dashboard.
 
