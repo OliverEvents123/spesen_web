@@ -139,6 +139,10 @@ td { border-bottom:1px solid #EDEFF5; }
 .rolle.admin { background:#E8F0FA; color:#215aa8; }
 .rolle.user  { background:#EDEFF5; color:#5A6478; }
 .rolle.aus   { background:#FCEEED; color:#8E201B; }
+/* Status eines Belegs */
+.rolle.st-offen         { background:#FFF4DC; color:#7A5A12; }
+.rolle.st-eingereicht   { background:#E9F3ED; color:#124F32; }
+.rolle.st-abgeschlossen { background:#EDEFF5; color:#5A6478; }
 
 /* ---------- Rechner-Layout ab 900 px ---------- */
 .zweispalt { display:flex; gap:22px; align-items:flex-start; }

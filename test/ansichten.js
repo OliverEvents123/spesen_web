@@ -179,6 +179,14 @@ function blockFilter() {
         </select>
       </div>
       <div>
+        <label for="ustatus">Status</label>
+        <select id="ustatus" data-feld="ustatus">
+          <option value="" ${S.uStatus===""?"selected":""}>Alle</option>
+          ${Object.entries(STATUS).map(([w,n]) =>
+            `<option value="${w}" ${S.uStatus===w?"selected":""}>${n}</option>`).join("")}
+        </select>
+      </div>
+      <div>
         <label for="ukonto">Konto</label>
         <select id="ukonto" data-feld="ukonto">
           <option value="">Alle Konten</option>
@@ -256,6 +264,20 @@ function blockExport(anzahl) {
   </div>`;
 }
 
+// Farbige Marke für den Status eines Belegs
+const statusMarke = (b) =>
+  `<span class="rolle st-${esc(statusVon(b))}">${esc(statusName(statusVon(b)))}</span>`;
+
+// Knopf "erfasste Belege freigeben" — nur wenn es eigene erfasste gibt.
+// woher sagt app.js, aus welcher Liste die Belege kommen.
+function knopfFreigeben(liste, woher) {
+  const n = eigeneErfasste(liste).length;
+  if (!n) return "";
+  return `<button class="zweit" data-akt="freigebenAlle" data-w="${woher}"
+            style="margin-bottom:12px;">
+            ${n === 1 ? "1 erfassten Beleg" : n + " erfasste Belege"} zur Prüfung freigeben</button>`;
+}
+
 // Am Handy auf zwei Zeilen verteilt: oben das Konto, unten der Rest.
 // Eine einzige lange Zeile drückt sonst die Knöpfe rechts aus der Karte.
 function belegKopf(b) {
@@ -287,11 +309,12 @@ function blockBelege(liste, woher, titel) {
   const breit = istBreit();
   return `<div class="karte">
     <div style="font-size:17px;font-weight:700;margin-bottom:12px;">${esc(titel)}</div>
+    ${knopfFreigeben(liste, woher)}
     ${liste.length === 0
       ? `<div class="leer">Keine Belege für diese Auswahl.</div>`
       : liste.map((b,i) => breit ? `
         <div class="belegzeile">
-          <span class="datum">${datumCH(b.beleg_datum)}</span>
+          <span class="datum">${datumCH(b.beleg_datum)}<br>${statusMarke(b)}</span>
           <span class="haupt">${belegText(b)}</span>
           <span class="neben">${esc(b.geraet)}</span>
           <span class="neben" style="width:100px;">${esc(zahlartName(b.zahlart))}</span>
@@ -304,7 +327,7 @@ function blockBelege(liste, woher, titel) {
         </div>` : `
         <div class="zeile" style="padding:9px 0;border-bottom:1px solid #EDEFF5;gap:10px;">
           <div style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere;">
-            <div style="font-weight:600;">${i+1} · ${belegKopf(b)}</div>
+            <div style="font-weight:600;">${i+1} · ${belegKopf(b)} ${statusMarke(b)}</div>
             <div style="font-size:13px;color:var(--grau);">
               ${belegDetail(b, S.istAdmin && !S.uGeraet)}</div>
           </div>
@@ -400,13 +423,14 @@ function renderListe() {
 
       <span class="abschnitt" style="padding-top:10px;">ZULETZT ERFASST</span>
       <div style="height:8px;"></div>
+      ${knopfFreigeben(S.belege, "liste")}
 
       ${S.belege.length === 0
         ? `<div class="karte leer">Noch keine Belege in diesem Monat.</div>`
         : S.belege.map(b => `
           <div class="karte zeile" style="gap:10px;">
             <div style="flex:1 1 auto;min-width:0;overflow-wrap:anywhere;">
-              <div style="font-weight:600;">${belegKopf(b)}</div>
+              <div style="font-weight:600;">${belegKopf(b)} ${statusMarke(b)}</div>
               <div style="font-size:13px;color:var(--grau);">${belegDetail(b)}</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
@@ -486,6 +510,7 @@ function blockPosition(p, i, anzahl) {
 
 function renderErfassen() {
   const n = S.neu;
+  if (n.id && istGesperrt(n)) return renderGesperrt(n);
   const bearbeiten = !!n.id;
   const geteilt = Array.isArray(n.positionen);
   const betrag = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
@@ -596,12 +621,67 @@ function renderErfassen() {
         ${fertig ? (bearbeiten ? "Änderungen speichern" : "Speichern")
                  : "Beleg, Konto, Auftrag und Betrag nötig"}</button>
 
+      <button class="zweit" data-akt="speichernFrei" ${fertig ? "" : "disabled"}
+              style="margin-top:10px;">Speichern und zur Prüfung freigeben</button>
+
       ${bearbeiten && !geteilt && n.konto && n.auftrag ? `
         <button class="zweit" data-akt="favMerken" style="margin-top:10px;
                 display:flex;align-items:center;justify-content:center;gap:9px;">
           ${STERN} Als Favorit merken</button>` : ""}
 
       ${bearbeiten ? `<button class="loeschen" data-akt="loeschen">Diesen Beleg löschen</button>` : ""}
+    </div>`;
+}
+
+// Eingereichter Beleg: nur noch lesen. Ein Admin kann ihn zurück auf
+// "erfasst" setzen, danach lässt er sich wieder ändern.
+function renderGesperrt(n) {
+  const geteilt = Array.isArray(n.positionen);
+  const betrag  = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
+  const zeile = (titel, wert) => `<div class="zeile" style="padding:7px 0;
+      border-bottom:1px solid #EDEFF5;gap:12px;">
+      <span style="color:var(--grau);font-size:14px;">${titel}</span>
+      <span style="font-weight:600;text-align:right;overflow-wrap:anywhere;">${wert}</span></div>`;
+  const kontoText = (k) => k ? esc(k.nummer + "  " + (k.bezeichnung || "")) : "—";
+
+  const beleg = n.altPfad
+    ? (n.altUrl ? `<img class="vorschau" src="${n.altUrl}" alt="Beleg">`
+                : `<div class="pdfmarke">PDF-Beleg hinterlegt</div>`)
+      + `<button class="zweit" data-akt="belegAuf" data-p="${esc(n.altPfad)}"
+                 style="margin-top:10px;">Beleg öffnen</button>`
+    : `<div class="leer">Kein Beleg hinterlegt.</div>`;
+
+  const eingereicht = n.eingereichtAm
+    ? new Date(n.eingereichtAm).toLocaleString("de-CH", { day:"2-digit", month:"2-digit",
+        year:"numeric", hour:"2-digit", minute:"2-digit" })
+    : "";
+
+  app.innerHTML = kopf("Beleg ansehen", statusName(n.status), true) + `
+    <div class="inhalt" style="max-width:620px;">
+      <div class="ok" style="background:#EEF3FA;border-color:#C9D8EE;color:var(--dunkel);">
+        ${statusMarke(n)} ${eingereicht ? "am " + eingereicht + " — " : ""}
+        nicht mehr änderbar.</div>
+
+      <div class="karte ablage">${beleg}</div>
+
+      <div class="karte">
+        ${geteilt
+          ? n.positionen.map((p, i) => zeile(`Position ${i+1}`,
+              `CHF ${chf(betragVon(p.betragText))} · ${esc(p.mwst)} %<br>
+               ${kontoText(p.konto)}<br>${esc(auftragText(p.auftrag))}`)).join("")
+          : zeile("Konto", kontoText(n.konto))
+            + zeile("Auftrag", esc(auftragText(n.auftrag)))
+            + zeile("MwSt", esc(n.mwst) + " %")}
+        ${zeile("Betrag", "CHF " + chf(betrag))}
+        ${zeile("Belegdatum", esc(datumCH(n.datum)))}
+        ${zeile("Bezahlt mit", esc(zahlartName(n.zahlart)))}
+        ${S.istAdmin && n.geraet ? zeile("Gerät", esc(n.geraet)) : ""}
+      </div>
+
+      ${S.istAdmin && n.status === "eingereicht" ? `
+        <button class="zweit" data-akt="zurueckErfasst">Zurück auf „erfasst“ setzen</button>
+        <div style="font-size:13px;color:var(--grau);padding-top:8px;line-height:1.45;">
+          Nur für Versehen. Danach kann der Beleg wieder geändert werden.</div>` : ""}
     </div>`;
 }
 
