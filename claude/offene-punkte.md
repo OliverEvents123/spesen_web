@@ -14,16 +14,25 @@ geändert.
 
 ## Klären
 
-- **Auftragsnummern nur fürs laufende Jahr.** Die App ruft die Edge Function
-  `auftragsnummern` mit `?jahr=<laufendes Jahr>` auf. Was die Function damit
-  filtert, steht in ihrem Code (liegt nicht im Repo). Im Januar fehlen
-  womöglich die Aufträge vom Dezember.
+- **Auftragsnummern nur fürs laufende Jahr.** Die App ruft
+  `auftragsnummern?jahr=<laufendes Jahr>` auf. Die Function sucht in FileMaker
+  `ANr_Jahr == jahr` **oder** eine der Nummern in `IMMER_DABEI`. Im Januar
+  fehlen also alle Aufträge des Vorjahrs — ein Dezember-Beleg, der erst im
+  Januar erfasst wird, lässt sich keinem Dezember-Event zuordnen. Lösung in der
+  App möglich (Anfang Jahr zusätzlich das Vorjahr laden), Function bleibt gleich.
 
 ## Anmerken
 
 - **Ladefehler werden verschluckt.** Scheitert das Laden (kein Netz, Sitzung
   abgelaufen), zeigt die App einfach „Keine Belege" statt eines Hinweises
   (`ladeAlles`, `ladeUebersicht` in `daten.js`).
+
+- **Edge Function `benutzer`:** Die Aktionen `rolle` und `aktiv` prüfen die
+  Antwort der Datenbank nicht — scheitert das Speichern, meldet sie trotzdem
+  „ok". Kennt nur die Rollen `admin` und `user` (Umbau: erweitern).
+- **Gesperrte Benutzer** können noch bis zu einer Stunde weiterarbeiten: die
+  Sperre greift bei der nächsten Token-Erneuerung, und die RLS prüft
+  `spesen_benutzer.aktiv` nicht.
 
 ## Bewusst so gelassen
 

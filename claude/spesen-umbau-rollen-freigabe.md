@@ -136,6 +136,12 @@ gebaut hat — darum zuletzt.
    Zuordnungstabelle in Supabase — oder das Konto bleibt frei wählbar. Zu
    prüfen an der Edge Function `auftragsnummern`: welche Felder gibt das
    FileMaker-Layout überhaupt her.
+
+   *Stand 09.10. nach Blick in `supabase/functions/auftragsnummern`:* Die
+   Function liest `ANr_ID`, `ANr_Name`, `ANr_Jahr`, `d_VorgabeKategorie_t`
+   (Kategorien Admin/Event/Lager) und `Veranstaltungen` — **kein Konto**. Ob
+   FileMaker ein Kontofeld hat, das man aufs Layout `api_auftragsnr` legen
+   könnte, ist in FileMaker zu prüfen.
 2. **Welcher Betrag wird bei einer Teilgenehmigung gebucht?** Beispiel 80.00
    Beleg, 40.00 genehmigt. Drei denkbare Antworten, und sie führen zu
    verschiedenen Exporten:
