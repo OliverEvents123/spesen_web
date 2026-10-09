@@ -20,9 +20,9 @@ geändert.
   abgelaufen), zeigt die App einfach „Keine Belege" statt eines Hinweises
   (`ladeAlles`, `ladeUebersicht` in `daten.js`).
 
-- **Edge Function `benutzer`:** Die Aktionen `rolle` und `aktiv` prüfen die
-  Antwort der Datenbank nicht — scheitert das Speichern, meldet sie trotzdem
-  „ok". Kennt nur die Rollen `admin` und `user` (Umbau: erweitern).
+- **Edge Function `benutzer`:** im Live-Projekt prüfen `rolle` und `aktiv` die
+  Antwort der Datenbank nicht und kennen nur `admin`/`user`. Im Repo behoben
+  (Etappe 2), wird mit dem Live-Gang deployt.
 - **Gesperrte Benutzer** können noch bis zu einer Stunde weiterarbeiten: die
   Sperre greift bei der nächsten Token-Erneuerung, und die RLS prüft
   `spesen_benutzer.aktiv` nicht.
@@ -31,7 +31,11 @@ geändert.
   Ordner des Admins, die alte bleibt liegen — löschen darf jeder nur im
   eigenen Ordner (Storage-Policy `beleg_datei_loeschen`).
 - **Admin kann fremde Belege nicht löschen** (Policy `beleg_loeschen`), nur
-  ändern. Die App meldet das seit 09.10. korrekt. Gewollt? Beim Umbau klären.
+  ändern. Die App meldet das seit 09.10. korrekt. Gewollt? Noch klären.
+- **Aufgeteilte Belege umkontieren** geht beim Prüfen nicht — nur ablehnen und
+  vom Erfasser korrigieren lassen.
+- **Protokoll `spesen_verlauf`** sehen nur Admins, und nur in der Datenbank —
+  eine Anzeige in der App fehlt noch.
 - `spesen_konto` hat eine doppelte Lese-Policy (`konto_lesen_alle`), kann weg.
 - Tabelle `spesen_admin` ist Altlast, kann nach Prüfung weg.
 
