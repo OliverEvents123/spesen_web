@@ -1,0 +1,69 @@
+# Baut die Seite und stellt sie auf GitHub Pages — bei jeder Änderung auf main.
+#
+# Was wo landet:
+#   spesen.tit-pit.ch/           echte App (vorerst noch die alte Fassung, unverändert)
+#   spesen.tit-pit.ch/test/      neue React-Fassung, gebaut mit web/.env.test (Testdatenbank)
+#   spesen.tit-pit.ch/test-alt/  alte Testfassung zum Vergleich (Ordner test/)
+#
+# Voraussetzung (einmalig): Repo → Settings → Pages → Source: "GitHub Actions".
+
+name: Seite bauen und veröffentlichen
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        working-directory: web
+        run: npm ci
+
+      - name: React-Fassung für die Testumgebung bauen
+        working-directory: web
+        run: npm run bauen:test
+
+      - name: Seite zusammenstellen
+        run: |
+          mkdir -p _site
+          # Echte App: die bisherigen Dateien, unverändert
+          cp index.html app.js daten.js ansichten.js export.js stil.css konfig.js \
+             sw.js manifest.json CNAME icon-192.png icon-512.png icon-maskable-512.png _site/
+          # Neue React-Fassung als Testumgebung
+          cp -r web/dist _site/test
+          # Alte Testfassung zum Vergleich
+          cp -r test _site/test-alt
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  veroeffentlichen:
+    needs: bauen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

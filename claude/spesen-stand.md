@@ -1,6 +1,28 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 09.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 12.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Umstieg auf React (12.10.2026)
+
+Die App war noch nicht im produktiven Einsatz — darum jetzt umgestellt statt
+später. Die Oberfläche ist in `web/` mit React + TypeScript neu gebaut, die
+Abläufe 1:1 aus der alten Fassung übernommen. Datenbank, SQL und Edge
+Functions bleiben unverändert.
+
+Geprüft: derselbe Ablauf (anmelden, Listen, erfassen mit Foto, prüfen und
+teilweise genehmigen, Zuweisung anlegen) in alter und neuer Fassung gegen
+eine nachgebildete Supabase — gleiche Bildschirme, gleiche Datenbank-Aufrufe.
+
+Stand der Auslieferung:
+- `/` — weiterhin die alte Fassung
+- `/test/` — neue React-Fassung (Testdatenbank)
+- `/test-alt/` — alte Testfassung zum Vergleich
+
+**Oli muss einmalig:** Repo → Settings → Pages → Build and deployment →
+Source auf **„GitHub Actions"** stellen. Erst dann baut und veröffentlicht
+`.github/workflows/seite.yml`.
+
+Zurück zur alten Fassung jederzeit möglich: Commit `85fe211`.
 
 ## Live (spesen.tit-pit.ch)
 
@@ -31,18 +53,17 @@ Gebaut in `test/`, Plan und Entscheide in `claude/spesen-umbau-rollen-freigabe.m
   Export mit gebuchtem Betrag. SQL: `supabase/etappe2-freigabe.sql`,
   Edge Function `supabase/functions/benutzer/index.ts` geändert.
 
-Lokal gegen Postgres und im Browser mit Beispieldaten getestet.
-**Gegen die echte Testdatenbank noch nicht geprüft.**
+Lokal gegen Postgres und im Browser mit Beispieldaten getestet, danach von
+Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 
 ## Nächste Schritte
 
-1. **Oli, im Test-Projekt:** `etappe1-status.sql` (falls noch nicht) und
-   `etappe2-freigabe.sql` im SQL Editor ausführen; Edge Function `benutzer`
-   mit dem neuen Code deployen.
-2. **Oli testet** unter `/test/`: Testbenutzer mit allen Rollen anlegen,
-   Zuweisungen setzen, Belege einreichen (mit und ohne Prüfer, mit „Prüfung
-   einrichten"), entscheiden (teilweise, ablehnen, umkontieren), abgelehnten
-   Beleg korrigieren und neu einreichen, Export mit Statusfiltern.
+0. **React-Fassung unter `/test/` durchtesten** (wie bisher). Passt alles,
+   wird die echte App auf React umgestellt: Workflow baut dann zusätzlich
+   `npm run bauen:live` nach `/`, die alten Dateien im Hauptordner fallen weg.
+
+1. ~~SQL Etappe 1+2 und Function `benutzer` im Test-Projekt~~ — erledigt.
+2. ~~Freigaben in `/test/` testen~~ — erledigt (alte Fassung, 12.10.).
 3. Gefundene Fehler beheben (Claude), bis alles passt.
 4. Offen: **Etappe 3** (Karten je Kostenstelle) — vor oder nach dem Live-Gang.
 5. **Live-Gang**, alles auf einmal, in dieser Reihenfolge:
