@@ -6,6 +6,8 @@ Edge Functions mit „Verify JWT with legacy secret" **aus** — sie prüfen die
 Anmeldung selbst, und neue Projekte signieren nicht mehr mit dem alten Secret.
 
 Ziel: `spesen.tit-pit.ch/test/` läuft auf einem eigenen Supabase-Projekt.
+Seit 12.10.2026 ist das dieselbe React-Fassung wie die echte App, nur mit
+`web/.env.test` gebaut.
 Was dort passiert, berührt die echten Belege nicht.
 
 ## Einmalig einrichten

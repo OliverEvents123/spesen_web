@@ -3,17 +3,14 @@
 Belege fotografieren, kontieren und für DocuWare exportieren. Daten in
 Supabase, ausgeliefert über GitHub Pages.
 
-**Umstieg auf React läuft (seit 12.10.2026).** Zwei Fassungen im Repo:
+Die App ist in `web/` gebaut: React + TypeScript + Vite (seit 12.10.2026).
+Ein Code, zwei Fassungen — automatisch gebaut und veröffentlicht von
+`.github/workflows/seite.yml` bei jedem Push auf `main`:
 
-- `web/` — **neue Fassung**: React + TypeScript, gebaut mit Vite. Hier wird
-  ab jetzt entwickelt. Läuft unter `/test/` (Testdatenbank).
-- Hauptordner (`index.html`, `app.js`, …) — **alte Fassung**, läuft noch als
-  echte App unter `/`. Nicht mehr weiterentwickeln, nur Notfall-Korrekturen.
-- `test/` — alte Testfassung, zum Vergleich unter `/test-alt/`. Wird nicht
-  mehr gepflegt.
+- `spesen.tit-pit.ch/` — echte App, `web/.env.live` (Live-Datenbank)
+- `spesen.tit-pit.ch/test/` — Testfassung, `web/.env.test` (Testdatenbank)
 
-Gebaut und veröffentlicht wird automatisch: `.github/workflows/seite.yml`
-(bei jedem Push auf `main`). Letzter Stand vor dem Umstieg: Commit `85fe211`.
+Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
 
 ## Mehr Kontext
 
@@ -44,6 +41,7 @@ Gebaut und veröffentlicht wird automatisch: `.github/workflows/seite.yml`
   (Port von `app.js`). Knöpfe, die arbeiten: `laeuft(akt, text)` und
   `<Knopf akt="…">`.
 - `src/ansichten/*.tsx` — die Bildschirme (Port von `ansichten.js`).
+- `public/sw.js` — Service Worker, nur in der echten App angemeldet.
 - `src/export.ts` — PDF/CSV, unverändert aus `export.js`.
 - Eingabefelder sind ungesteuert (`defaultValue`) und werden über
   `key={schluessel(obj)}` neu aufgebaut, wenn das bearbeitete Objekt wechselt.
@@ -53,13 +51,12 @@ Gebaut und veröffentlicht wird automatisch: `.github/workflows/seite.yml`
 ## Regeln
 
 - Alles auf Deutsch: Oberfläche, Namen im Code, Kommentare, Commits.
-- Funktionalität muss erhalten bleiben. Grössere Änderungen erst in `test/`
-  ausprobieren, dann in die Hauptdateien übernehmen.
-- Neue Arbeit nur noch in `web/`. Vor jedem Push `npm run bauen:test` —
+- Funktionalität muss erhalten bleiben. Jede Änderung auf `main` geht in
+  beide Fassungen. Grössere Änderungen darum zuerst auf dem Arbeitsbranch
+  bauen und lokal prüfen; Datenbankänderungen erst im Test-Projekt.
+- Vor jedem Push `cd web && npm run bauen:live && npm run bauen:test` —
   scheitert der Bau, scheitert auch die Veröffentlichung.
-- Zugangsdaten nur in `web/.env.*` (bzw. `konfig.js` der alten Fassung). Der
-  `service_role`-Schlüssel gehört nie ins Repo (öffentliches Repo).
+- Zugangsdaten nur in `web/.env.*`. Der `service_role`-Schlüssel gehört nie
+  ins Repo (öffentliches Repo).
 - Datenbankänderungen kann Claude nicht selbst ausführen: dafür eine fertige
   `.sql`-Datei schreiben, die Oli im Supabase SQL Editor ausführt.
-- Alte Fassung: Ladereihenfolge in `index.html`: supabase-js → konfig.js →
-  daten.js → ansichten.js → export.js → app.js.
