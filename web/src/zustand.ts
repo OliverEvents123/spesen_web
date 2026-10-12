@@ -1,0 +1,54 @@
+// zustand.ts
+// Der Zustand der App an einer Stelle — wie in der alten Fassung das Objekt S.
+// Wer etwas ändert, ruft danach render(); React zeichnet dann neu.
+//
+// Bewusst so einfach gehalten: die Abläufe sind 1:1 aus der alten App
+// übernommen und lassen sich später Schritt für Schritt verfeinern.
+
+import { createClient } from "@supabase/supabase-js";
+import { SUPABASE_URL, SUPABASE_KEY } from "./konfig";
+import { heute, periode } from "./grundlagen";
+
+export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const START = periode(0);
+
+export const S: any = {
+  gestartet: false, loginMeldung: null,
+  session: null, istAdmin: false, konten: [], auftraege: [], belege: [], favoriten: [],
+  benutzer: [], benEdit: null, kontEdit: null, perioden: [],
+  monat: heute().slice(0, 7), ansicht: "liste", neu: null, favEdit: null, posIndex: null,
+  suche: "", meldung: null, zurueckZu: "liste",
+  uVon: START.von, uBis: START.bis, uBelege: [], uLaedt: false,
+  uGeraet: "", uZahlart: "", uKonto: "", uAuftrag: "", uStatus: "",
+  istPruefer: false, freigabe: [], zuweisungen: [], zuweisungenKonto: [],
+  // Knopf, der gerade arbeitet: { akt, text } — zeigt z. B. "Speichere …"
+  laeuft: null
+};
+
+// ---------- Neu zeichnen ----------
+let stand = 0;
+const hoerer = new Set<() => void>();
+
+export function render() {
+  stand++;
+  hoerer.forEach((h) => h());
+}
+export const abonnieren = (h: () => void) => { hoerer.add(h); return () => hoerer.delete(h); };
+export const aktuellerStand = () => stand;
+
+// ---------- Schlüssel für Formulare ----------
+// Eingabefelder behalten in React ihren Inhalt, solange sie nicht neu
+// entstehen. Jedes Bearbeitungs-Objekt (Beleg, Benutzer, Konto …) bekommt
+// darum eine eigene Nummer; wird es ersetzt, entsteht das Formular neu.
+const nummern = new WeakMap<object, number>();
+let naechste = 1;
+export function schluessel(obj: any): string {
+  if (!obj || typeof obj !== "object") return "leer";
+  if (!nummern.has(obj)) nummern.set(obj, naechste++);
+  return String(nummern.get(obj));
+}
+
+// ---------- Knopf arbeitet ----------
+export function laeuft(akt: string, text: string) { S.laeuft = { akt, text }; render(); }
+export function fertig() { S.laeuft = null; render(); }

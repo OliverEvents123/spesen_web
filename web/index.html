@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spesen</title>
+<meta name="theme-color" content="#215aa8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Spesen">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+<div id="app"></div>
+
+<!-- unsichtbare Dateifelder: Kamera und Dateiauswahl -->
+<input type="file" id="kamera" accept="image/*" capture="environment" hidden>
+<input type="file" id="datei"  accept="image/*,application/pdf" hidden>
+
+<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

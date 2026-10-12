@@ -1,0 +1,66 @@
+// App.tsx
+// Wählt den Bildschirm nach S.ansicht und leitet alle Klicks und Eingaben
+// an aktionen.ts weiter (ein Verteiler für die ganze App, über data-akt).
+
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { S, abonnieren, aktuellerStand } from "./zustand";
+import { IST_TEST } from "./konfig";
+import { klick, aenderung, eingabe } from "./aktionen";
+import { Login } from "./ansichten/login";
+import { Desktop, Liste, Uebersicht } from "./ansichten/uebersicht";
+import { Erfassen, KontoWahl, AuftragWahl } from "./ansichten/erfassen";
+import { Passwort, Favoriten, FavForm, Freigabe, Benutzer, Konten, Zuweisungen } from "./ansichten/verwaltung";
+import { istBreit } from "./grundlagen";
+
+function Bildschirm() {
+  if (!S.gestartet) return <div className="mitte"><div className="karte leer">Lade …</div></div>;
+  if (!S.session)   return <Login />;
+
+  switch (S.ansicht) {
+    case "erfassen":    return <Erfassen />;
+    case "kontoWahl":   return <KontoWahl />;
+    case "auftragWahl": return <AuftragWahl />;
+    case "passwort":    return <Passwort />;
+    case "favoriten":   return <Favoriten />;
+    case "favForm":     return <FavForm />;
+    case "freigabe":    return <Freigabe />;
+    case "zuweisungen": return <Zuweisungen />;
+    case "benutzer": case "benForm":  return <Benutzer />;
+    case "konten":   case "kontoForm": return <Konten />;
+  }
+  if (istBreit()) return <Desktop />;
+  return S.ansicht === "uebersicht" ? <Uebersicht /> : <Liste />;
+}
+
+export function App() {
+  // Bei jedem render() aus zustand.ts neu zeichnen
+  useSyncExternalStore(abonnieren, aktuellerStand);
+  const wurzel = useRef<HTMLDivElement>(null);
+
+  // Ein Verteiler für alle Klicks und Eingaben — wie in der alten app.js
+  useEffect(() => {
+    const el = wurzel.current;
+    const beiKlick = (e: MouseEvent) => {
+      const ziel = (e.target as HTMLElement).closest("[data-akt]") as HTMLElement;
+      if (!ziel || !el.contains(ziel) || (ziel as HTMLButtonElement).disabled) return;
+      klick(ziel);
+    };
+    const beiAenderung = (e: Event) => aenderung(e.target as HTMLInputElement);
+    const beiEingabe   = (e: Event) => eingabe(e.target as HTMLInputElement);
+    el.addEventListener("click", beiKlick);
+    el.addEventListener("change", beiAenderung);
+    el.addEventListener("input", beiEingabe);
+    return () => {
+      el.removeEventListener("click", beiKlick);
+      el.removeEventListener("change", beiAenderung);
+      el.removeEventListener("input", beiEingabe);
+    };
+  }, []);
+
+  return (
+    <div ref={wurzel}>
+      {IST_TEST &&
+        <div className="testband">TESTUMGEBUNG · eigene Testdatenbank, nicht die echten Belege</div>}
+      <Bildschirm />
+    </div>);
+}

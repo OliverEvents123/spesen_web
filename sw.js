@@ -50,9 +50,9 @@ self.addEventListener("fetch", (e) => {
   const ziel = new URL(anfrage.url);
   if (ziel.origin !== location.origin) return;
 
-  // Die Testfassung unter /test/ läuft bewusst ohne Zwischenspeicher —
+  // Die Testfassungen unter /test/ und /test-alt/ laufen bewusst ohne Zwischenspeicher —
   // sonst würde ohne Netz die echte App an ihrer Stelle erscheinen.
-  if (ziel.pathname.includes("/test/")) return;
+  if (ziel.pathname.includes("/test/") || ziel.pathname.includes("/test-alt/")) return;
 
   e.respondWith(
     fetch(anfrage)
