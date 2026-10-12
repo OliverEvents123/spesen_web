@@ -7,7 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_KEY } from "./konfig";
-import { heute, periode } from "./grundlagen";
+import { periode } from "./grundlagen";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -15,13 +15,21 @@ const START = periode(0);
 
 export const S: any = {
   gestartet: false, loginMeldung: null,
-  session: null, istAdmin: false, konten: [], auftraege: [], belege: [], favoriten: [],
-  benutzer: [], benEdit: null, kontEdit: null, perioden: [],
-  monat: heute().slice(0, 7), ansicht: "liste", neu: null, favEdit: null, posIndex: null,
-  suche: "", meldung: null, zurueckZu: "liste",
-  uVon: START.von, uBis: START.bis, uBelege: [], uLaedt: false,
-  uGeraet: "", uZahlart: "", uKonto: "", uAuftrag: "", uStatus: "",
-  istPruefer: false, freigabe: [], zuweisungen: [], zuweisungenKonto: [],
+  session: null, istAdmin: false, konten: [], auftraege: [], favoriten: [],
+  // ich: eigener Name und Rolle; namen: E-Mail → Name für Listen und Verlauf
+  ich: { name: "", rolle: "user" }, namen: {},
+  // belege: eigene der gewählten Periode; offeneEigene: eigene erfasste und
+  // abgelehnte, egal aus welcher Periode — das sind die offenen Aufgaben
+  belege: [], offeneEigene: [],
+  benutzer: [], benEdit: null, kontEdit: null,
+  ansicht: "liste", neu: null, favEdit: null, posIndex: null,
+  suche: "", bSuche: "", meldung: null, zurueckZu: "liste",
+  // Zeitraum für alles: Abrechnungsperiode, mit ‹ › blätterbar
+  uVon: START.von, uBis: START.bis, eigenerZeitraum: false, uBelege: [], uLaedt: false,
+  uGeraet: "", uZahlart: "", uKonto: "", uAuftrag: "", uStatus: "", uFilterOffen: false,
+  istPruefer: false, freigabe: [], zuweisungen: [], zuweisungenKonto: [], verlauf: [],
+  // Am Rechner klappt die Auswahl für Konto/KST direkt unter dem Feld auf: { art, i }
+  wahlOffen: null,
   // Knopf, der gerade arbeitet: { akt, text } — zeigt z. B. "Speichere …"
   laeuft: null
 };

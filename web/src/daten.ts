@@ -6,9 +6,9 @@
 import { S, sb, render } from "./zustand";
 import { SUPABASE_URL, SUPABASE_KEY } from "./konfig";
 import {
-  OHNE_KST, NETZTEXT, istBreit, istNetzfehler, heute, chf, kurzName,
-  statusVon, statusName, zahlartName, auftragAnzeige, langDatum, buchungsBetrag,
-  belegZeilen
+  OHNE_KST, NETZTEXT, istBreit, istNetzfehler, heute, chf, chfLang, kurzName, kurzZeit,
+  statusVon, statusName, statusKlasse, istEntschieden, zahlartName, auftragAnzeige, langDatum,
+  buchungsBetrag, belegZeilen, istGesperrt, STATUS_FILTER
 } from "./grundlagen";
 
 // ---------- Leere Vorlagen ----------
@@ -47,24 +47,27 @@ export const aktiveKonten = () => S.konten.filter((k) => k.aktiv !== false);
 const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv";
 
 export async function ladeAlles() {
-  const [k, b, f, adm, per] = await Promise.all([
+  const ich = S.session.user.email;
+  const [k, f, adm, me, nam] = await Promise.all([
     sb.from("spesen_konto").select(KONTO_SPALTEN).order("sortierung").order("nummer"),
-    sb.from("spesen_beleg").select("*").eq("monat", S.monat).eq("geraet", S.session.user.email)
-      .order("beleg_datum", { ascending: false }).order("id", { ascending: false }),
     sb.from("spesen_favorit").select("*").order("sortierung").order("id"),
     sb.rpc("ist_admin"),
-    sb.from("spesen_periode").select("*").order("sortierung").order("von", { ascending: false })
+    sb.from("spesen_benutzer").select("name,rolle").eq("email", ich).maybeSingle(),
+    sb.rpc("benutzer_namen"),
+    ladeMeine()
   ]);
   S.konten    = k.data || [];
-  S.belege    = b.data || [];
   S.favoriten = f.data || [];
   S.istAdmin  = adm.data === true;
-  S.perioden  = per.data || [];
+  S.ich       = { name: (me.data && me.data.name) || "", rolle: (me.data && me.data.rolle) || "user" };
+  // Namen statt E-Mail — fehlt die Funktion (ältere Datenbank), bleibt es bei der E-Mail
+  if (!nam.error && Array.isArray(nam.data))
+    S.namen = Object.fromEntries(nam.data.map((x) => [x.email, x.name]));
 
   // Fehlt die Funktion (Datenbank ohne Etappe 2), bleibt alles wie bisher.
   const pr = await sb.rpc("ist_pruefer");
   S.istPruefer = !pr.error && pr.data === true;
-  if (S.istPruefer) await ladeFreigabe();
+  if (S.istPruefer) await Promise.all([ladeFreigabe(), ladeVerlauf()]);
 
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
   if (!S.auftraege.length) S.auftraege = await ladeAuftraege();
@@ -86,6 +89,73 @@ async function ladeAuftraege() {
   const [jetzt, vorher] = await Promise.all([holen(jahr), holen(jahr - 1)]);
   const gesehen = new Set();
   return [...jetzt, ...vorher].filter((a) => !gesehen.has(a.id) && gesehen.add(a.id));
+}
+
+// Eigene Belege der gewählten Periode — und alle eigenen, die noch etwas
+// brauchen (erfasst oder abgelehnt), egal aus welcher Periode.
+export async function ladeMeine() {
+  const ich = S.session.user.email;
+  const [b, o] = await Promise.all([
+    sb.from("spesen_beleg").select("*").eq("geraet", ich)
+      .gte("beleg_datum", S.uVon).lte("beleg_datum", S.uBis)
+      .order("beleg_datum", { ascending: false }).order("id", { ascending: false }),
+    sb.from("spesen_beleg").select("*").eq("geraet", ich).in("status", ["offen", "abgelehnt"])
+      .order("beleg_datum", { ascending: false }).order("id", { ascending: false })
+  ]);
+  S.belege       = b.data || [];
+  S.offeneEigene = o.error ? S.belege.filter((x) => statusVon(x) === "offen") : (o.data || []);
+}
+
+// Neuer Zeitraum: eigene Belege und Übersicht neu holen
+export async function zeitraumLaden() {
+  S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
+  render();
+  await Promise.all([ladeMeine(), ladeUebersicht(true)]);
+  render();
+}
+
+// ---------- Verlauf ----------
+// Admin sieht alles, Prüfer den Verlauf der Belege, die sie sehen dürfen.
+export async function ladeVerlauf() {
+  const { data, error } = await sb.from("spesen_verlauf")
+    .select("id,beleg_id,wann,wer,aktion,status,details")
+    .order("wann", { ascending: false }).limit(15);
+  S.verlauf = error ? [] : (data || []);
+}
+
+// Name einer Person, sonst der Teil vor dem @
+export const personName = (mail: string) => {
+  if (!mail) return "";
+  if (S.namen[mail]) return S.namen[mail];
+  const b = S.benutzer.find((x) => x.email === mail);
+  return (b && b.name) || kurzName(mail);
+};
+
+// Eine Zeile im Verlauf: Farbe, was geschah, wer wann
+export function verlaufEintrag(v: any) {
+  const gleich = (x) => String(x.id) === String(v.beleg_id);
+  const b = S.uBelege.find(gleich) || S.belege.find(gleich) || S.freigabe.find(gleich);
+  const d = v.details || {};
+  // In "angelegt"/"gelöscht" steht der ganze Beleg, sonst je Feld { alt, neu }
+  const wert = (k) => (d[k] && typeof d[k] === "object" && "neu" in d[k]) ? d[k].neu : d[k];
+  const konto  = b ? b.konto_nummer : wert("konto_nummer");
+  const betrag = b ? b.betrag : wert("betrag");
+  const was = [konto ? (kontoName(konto) || konto) : "Beleg", betrag != null ? chfLang(betrag) : ""]
+    .filter(Boolean).join(" ");
+  let titel = "Geändert", farbe = "gep";
+  if (v.aktion === "angelegt")      { titel = "Erfasst";  farbe = "erf"; }
+  else if (v.aktion === "gelöscht") { titel = "Gelöscht"; farbe = "abl"; }
+  else if (v.aktion === "status") {
+    const s = v.status || "offen";
+    titel = s === "offen" ? "Zurück auf erfasst" : statusName(s);
+    titel = titel[0].toUpperCase() + titel.slice(1);
+    if (s === "teilweise" && wert("genehmigt_betrag") != null) titel += " · " + chfLang(wert("genehmigt_betrag"));
+    farbe = statusKlasse(s);
+  } else if (d.konto_nummer || d.auftrag_nr) {
+    titel = "Umkontiert" + (d.auftrag_nr ? ` · KST ${auftragAnzeige(d.auftrag_nr.alt)} → ${auftragAnzeige(d.auftrag_nr.neu)}` : "");
+  }
+  return { farbe, titel: `${titel} · ${was}`, sub: `${personName(v.wer)} · ${kurzZeit(v.wann)}`,
+           belegId: b ? b.id : null };
 }
 
 export async function ladeFavoriten() {
@@ -124,23 +194,6 @@ export async function ladeZuweisungen() {
   S.zuweisungenKonto = k.data || [];
 }
 
-// ---------- Gespeicherte Perioden ----------
-// Jeder Benutzer hat seine eigenen, höchstens MAX_PERIODEN Stück.
-export async function ladePerioden() {
-  const { data } = await sb.from("spesen_periode")
-    .select("*").order("sortierung").order("von", { ascending: false });
-  S.perioden = data || [];
-}
-
-export async function periodeSpeichern(name, von, bis) {
-  const hoechste = S.perioden.reduce((m, p) => Math.max(m, p.sortierung || 0), 0);
-  return sb.from("spesen_periode")
-    .insert({ geraet: S.session.user.email, name: String(name).trim(),
-              von, bis, sortierung: hoechste + 10 });
-}
-
-export const periodeLoeschen = (id) => sb.from("spesen_periode").delete().eq("id", id);
-
 // Zählt mit, welche Abfrage die neueste ist. Stellt man den Zeitraum schnell
 // zweimal um, darf die langsamere erste Antwort die zweite nicht überschreiben.
 let uLauf = 0;
@@ -171,6 +224,22 @@ export async function kontoSpeichern(k) {
     return sb.from("spesen_konto").insert({ ...daten, nummer: String(k.nummer).trim() });
   }
   return sb.from("spesen_konto").update(daten).eq("nummer", k.nummer);
+}
+
+// Konto in der Auswahl eins nach oben. Danach stehen alle Konten in
+// Zehnerschritten — nur geänderte werden geschrieben.
+export async function kontoHoch(nr) {
+  const liste = [...S.konten];
+  const i = liste.findIndex((k) => k.nummer === nr);
+  if (i <= 0) return null;
+  [liste[i - 1], liste[i]] = [liste[i], liste[i - 1]];
+  const auftraege = liste
+    .map((k, j) => ({ k, neu: (j + 1) * 10 }))
+    .filter(({ k, neu }) => k.sortierung !== neu)
+    .map(({ k, neu }) => sb.from("spesen_konto").update({ sortierung: neu }).eq("nummer", k.nummer));
+  const ergebnisse = await Promise.all(auftraege);
+  await ladeKonten();
+  return ergebnisse.find((r) => r.error)?.error || null;
 }
 
 // ---------- Favoriten ----------
@@ -208,8 +277,20 @@ export function favAnwenden(id) {
             || { nummer: f.konto_nummer, bezeichnung: kontoName(f.konto_nummer) };
   const a = auftragObjekt(f.auftrag_nr, f.auftrag_name);
   S.neu = { ...leererBeleg(), konto: k, auftrag: a, mwst: String(k.mwst ?? "8.1") };
-  S.zurueckZu = istBreit() ? "desktop" : "liste";
+  S.zurueckZu = ["liste", "uebersicht", "freigabe"].includes(S.ansicht) ? S.ansicht : "liste";
   S.ansicht = "erfassen";
+  render();
+}
+
+// Favorit in den offenen Beleg übernehmen — Foto und Betrag bleiben
+export function favUebernehmen(id) {
+  const f = S.favoriten.find((x) => String(x.id) === String(id));
+  if (!f || !S.neu) return;
+  const k = S.konten.find((x) => x.nummer === f.konto_nummer)
+            || { nummer: f.konto_nummer, bezeichnung: kontoName(f.konto_nummer) };
+  S.neu.konto = k;
+  S.neu.auftrag = auftragObjekt(f.auftrag_nr, f.auftrag_name);
+  if (!S.neu.id && k.mwst != null) S.neu.mwst = String(k.mwst);
   render();
 }
 
@@ -270,11 +351,19 @@ function belegImFilter(b) {
            auftrag_nr: teile[0].auftrag_nr };
 }
 
+// Statusfilter: ein einzelner Status oder eine der zwei Gruppen
+export const istErledigt = (b) => istEntschieden(b) || statusVon(b) === "abgeschlossen";
+const statusPasst = (b, st) => !st ? true
+  : st === "erledigt"   ? istErledigt(b)
+  : st === "unerledigt" ? !istErledigt(b)
+  : statusVon(b) === st;
+
 // Ein Beleg erscheint, wenn mindestens eine seiner Positionen passt.
-export const uGefiltert = () => S.uBelege.filter((b) =>
+// ohneStatus: alle Filter ausser dem Status — für die Zähler auf den Kacheln
+export const uGefiltert = (ohneStatus?: boolean) => S.uBelege.filter((b) =>
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
-  (!S.uStatus  || statusVon(b) === S.uStatus) &&
+  (ohneStatus || statusPasst(b, S.uStatus)) &&
   belegZeilen(b).some(zeilePasst)).map(belegImFilter);
 
 // Was kommt im geladenen Zeitraum überhaupt vor? Füllt die Auswahlfelder.
@@ -295,10 +384,10 @@ export const uZeitraumText = () => `${langDatum(S.uVon)} – ${langDatum(S.uBis)
 export const uTitel = () => {
   const teile = [
     uZeitraumText(),
-    S.uGeraet || (S.istAdmin ? "Alle Geräte" : S.session.user.email),
+    S.uGeraet ? personName(S.uGeraet) : (S.istAdmin ? "Alle Personen" : S.session.user.email),
     S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
   ];
-  if (S.uStatus)  teile.push("Status " + statusName(S.uStatus));
+  if (S.uStatus)  teile.push("Status " + (STATUS_FILTER[S.uStatus] || S.uStatus));
   if (S.uKonto)   teile.push("Konto " + S.uKonto);
   if (S.uAuftrag) teile.push("Auftrag " + auftragAnzeige(S.uAuftrag));
   return teile.join(" · ");
@@ -346,9 +435,11 @@ export function dateiGewaehlt(file: File) {
   const erlaubt = file.type === "application/pdf" || file.type.startsWith("image/");
   if (!erlaubt) { alert("Bitte ein Bild oder ein PDF wählen."); return; }
 
-  // Vom Rechner direkt auf die Ablagefläche gezogen: Erfassung öffnen
-  if (!S.neu) {
-    S.neu = leererBeleg(); S.zurueckZu = istBreit() ? "desktop" : "liste";
+  // Vom Rechner direkt auf die Ablagefläche gezogen: Erfassung öffnen.
+  // In der Freigabe am Rechner liegt S.neu als Prüfbeleg offen — der bleibt unberührt.
+  if (!S.neu || S.ansicht !== "erfassen" || (S.neu.id && istGesperrt(S.neu))) {
+    S.neu = leererBeleg(); S.posIndex = null; S.wahlOffen = null;
+    S.zurueckZu = ["liste", "uebersicht", "freigabe"].includes(S.ansicht) ? S.ansicht : "liste";
     S.ansicht = "erfassen";
   }
 
@@ -376,7 +467,7 @@ export function auftragObjekt(id, ersatzName?) {
 export async function belegBearbeiten(id, woher) {
   const gleich = (x) => String(x.id) === String(id);
   const quelle = woher === "liste" ? S.belege : woher === "freigabe" ? S.freigabe : S.uBelege;
-  const b = quelle.find(gleich) || S.belege.find(gleich)
+  const b = quelle.find(gleich) || S.belege.find(gleich) || S.offeneEigene.find(gleich)
          || S.uBelege.find(gleich) || S.freigabe.find(gleich);
   if (!b) return;
 
@@ -411,8 +502,10 @@ export async function belegBearbeiten(id, woher) {
     datei: null, vorschau: null, altPfad: b.datei_pfad, altUrl: url
   };
   S.posIndex  = null;
-  S.zurueckZu = woher;
-  S.ansicht   = "erfassen";
+  S.wahlOffen = null;
+  S.zurueckZu = ["liste", "uebersicht", "freigabe"].includes(woher) ? woher : "liste";
+  // Am Rechner steht der Prüfbeleg rechts neben der Freigabeliste
+  S.ansicht   = (woher === "freigabe" && istBreit()) ? "freigabe" : "erfassen";
   render();
 }
 
@@ -438,20 +531,17 @@ export const eigeneErfasste = (liste) => (liste || []).filter((b) =>
 export async function zurueckNachSpeichern(text) {
   S.meldung = text;
   S.laeuft = null;
-  const woher = S.zurueckZu;
-  S.neu = null; S.posIndex = null; S.zurueckZu = istBreit() ? "desktop" : "liste";
-  if (woher === "freigabe") {
-    // Zurück in die Freigabeliste — am Handy wie am Rechner.
-    S.zurueckZu = "freigabe";
-    S.ansicht = "freigabe"; await ladeAlles(); render();
-  } else if (istBreit()) {
-    S.ansicht = "liste";
-    await ladeAlles(); await ladeUebersicht(true);
-  } else if (woher === "uebersicht") {
-    S.ansicht = "uebersicht"; await ladeUebersicht(true);
-  } else {
-    S.ansicht = "liste"; await ladeAlles(); render();
+  const woher = ["liste", "uebersicht", "freigabe"].includes(S.zurueckZu) ? S.zurueckZu : "liste";
+  S.neu = null; S.posIndex = null; S.wahlOffen = null;
+  S.ansicht = woher;
+  await ladeAlles();
+  if (woher === "uebersicht" || istBreit()) await ladeUebersicht(true);
+  // Am Rechner gleich den nächsten Beleg zum Prüfen zeigen
+  if (woher === "freigabe" && istBreit() && S.freigabe.length) {
+    await belegBearbeiten(S.freigabe[0].id, "freigabe");
+    S.meldung = text;
   }
+  render();
 }
 
 // ---------- Benutzerverwaltung (nur Admin) ----------
@@ -478,12 +568,16 @@ export async function ladeBenutzer() {
   return j;
 }
 
-// Nach dem Anmelden: alles laden und anzeigen
+// Nach dem Anmelden: alles laden und anzeigen.
+// Am Rechner starten Prüfer und Admins in der Übersicht.
 export async function nachAnmeldung(session) {
   S.session = session;
   S.loginMeldung = null;
   await ladeAlles();
-  if (istBreit()) await ladeUebersicht(true); else render();
+  if (istBreit()) {
+    if (S.istAdmin || S.istPruefer) S.ansicht = "uebersicht";
+    await ladeUebersicht(true);
+  } else render();
 }
 
 // Zur Anmeldung zurück

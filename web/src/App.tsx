@@ -7,29 +7,29 @@ import { S, abonnieren, aktuellerStand } from "./zustand";
 import { IST_TEST } from "./konfig";
 import { klick, aenderung, eingabe } from "./aktionen";
 import { Login } from "./ansichten/login";
-import { Desktop, Liste, Uebersicht } from "./ansichten/uebersicht";
+import { MeineBelege, Uebersicht } from "./ansichten/uebersicht";
 import { Erfassen, KontoWahl, AuftragWahl } from "./ansichten/erfassen";
-import { Passwort, Favoriten, FavForm, Freigabe, Benutzer, Konten, Zuweisungen } from "./ansichten/verwaltung";
-import { istBreit } from "./grundlagen";
+import { Profil, Passwort, Favoriten, FavForm, Freigabe } from "./ansichten/profil";
+import { Benutzer, Konten } from "./ansichten/verwaltung";
 
 function Bildschirm() {
-  if (!S.gestartet) return <div className="mitte"><div className="karte leer">Lade …</div></div>;
+  if (!S.gestartet) return <div className="leer" style={{ paddingTop: 80 }}>Lade …</div>;
   if (!S.session)   return <Login />;
 
   switch (S.ansicht) {
-    case "erfassen":    return <Erfassen />;
+    case "erfassen":    return S.neu ? <Erfassen /> : <MeineBelege />;
     case "kontoWahl":   return <KontoWahl />;
     case "auftragWahl": return <AuftragWahl />;
+    case "uebersicht":  return <Uebersicht />;
+    case "freigabe":    return <Freigabe />;
+    case "profil":      return <Profil />;
     case "passwort":    return <Passwort />;
     case "favoriten":   return <Favoriten />;
-    case "favForm":     return <FavForm />;
-    case "freigabe":    return <Freigabe />;
-    case "zuweisungen": return <Zuweisungen />;
+    case "favForm":     return S.favEdit ? <FavForm /> : <Favoriten />;
     case "benutzer": case "benForm":  return <Benutzer />;
     case "konten":   case "kontoForm": return <Konten />;
   }
-  if (istBreit()) return <Desktop />;
-  return S.ansicht === "uebersicht" ? <Uebersicht /> : <Liste />;
+  return <MeineBelege />;
 }
 
 export function App() {

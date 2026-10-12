@@ -6,14 +6,14 @@
 
 import { S, sb, render, laeuft } from "./zustand";
 import {
-  NETZTEXT, GESPERRT_TEXT, MAX_PERIODEN, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
-  kurzDatum, ordnerName, statusName, statusVon, buchungsBetrag
+  NETZTEXT, GESPERRT_TEXT, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
+  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm
 } from "./grundlagen";
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
-  ladeAlles, ladeKonten, ladePerioden, ladeFavoriten, ladeFreigabe, ladeZuweisungen,
-  ladeUebersicht, ladeBenutzer, benutzerRuf, periodeSpeichern, periodeLoeschen,
-  kontoSpeichern, favSpeichern, favLoeschen, favHoch, favAnwenden, belegBearbeiten,
+  ladeAlles, ladeKonten, ladeFavoriten, ladeFreigabe, ladeZuweisungen, ladeVerlauf,
+  ladeUebersicht, ladeBenutzer, benutzerRuf, zeitraumLaden, kontoHoch,
+  kontoSpeichern, favSpeichern, favLoeschen, favHoch, favAnwenden, favUebernehmen, belegBearbeiten,
   belegOeffnen, auftragObjekt, gruppiere, uGefiltert, uTitel, uDateiname, belegeFreigeben,
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
   zuruecksetzen, zeigeLogin
@@ -38,67 +38,57 @@ export async function klick(el: HTMLElement) {
 async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "abmelden") {
     await sb.auth.signOut();
-    S.auftraege = []; S.uBelege = []; S.benutzer = []; S.ansicht = "liste";
+    S.auftraege = []; S.uBelege = []; S.belege = []; S.offeneEigene = []; S.benutzer = [];
+    S.freigabe = []; S.verlauf = []; S.namen = {}; S.neu = null; S.ansicht = "liste";
     return zeigeLogin();
   }
-  if (a === "tabListe")      { S.favEdit = null; S.ansicht = "liste"; return render(); }
-  if (a === "tabUebersicht") { S.favEdit = null; S.ansicht = "uebersicht"; return ladeUebersicht(true); }
+  // Hauptseiten: was gerade offen war (Formulare, Prüfbeleg) schliessen
+  const wechsel = (ansicht: string) => {
+    S.favEdit = null; S.benEdit = null; S.kontEdit = null; S.wahlOffen = null;
+    if (S.ansicht === "freigabe" || S.ansicht === "erfassen") S.neu = null;
+    S.ansicht = ansicht;
+  };
+  if (a === "tabListe")      { wechsel("liste"); return render(); }
+  if (a === "tabUebersicht") {
+    wechsel("uebersicht"); render();
+    await ladeUebersicht(true);
+    if (S.istPruefer) { await ladeVerlauf(); render(); }
+    return;
+  }
+  if (a === "zuProfil")      { wechsel("profil"); return render(); }
   if (a === "neu") {
-    S.neu = leererBeleg(); S.posIndex = null;
-    S.zurueckZu = istBreit() ? "desktop" : "liste";
-    S.ansicht = "erfassen"; return render();
+    const von = ["liste", "uebersicht", "freigabe"].includes(S.ansicht) ? S.ansicht : "liste";
+    wechsel("erfassen");
+    S.neu = leererBeleg(); S.posIndex = null; S.zurueckZu = von;
+    return render();
   }
   if (a === "bearbeiten") return belegBearbeiten(d.id, d.w);
 
-  // ---------- Zeitraum ----------
-  // Beim Wechsel des Zeitraums fallen Gerät, Konto und Auftrag zurück auf
+  // ---------- Zeitraum und Filter ----------
+  // Beim Wechsel des Zeitraums fallen Person, Konto und KST zurück auf
   // "Alle" — sie könnten im neuen Zeitraum gar nicht vorkommen.
-  if (a === "periodeWahl") {
-    const p = S.perioden.find((x) => String(x.id) === String(d.id));
-    if (!p) return;
-    S.uVon = p.von; S.uBis = p.bis;
-    S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
-    return ladeUebersicht(true);
+  if (a === "periode") {
+    const p = periodeUm(S.uVon, Number(d.v));
+    S.uVon = p.von; S.uBis = p.bis; S.eigenerZeitraum = false;
+    return zeitraumLaden();
   }
-
-  if (a === "periodeNeu") {
-    if (S.perioden.length >= MAX_PERIODEN) {
-      alert(`Es gehen höchstens ${MAX_PERIODEN} Perioden. Lösch zuerst eine über das ✕ an der Kachel.`);
-      return;
-    }
-    const vorschlag = `${kurzDatum(S.uVon)}–${kurzDatum(S.uBis)}`;
-    const name = prompt("Name der Periode:", vorschlag);
-    if (name === null) return;
-    const { error } = await periodeSpeichern(name || vorschlag, S.uVon, S.uBis);
-    if (error) {
-      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gemerkt werden:\n" + error.message);
-      return;
-    }
-    await ladePerioden();
-    S.meldung = "Periode gemerkt.";
-    return render();
+  if (a === "periodeJetzt") {
+    const p = periode(0);
+    S.uVon = p.von; S.uBis = p.bis; S.eigenerZeitraum = false;
+    return zeitraumLaden();
   }
-
-  if (a === "periodeWeg") {
-    const p = S.perioden.find((x) => String(x.id) === String(d.id));
-    if (!p) return;
-    if (!confirm(`Periode „${p.name}" löschen? Die Belege bleiben unberührt.`)) return;
-    const { error } = await periodeLoeschen(p.id);
-    if (error) {
-      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gelöscht werden:\n" + error.message);
-      return;
-    }
-    await ladePerioden();
-    S.meldung = "Periode gelöscht.";
-    return render();
-  }
+  if (a === "eigenerZeitraum") { S.eigenerZeitraum = !S.eigenerZeitraum; return render(); }
+  if (a === "filterAuf")       { S.uFilterOffen = !S.uFilterOffen; return render(); }
+  if (a === "filterWeg")       { S[d.f] = ""; return render(); }
+  // Kacheln der Übersicht: noch einmal tippen hebt den Filter auf
+  if (a === "kachel")          { S.uStatus = (S.uStatus === d.v ? "" : d.v); return render(); }
 
   // ---------- Admin: Benutzer ----------
   if (a === "tabBenutzer") {
-    S.ansicht = "benutzer"; S.kontEdit = null;
+    wechsel("benutzer");
     S.benEdit = istBreit() ? leererBenutzer() : null;
     render();
-    const j = await ladeBenutzer();
+    const [j] = await Promise.all([ladeBenutzer(), ladeZuweisungen()]);
     if (!j || j.ok === false) alert("Benutzer konnten nicht geladen werden:\n" + ((j && j.fehler) || ""));
     return render();
   }
@@ -173,13 +163,6 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   // ---------- Admin: Zuweisungen ----------
-  if (a === "tabZuweisungen") {
-    S.ansicht = "zuweisungen"; S.benEdit = null; S.kontEdit = null;
-    render();
-    await Promise.all([ladeBenutzer(), ladeZuweisungen()]);
-    return render();
-  }
-
   if (a === "zuwNeu" || a === "zuwKontoNeu") {
     const neu = wert(d.f).trim();
     if (!neu) { alert(a === "zuwNeu" ? "Bitte eine KST eingeben." : "Bitte ein Konto wählen."); return; }
@@ -209,7 +192,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   // ---------- Admin: Konten ----------
   if (a === "tabKonten") {
-    S.ansicht = "konten"; S.benEdit = null; S.kontEdit = null;
+    wechsel("konten");
     render();
     await ladeKonten();
     if (istBreit()) S.kontEdit = leeresKonto();
@@ -234,6 +217,12 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "kontoMwst") { S.kontEdit.mwst = d.v; return render(); }
 
+  if (a === "kontoHoch") {
+    const fehler = await kontoHoch(d.nr);
+    if (fehler) alert(istNetzfehler(fehler) ? NETZTEXT : "Reihenfolge nicht gespeichert:\n" + fehler.message);
+    return render();
+  }
+
   if (a === "kontoSichern") {
     const k = S.kontEdit;
     const nummer = String(k.nummer || "").trim();
@@ -257,7 +246,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   // ---------- Eigenes Passwort ----------
-  if (a === "zuPasswort") { S.ansicht = "passwort"; return render(); }
+  if (a === "zuPasswort") { wechsel("passwort"); return render(); }
 
   if (a === "pwSichern") {
     const p1 = wert("pw1"), p2 = wert("pw2");
@@ -269,12 +258,13 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
       alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht geändert werden:\n" + error.message);
       return;
     }
-    S.meldung = "Passwort geändert."; S.ansicht = "liste"; return render();
+    S.meldung = "Passwort geändert."; S.ansicht = istBreit() ? "liste" : "profil"; return render();
   }
 
   // ---------- Favoriten ----------
-  if (a === "zuFavoriten") { S.ansicht = "favoriten"; return render(); }
+  if (a === "zuFavoriten") { wechsel("favoriten"); return render(); }
   if (a === "favAnwenden") return favAnwenden(d.id);
+  if (a === "favUebernehmen") return favUebernehmen(d.id);
   if (a === "favNeu")      { S.favEdit = leererFavorit(); S.ansicht = "favForm"; return render(); }
 
   if (a === "favBearbeiten") {
@@ -372,35 +362,43 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   // ---------- Zurück ----------
   if (a === "zurueck") {
+    S.wahlOffen = null;
+    // Profil-Unterseiten führen am Handy ins Profil zurück
+    const heim = istBreit() ? "liste" : "profil";
     if (S.ansicht === "erfassen") {
       if (S.neu && S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
       const woher = S.zurueckZu; S.neu = null; S.posIndex = null;
-      S.ansicht = woher === "freigabe" ? "freigabe"
-                : (woher === "uebersicht" && !istBreit()) ? "uebersicht" : "liste";
+      S.ansicht = ["liste", "uebersicht", "freigabe"].includes(woher) ? woher : "liste";
       return render();
     }
-    if (S.ansicht === "passwort")  { S.ansicht = "liste"; return render(); }
-    if (S.ansicht === "favoriten") { S.ansicht = "liste"; return render(); }
+    if (S.ansicht === "passwort")  { S.ansicht = heim; return render(); }
+    if (S.ansicht === "favoriten") { S.ansicht = heim; return render(); }
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
     if (S.ansicht === "benForm")   { S.benEdit = null; S.ansicht = "benutzer"; return render(); }
     if (S.ansicht === "kontoForm") { S.kontEdit = null; S.ansicht = "konten"; return render(); }
-    if (S.ansicht === "freigabe")  { S.ansicht = "liste"; return render(); }
-    if (S.ansicht === "benutzer" || S.ansicht === "konten" || S.ansicht === "zuweisungen") {
-      S.benEdit = null; S.kontEdit = null; S.ansicht = "liste"; return render();
+    if (S.ansicht === "freigabe" || S.ansicht === "profil") { S.neu = null; S.ansicht = "liste"; return render(); }
+    if (S.ansicht === "benutzer" || S.ansicht === "konten") {
+      S.benEdit = null; S.kontEdit = null; S.ansicht = heim; return render();
     }
     // bleibt: die Auswahlbildschirme für Konto und Auftrag
     S.posIndex = null;
     S.ansicht = S.favEdit ? "favForm" : "erfassen"; return render();
   }
 
-  if (a === "kontoWahl") {
-    S.posIndex = (d.i != null) ? Number(d.i) : null;
-    S.ansicht = "kontoWahl"; return render();
+  // Konto/KST wählen: am Handy eine eigene Seite, am Rechner klappt die
+  // Liste direkt unter dem Feld auf (noch einmal klicken schliesst sie).
+  if (a === "kontoWahl" || a === "auftragWahl") {
+    const art = a === "kontoWahl" ? "konto" : "auftrag";
+    const i = (d.i != null) ? Number(d.i) : null;
+    S.posIndex = i; S.suche = "";
+    if (istBreit()) {
+      const offen = S.wahlOffen && S.wahlOffen.art === art && S.wahlOffen.i === i;
+      S.wahlOffen = offen ? null : { art, i };
+      return render();
+    }
+    S.ansicht = art === "konto" ? "kontoWahl" : "auftragWahl"; return render();
   }
-  if (a === "auftragWahl") {
-    S.posIndex = (d.i != null) ? Number(d.i) : null;
-    S.suche = ""; S.ansicht = "auftragWahl"; return render();
-  }
+  if (a === "wahlZu") { S.wahlOffen = null; S.posIndex = null; return render(); }
   if (a === "foto")     { document.getElementById("kamera").click(); return; }
   if (a === "waehlen")  { document.getElementById("datei").click(); return; }
   if (a === "belegAuf") return belegOeffnen(d.p);
@@ -410,30 +408,37 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     return render();
   }
 
-  // Auswahl trifft den Favoriten, eine Position oder den ganzen Beleg
+  // Auswahl trifft den Favoriten, eine Position oder den ganzen Beleg.
+  // Danach am Handy zurück ins Formular; am Rechner nur die Liste zuklappen.
+  const ausWahl = () => {
+    S.posIndex = null; S.wahlOffen = null;
+    if (!istBreit()) S.ansicht = S.favEdit ? "favForm" : "erfassen";
+    return render();
+  };
   if (a === "kontoSet") {
     const k = S.konten.find((x) => x.nummer === d.nr);
-    if (S.favEdit) { S.favEdit.konto = k; S.ansicht = "favForm"; return render(); }
+    if (S.favEdit) { S.favEdit.konto = k; return ausWahl(); }
     if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
       S.neu.positionen[S.posIndex].konto = k;
-      S.posIndex = null; S.ansicht = "erfassen"; return render();
+      return ausWahl();
     }
     S.neu.konto = k;
     if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
-    S.ansicht = "erfassen"; return render();
+    return ausWahl();
   }
   if (a === "auftragSet") {
     const auf = auftragObjekt(d.id);
-    if (S.favEdit) { S.favEdit.auftrag = auf; S.ansicht = "favForm"; return render(); }
+    if (S.favEdit) { S.favEdit.auftrag = auf; return ausWahl(); }
     if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
       S.neu.positionen[S.posIndex].auftrag = auf;
-      S.posIndex = null; S.ansicht = "erfassen"; return render();
+      return ausWahl();
     }
     S.neu.auftrag = auf;
-    S.ansicht = "erfassen"; return render();
+    return ausWahl();
   }
 
-  if (a === "mwst") { S.neu.mwst = d.v; return render(); }
+  if (a === "mwst")    { S.neu.mwst = d.v; return render(); }
+  if (a === "zahlart") { S.neu.zahlart = d.v; return render(); }
 
   // ---------- Export ----------
   const zumExport = () => uGefiltert().map((b) => ({
@@ -466,7 +471,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   // ---------- Zur Prüfung freigeben ----------
   if (a === "freigebenAlle") {
-    const quelle = d.w === "liste" ? S.belege : uGefiltert();
+    const quelle = d.w === "offene" ? S.offeneEigene : d.w === "liste" ? S.belege : uGefiltert();
     const ids = eigeneErfasste(quelle).map((b) => b.id);
     if (!ids.length) return;
     if (!confirm(`${ids.length === 1 ? "Diesen Beleg" : "Diese " + ids.length + " Belege"} `
@@ -487,9 +492,12 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   if (a === "tabFreigabe") {
-    S.favEdit = null; S.ansicht = "freigabe"; S.zurueckZu = "freigabe";
+    wechsel("freigabe"); S.zurueckZu = "freigabe";
     render();
-    await ladeFreigabe(); return render();
+    await ladeFreigabe();
+    // Am Rechner gleich den ersten Beleg rechts daneben öffnen
+    if (istBreit() && S.freigabe.length) return belegBearbeiten(S.freigabe[0].id, "freigabe");
+    return render();
   }
 
   if (a === "entscheid") {
@@ -681,20 +689,18 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "kaktiv" && S.kontEdit)    { S.kontEdit.aktiv = ziel.checked; return; }
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
 
-  // Zeitraum: erst zeichnen, wenn die Daten da sind.
+  // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.
   if (f === "uvon") {
     if (!ziel.value) return;
     S.uVon = ziel.value;
     if (S.uBis < S.uVon) S.uBis = S.uVon;
-    S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
-    ladeUebersicht(true); return;
+    zeitraumLaden(); return;
   }
   if (f === "ubis") {
     if (!ziel.value) return;
     S.uBis = ziel.value;
     if (S.uBis < S.uVon) S.uVon = S.uBis;
-    S.uGeraet = ""; S.uKonto = ""; S.uAuftrag = "";
-    ladeUebersicht(true); return;
+    zeitraumLaden(); return;
   }
 
   if (f === "ugeraet")  { S.uGeraet  = ziel.value; render(); return; }
@@ -717,6 +723,7 @@ export function eingabe(ziel: HTMLInputElement) {
   }
 
   if (f === "suche")   { S.suche = ziel.value; return render(); }
+  if (f === "bsuche")  { S.bSuche = ziel.value; return render(); }
   if (f === "favname" && S.favEdit) { S.favEdit.name = ziel.value; return; }
   if (f === "bname" && S.benEdit)   { S.benEdit.name  = ziel.value; return; }
   if (f === "bmail" && S.benEdit)   { S.benEdit.email = ziel.value; return; }

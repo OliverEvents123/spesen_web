@@ -42,7 +42,15 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
 - `src/aktionen.ts` — alle Klicks/Eingaben über `data-akt` / `data-feld`
   (Port von `app.js`). Knöpfe, die arbeiten: `laeuft(akt, text)` und
   `<Knopf akt="…">`.
-- `src/ansichten/*.tsx` — die Bildschirme (Port von `ansichten.js`).
+- `src/ansichten/rahmen.tsx` — Rahmen jeder Seite (`<Seite>`): Handy mit
+  dunklem Kopf und Leiste unten, Rechner (ab 900 px) mit Seitenleiste links.
+- `src/ansichten/bausteine.tsx` — Symbole, Kacheln, Zeitraum, Filter,
+  Belegzeilen, Auswahl Konto/KST (am Rechner klappt sie unter dem Feld auf).
+- `src/ansichten/*.tsx` — die Bildschirme: `uebersicht` (Meine Belege,
+  Übersicht), `erfassen` (Erfassen, Ansehen/Prüfen), `profil` (Profil,
+  Passwort, Favoriten, Freigabe), `verwaltung` (Benutzer inkl. Zuweisungen,
+  Konten), `login`.
+- `src/stil.css` — Aussehen „Dashboard" (Entwurf Variante D vom 12.10.2026).
 - `public/sw.js` — Service Worker, nur in der echten App angemeldet.
 - `src/export.ts` — PDF/CSV, unverändert aus `export.js`.
 - Eingabefelder sind ungesteuert (`defaultValue`) und werden über

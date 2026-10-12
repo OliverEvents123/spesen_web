@@ -2,6 +2,35 @@
 
 **Zuletzt aktualisiert: 12.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
+## Neues Aussehen „Dashboard" (12.10.2026) — auf dem Arbeitsbranch, noch nicht live
+
+Oli hat aus vier Entwürfen Variante D gewählt (Design-Canvas „Spesen-App
+Entwurf", Blöcke „D komplett"). Umgebaut in `web/`, alle Abläufe bleiben:
+
+- Handy: dunkler Kopf, unten Leiste Belege · Übersicht · Kamera · Freigabe ·
+  Profil. Rechner: dunkle Seitenleiste, Kacheln, farbige Karten, Tabellen.
+- Zeitraum überall die Abrechnungsperiode (16.–15.) mit ‹ ›, dazu „Eigener
+  Zeitraum". „Meine Belege" zeigt die Periode statt des Kalendermonats.
+- **Gespeicherte Perioden entfernt** (Olis Wunsch, er prüft es in der
+  Handhabung). Tabelle `spesen_periode` bleibt in der Datenbank unberührt.
+- Filter hinter einem Knopf, aktive als Chips; Kacheln Erledigt/Offen filtern.
+- Aufgaben auf der Startseite: abgelehnte Belege, nicht freigegebene (aus
+  allen Perioden), „x warten auf dich".
+- Zuweisungen keine eigene Seite mehr: beim Benutzer (Projektleiter → KST,
+  Supervisor → Konten). Konten-Reihenfolge per Pfeil statt Zahlenfeld.
+- Freigabe am Rechner: Liste links, Beleg mit Entscheid rechts; nach dem
+  Entscheid öffnet sich der nächste.
+- Erfassen am Rechner: Bild links, Formular rechts, Konto/KST klappen als
+  Suchliste auf. Favorit lässt sich im Formular übernehmen (Foto bleibt).
+- User behalten Kontierung und PDF-Export (Olis Entscheid).
+- Verlauf: Admin alles, Projektleiter/Supervisor ihre KST bzw. Konten und
+  eigene Belege. Braucht **`supabase/verlauf-pruefer.sql`** (ohne: Prüfer
+  sehen keinen Verlauf, Listen zeigen E-Mail statt Name). Lokal gegen
+  Postgres geprüft.
+
+Nächste Schritte: SQL im Test-Projekt ausführen, Oli testet unter `/test/`
+(Teststand = Arbeitsbranch), danach „schleifen" und live.
+
 ## Umstieg auf React (12.10.2026)
 
 Die App war noch nicht im produktiven Einsatz — darum jetzt umgestellt statt
@@ -58,29 +87,29 @@ Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 
 ## Nächste Schritte
 
-0. **Aussehen überarbeiten** (Wunsch von Oli, 12.10.) — einer der Gründe
-   für den Umstieg.
+0. **Aussehen** — umgebaut (siehe oben), Oli testet unter `/test/`, dann
+   weiter schleifen.
 
 1. ~~SQL Etappe 1+2 und Function `benutzer` im Test-Projekt~~ — erledigt.
 2. ~~Freigaben in `/test/` testen~~ — erledigt (alte Fassung, 12.10.).
-3. Gefundene Fehler beheben (Claude), bis alles passt.
+3. `verlauf-pruefer.sql` im Test-Projekt ausführen (Oli).
 4. Offen: **Etappe 3** (Karten je Kostenstelle) — vor oder nach dem Live-Gang.
 5. **Live-Gang**, alles auf einmal, in dieser Reihenfolge:
    1. `etappe1-status.sql` im Live-Projekt
    2. `etappe2-freigabe.sql` im Live-Projekt
-   3. Edge Function `benutzer` im Live-Projekt deployen
-   4. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
+   3. `verlauf-pruefer.sql` im Live-Projekt
+   4. Edge Function `benutzer` im Live-Projekt deployen
+   5. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
       ohne Prüfung durch)
-   5. Claude übernimmt `test/` in die Hauptdateien (ohne `test/index.html`
-      und `test/konfig.js`) und bringt es nach `main`
-   6. `supabase/schema.sql` auf den neuen Stand bringen
+   6. Claude bringt den Arbeitsbranch per Pull Request nach `main`
+   7. `supabase/schema.sql` auf den neuen Stand bringen
 
-Die alte App läuft mit dem neuen SQL weiter — die Reihenfolge SQL vor App
+Die App läuft mit dem neuen SQL weiter — die Reihenfolge SQL vor App
 ist deshalb gefahrlos.
 
 ## Arbeitsweise
 
-- Claude baut in `test/` und bringt es nach `main` (nur `test/`, `supabase/`,
-  Doku — die echte App bleibt unberührt). Oli testet. Erst auf Olis „live"
-  übernimmt Claude in die Hauptdateien.
+- Claude baut auf dem Arbeitsbranch und zeigt ihn unter `/test/` (Workflow
+  von Hand starten, „Teststand" = Branch). `/` bleibt dabei aus `main`.
+  Oli testet. Erst auf Olis „live" geht es per Pull Request nach `main`.
 - Datenbankänderungen als `.sql`-Datei: erst Test, nach OK Live.

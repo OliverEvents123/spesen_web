@@ -121,6 +121,8 @@ Index auf `(geraet)`.
 ### `spesen_periode`
 
 Gespeicherte Zeiträume, **persönlich je Benutzer, höchstens drei**.
+**Seit dem neuen Aussehen (12.10.2026) von der App nicht mehr benutzt** — der
+Zeitraum wird mit ‹ › geblättert. Tabelle bleibt, falls Oli sie zurück will.
 
 | Spalte | Typ |
 |---|---|
