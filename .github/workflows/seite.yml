@@ -1,8 +1,14 @@
 # Baut die Seite und stellt sie auf GitHub Pages — bei jeder Änderung auf main.
 #
-# Was wo landet — derselbe Code, zweimal gebaut:
-#   spesen.tit-pit.ch/        echte App,    web/.env.live (echte Datenbank)
-#   spesen.tit-pit.ch/test/   Testfassung,  web/.env.test (Testdatenbank)
+# Was wo landet:
+#   spesen.tit-pit.ch/        echte App,    immer aus main,      web/.env.live (echte Datenbank)
+#   spesen.tit-pit.ch/test/   Testfassung,  aus main — oder aus  web/.env.test (Testdatenbank)
+#                             einem Arbeitsbranch, siehe unten
+#
+# Etwas zuerst nur in /test/ zeigen, ohne die echte App anzurühren:
+#   Actions → "Seite bauen und veröffentlichen" → Run workflow (Branch main lassen)
+#   → bei "Teststand" den Arbeitsbranch eintragen. Die echte App kommt dabei
+#   weiterhin aus main. Der nächste Push auf main setzt /test/ wieder auf main.
 #
 # Voraussetzung (einmalig): Repo → Settings → Pages → Source: "GitHub Actions".
 
@@ -12,6 +18,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      teststand:
+        description: "Branch für /test/ (leer = main)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -26,7 +37,11 @@ jobs:
   bauen:
     runs-on: ubuntu-latest
     steps:
+      # Die echte App kommt immer aus main — auch wenn jemand den Lauf
+      # von einem anderen Branch aus startet.
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -44,11 +59,22 @@ jobs:
           npm run bauen:live
           mv dist ../_site
 
+      - name: Teststand holen
+        if: inputs.teststand
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.teststand }}
+          path: teststand
+
       - name: Testfassung bauen
-        working-directory: web
         run: |
+          if [ -d teststand ]; then
+            cd teststand/web && npm ci
+          else
+            cd web
+          fi
           npm run bauen:test
-          mv dist ../_site/test
+          mv dist "$GITHUB_WORKSPACE/_site/test"
 
       - name: Eigene Domain
         run: cp CNAME _site/
