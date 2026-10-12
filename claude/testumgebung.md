@@ -38,13 +38,16 @@ Was dort passiert, berührt die echten Belege nicht.
    (nicht den secret/service_role!) an Claude geben. Claude trägt sie in
    `test/konfig.js` ein und passt das Banner an.
 
-## Danach: so wird gebaut
+## Danach: so wird gebaut (seit dem Umstieg auf React)
 
-1. Claude baut in `test/` und bringt es nach `main` → sichtbar unter `/test/`,
-   die echte App bleibt unberührt.
+Ein Code in `web/`, zwei Fassungen. Die echte App kommt immer aus `main`.
+
+1. Claude baut auf dem Arbeitsbranch und startet den Bau mit „Teststand =
+   Arbeitsbranch" (Actions → „Seite bauen und veröffentlichen" → Run workflow).
+   Dann zeigt `/test/` den Arbeitsbranch, `/` bleibt unverändert aus `main`.
 2. Oli testet unter `/test/`.
-3. Oli sagt „live" → Claude übernimmt die Dateien aus `test/` in die
-   Hauptdateien (ohne `test/index.html` und `test/konfig.js`).
+3. Oli sagt „live" → Pull Request nach `main`, Squash-Merge. Damit gehen beide
+   Fassungen auf den neuen Stand.
 4. Datenbankänderungen kommen als `.sql`-Datei: erst im Test-Projekt
    ausführen, nach dem OK dieselbe Datei im Live-Projekt. `schema.sql` wird
    jeweils mitgeführt, damit sie den aktuellen Stand beschreibt.

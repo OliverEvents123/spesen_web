@@ -7,8 +7,10 @@ Die App ist in `web/` gebaut: React + TypeScript + Vite (seit 12.10.2026).
 Ein Code, zwei Fassungen — automatisch gebaut und veröffentlicht von
 `.github/workflows/seite.yml` bei jedem Push auf `main`:
 
-- `spesen.tit-pit.ch/` — echte App, `web/.env.live` (Live-Datenbank)
-- `spesen.tit-pit.ch/test/` — Testfassung, `web/.env.test` (Testdatenbank)
+- `spesen.tit-pit.ch/` — echte App, immer aus `main`, `web/.env.live` (Live-Datenbank)
+- `spesen.tit-pit.ch/test/` — Testfassung, `web/.env.test` (Testdatenbank).
+  Kommt aus `main` — oder aus einem Arbeitsbranch: Workflow von Hand starten
+  (Run workflow, Branch `main`) und bei „Teststand" den Branch eintragen.
 
 Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
 
@@ -56,6 +58,8 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
   bauen und lokal prüfen; Datenbankänderungen erst im Test-Projekt.
 - Vor jedem Push `cd web && npm run bauen:live && npm run bauen:test` —
   scheitert der Bau, scheitert auch die Veröffentlichung.
+- Neues erst unter `/test/` zeigen (Teststand = Arbeitsbranch), nach Olis
+  „live" per Pull Request nach `main`.
 - Zugangsdaten nur in `web/.env.*`. Der `service_role`-Schlüssel gehört nie
   ins Repo (öffentliches Repo).
 - Datenbankänderungen kann Claude nicht selbst ausführen: dafür eine fertige
