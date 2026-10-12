@@ -13,16 +13,16 @@ Geprüft: derselbe Ablauf (anmelden, Listen, erfassen mit Foto, prüfen und
 teilweise genehmigen, Zuweisung anlegen) in alter und neuer Fassung gegen
 eine nachgebildete Supabase — gleiche Bildschirme, gleiche Datenbank-Aufrufe.
 
-Stand der Auslieferung:
-- `/` — weiterhin die alte Fassung
-- `/test/` — neue React-Fassung (Testdatenbank)
-- `/test-alt/` — alte Testfassung zum Vergleich
-
-**Oli muss einmalig:** Repo → Settings → Pages → Build and deployment →
-Source auf **„GitHub Actions"** stellen. Erst dann baut und veröffentlicht
-`.github/workflows/seite.yml`.
+Seit 12.10. ist React auch die echte App (`/`, Live-Datenbank); `/test/`
+läuft mit der Testdatenbank. Die alte Fassung ist aus dem Repo entfernt.
+GitHub Pages steht auf „GitHub Actions" (von Oli umgestellt).
 
 Zurück zur alten Fassung jederzeit möglich: Commit `85fe211`.
+
+**Offen für die Live-Datenbank:** `etappe1-status.sql`, `etappe2-freigabe.sql`
+und die Edge Function `benutzer` sind dort noch nicht eingespielt. Bis dahin
+funktioniert in der echten App das Freigeben nicht (Fehlermeldung), alles
+andere schon. Bestehende Belege erscheinen danach als „erfasst".
 
 ## Live (spesen.tit-pit.ch)
 
@@ -58,9 +58,8 @@ Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 
 ## Nächste Schritte
 
-0. **React-Fassung unter `/test/` durchtesten** (wie bisher). Passt alles,
-   wird die echte App auf React umgestellt: Workflow baut dann zusätzlich
-   `npm run bauen:live` nach `/`, die alten Dateien im Hauptordner fallen weg.
+0. **Aussehen überarbeiten** (Wunsch von Oli, 12.10.) — einer der Gründe
+   für den Umstieg.
 
 1. ~~SQL Etappe 1+2 und Function `benutzer` im Test-Projekt~~ — erledigt.
 2. ~~Freigaben in `/test/` testen~~ — erledigt (alte Fassung, 12.10.).

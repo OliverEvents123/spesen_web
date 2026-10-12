@@ -1,9 +1,8 @@
 # Baut die Seite und stellt sie auf GitHub Pages — bei jeder Änderung auf main.
 #
-# Was wo landet:
-#   spesen.tit-pit.ch/           echte App (vorerst noch die alte Fassung, unverändert)
-#   spesen.tit-pit.ch/test/      neue React-Fassung, gebaut mit web/.env.test (Testdatenbank)
-#   spesen.tit-pit.ch/test-alt/  alte Testfassung zum Vergleich (Ordner test/)
+# Was wo landet — derselbe Code, zweimal gebaut:
+#   spesen.tit-pit.ch/        echte App,    web/.env.live (echte Datenbank)
+#   spesen.tit-pit.ch/test/   Testfassung,  web/.env.test (Testdatenbank)
 #
 # Voraussetzung (einmalig): Repo → Settings → Pages → Source: "GitHub Actions".
 
@@ -39,20 +38,20 @@ jobs:
         working-directory: web
         run: npm ci
 
-      - name: React-Fassung für die Testumgebung bauen
+      - name: Echte App bauen
         working-directory: web
-        run: npm run bauen:test
-
-      - name: Seite zusammenstellen
         run: |
-          mkdir -p _site
-          # Echte App: die bisherigen Dateien, unverändert
-          cp index.html app.js daten.js ansichten.js export.js stil.css konfig.js \
-             sw.js manifest.json CNAME icon-192.png icon-512.png icon-maskable-512.png _site/
-          # Neue React-Fassung als Testumgebung
-          cp -r web/dist _site/test
-          # Alte Testfassung zum Vergleich
-          cp -r test _site/test-alt
+          npm run bauen:live
+          mv dist ../_site
+
+      - name: Testfassung bauen
+        working-directory: web
+        run: |
+          npm run bauen:test
+          mv dist ../_site/test
+
+      - name: Eigene Domain
+        run: cp CNAME _site/
 
       - uses: actions/upload-pages-artifact@v3
         with:
