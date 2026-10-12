@@ -7,10 +7,10 @@ import {
   istBreit, chf, chfLang, langDatum, zeitCH, betragVon, statusName, zahlartName, istGesperrt,
   istEntschieden, positionenSumme, positionenFertig, ZAHLART, SAETZE
 } from "../grundlagen";
-import { personName } from "../daten";
+import { personName, kannSelbstEntscheiden } from "../daten";
 import { Seite } from "./rahmen";
 import {
-  Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, stempelText, kontoWahlText, auftragWahlText
+  Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, stempelText, kontoWahlText, auftragWahlText, kstTitel
 } from "./bausteine";
 
 const herkunft = () => ({ uebersicht: "Übersicht", freigabe: "Freigabe" } as any)[S.zurueckZu] || "Meine Belege";
@@ -24,7 +24,7 @@ function BelegVorschau({ n, gross }: { n: any; gross?: boolean }) {
     : <div className="pdfmarke">PDF: {n.datei.name}</div>;
   if (n.altPfad) return n.altUrl
     ? <img className="papierbild" src={n.altUrl} alt="Beleg" style={gross ? { maxHeight: 560 } : undefined} />
-    : <div className="pdfmarke">PDF-Beleg hinterlegt</div>;
+    : <div className="pdfmarke">{n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>;
   return null;
 }
 
@@ -148,11 +148,20 @@ export function Erfassen() {
       </div></div>
     <div className="feld"><label htmlFor="datum">Belegdatum</label>
       <input id="datum" type="date" defaultValue={n.datum} data-feld="datum" /></div>
+    <div className="feld"><label htmlFor="kommentar">Kommentar (freiwillig)</label>
+      <textarea id="kommentar" rows={2} defaultValue={n.kommentar} data-feld="kommentar"
+                placeholder="z. B. Znacht mit Kunde Muster" /></div>
   </>;
 
+  // Bin ich selbst für den Beleg zuständig (eigene KST/Konten, Admin)?
+  // Dann gleich genehmigen statt zweimal anfassen.
+  const selbst = n.konto && n.auftrag || geteilt ? kannSelbstEntscheiden(n) : false;
   const knoepfe = <>
-    <Knopf akt="speichernFrei" className="k1" disabled={!fertig}>
-      {fertig ? "Speichern und zur Prüfung freigeben" : "Beleg, Konto, KST und Betrag nötig"}</Knopf>
+    {selbst
+      ? <Knopf akt="speichernGenehmigen" className="k1" disabled={!fertig}>
+          {fertig ? "Speichern und genehmigen" : "Beleg, Konto, KST und Betrag nötig"}</Knopf>
+      : <Knopf akt="speichernFrei" className="k1" disabled={!fertig}>
+          {fertig ? "Speichern und zur Prüfung freigeben" : "Beleg, Konto, KST und Betrag nötig"}</Knopf>}
     <Knopf akt="speichern" className="k2" disabled={!fertig}>
       {bearbeiten ? "Nur Änderungen speichern" : "Nur speichern"}</Knopf>
   </>;
@@ -208,17 +217,22 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
   const s = n.status;
   const stempel = stempelText(n);
 
-  // Kontierung: beim Prüfen eines einfachen Belegs anklickbar (umkontieren)
+  // Kontierung: beim Prüfen eines einfachen Belegs anklickbar (umkontieren).
+  // Bei Kreditkarte/Bar lassen sich auch Betrag, MwSt und Datum korrigieren.
   const umkont = n.pruefen && !geteilt;
-  const geaendert = umkont && n.konto && n.auftrag &&
+  const korr = umkont && n.zahlartDb !== "vorkasse";
+  const kontGeaendert = umkont && n.konto && n.auftrag &&
     (n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt);
+  const werteGeaendert = korr && (Math.abs(betragVon(n.korrBetrag) - parseFloat(n.betragDb)) > 0.004
+    || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
+  const geaendert = kontGeaendert || werteGeaendert;
   const kt = kontoWahlText(n.konto), at = auftragWahlText(n.auftrag);
 
   const kopf = (
     <section className="karte innen" style={{ gap: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
         <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          <b style={{ fontSize: 17 }}>{geteilt ? `Aufgeteilt auf ${n.positionen.length} Positionen` : (n.konto && n.konto.bezeichnung) || "Beleg"}</b>
+          <b style={{ fontSize: 17 }}>{geteilt ? `Aufgeteilt auf ${n.positionen.length} Positionen` : n.auftrag ? kstTitel(n.auftrag.id) : "Beleg"}</b>
           <span className="kn mu">{n.geraet && n.geraet !== S.session.user.email ? personName(n.geraet) + " · " : ""}
             {n.eingereichtAm ? "eingereicht " + zeitCH(n.eingereichtAm) : "Beleg vom " + langDatum(n.datum)}</span>
         </span>
@@ -239,7 +253,8 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
   const bild = n.altPfad
     ? (breit
         ? <div className="belegbild" style={{ borderRadius: 12 }}>
-            {n.altUrl ? <img src={n.altUrl} alt="Beleg" /> : <div className="pdfmarke" style={{ width: "100%" }}>PDF-Beleg hinterlegt</div>}
+            {n.altUrl ? <img src={n.altUrl} alt="Beleg" />
+              : <div className="pdfmarke" style={{ width: "100%" }}>{n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>}
             <button className="link" data-akt="belegAuf" data-p={n.altPfad}>Beleg gross öffnen</button></div>
         : <div className="belegkarte" style={{ padding: "12px 14px" }}>
             {n.altUrl ? <img className="daumen" src={n.altUrl} alt="Beleg" /> : <span className="daumen">PDF</span>}
@@ -264,18 +279,37 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
               <Zeile titel="Konto"><span className="mono">{n.konto && n.konto.nummer}</span> {n.konto && n.konto.bezeichnung}</Zeile>
               <Zeile titel="KST">{auftragText(n.auftrag)}</Zeile>
             </>}
-        {!geteilt && <Zeile titel="MwSt"><span className="mono">{n.mwst} %</span></Zeile>}
+        {korr ? <div style={{ padding: "10px 14px", borderTop: "1px solid var(--linie)", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="zwei">
+              <div className="feld"><label htmlFor="korrBetrag">Betrag CHF</label>
+                <input id="korrBetrag" type="text" inputMode="decimal" defaultValue={n.korrBetrag} data-feld="korrBetrag"
+                       className="mono" style={{ textAlign: "right", fontWeight: 700 }} /></div>
+              <div className="feld"><label htmlFor="korrDatum">Belegdatum</label>
+                <input id="korrDatum" type="date" defaultValue={n.korrDatum} data-feld="korrDatum" /></div>
+            </div>
+            <div><span className="lab">MwSt</span>
+              <div className="seg">
+                {SAETZE.map((m) => <button key={m} className={"mono" + (parseFloat(n.korrMwst) === parseFloat(m) ? " an" : "")}
+                                           data-akt="korrMwst" data-v={m}>{m} %</button>)}
+              </div></div>
+          </div>
+          : <>
+            {!geteilt && <Zeile titel="MwSt"><span className="mono">{n.mwst} %</span></Zeile>}
+            <Zeile titel="Belegdatum"><span className="mono">{langDatum(n.datum)}</span></Zeile>
+          </>}
         <Zeile titel="Bezahlt mit">{zahlartName(n.zahlart)}</Zeile>
-        <Zeile titel="Belegdatum"><span className="mono">{langDatum(n.datum)}</span></Zeile>
+        {n.kommentar && <Zeile titel="Kommentar">{n.kommentar}</Zeile>}
         {n.geraet && n.geraet !== S.session.user.email && <Zeile titel="Erfasst von">{personName(n.geraet)}</Zeile>}
       </div>
       {umkont && !geaendert &&
         <div className="kn mu" style={{ padding: "8px 14px 12px", borderTop: "1px solid var(--linie)" }}>
-          Konto oder KST antippen, um umzukontieren.</div>}
+          {korr ? "Betrag, MwSt, Datum, Konto oder KST anpassen — dann speichern und entscheiden."
+                : "Konto oder KST antippen, um umzukontieren."}</div>}
       {geaendert &&
         <div style={{ padding: "12px 14px", borderTop: "1px solid var(--linie)", display: "flex", flexDirection: "column", gap: 8 }}>
-          <Knopf akt="umkontieren" className="k1">Kontierung ändern</Knopf>
-          <span className="kn mu">Bei einer anderen KST geht der Beleg an deren Projektleiter — wieder ungeprüft.</span>
+          {korr ? <Knopf akt="korrigieren" className="k1">Korrektur speichern</Knopf>
+                : <Knopf akt="umkontieren" className="k1">Kontierung ändern</Knopf>}
+          {kontGeaendert && <span className="kn mu">Bei einer anderen KST geht der Beleg an deren Projektleiter — wieder ungeprüft.</span>}
         </div>}
     </section>);
 
@@ -318,14 +352,14 @@ function BelegAnsehen({ n }: { n: any }) {
 }
 
 // Das Entscheid-Feld. Kreditkarte/Bar: Geld ist weg, nur prüfen oder
-// vermerken. Vorauskasse: genehmigen, teilweise, ablehnen.
+// vermerken. User-Zahlung (vorkasse): genehmigen, teilweise, ablehnen.
 function Entscheid({ n, betrag }: { n: any; betrag: number }) {
   const vorkasse = n.zahlartDb === "vorkasse";
   return (
     <section className="karte innen entscheid" style={{ gap: 12 }}>
       <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <b style={{ fontSize: 17 }}>Entscheid</b>
-        <span className="kn mu">{vorkasse ? "Vorauskasse — eigenes Geld. Du entscheidest über die Rückerstattung."
+        <span className="kn mu">{vorkasse ? "User-Zahlung — eigenes Geld. Du entscheidest über die Rückerstattung."
                                          : "Firmengeld ist schon ausgegeben — es geht nur um die Richtigkeit."}</span></span>
       {vorkasse ? <>
           <Knopf akt="entscheid" className="k1 gruen" data-v="genehmigt">Genehmigen · CHF {chfLang(betrag)}</Knopf>

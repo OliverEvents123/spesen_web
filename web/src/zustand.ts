@@ -23,10 +23,16 @@ export const S: any = {
   belege: [], offeneEigene: [],
   benutzer: [], benEdit: null, kontEdit: null,
   ansicht: "liste", neu: null, favEdit: null, posIndex: null,
-  suche: "", bSuche: "", meldung: null, zurueckZu: "liste",
+  suche: "", bSuche: "", bSucheNeu: 0, meldung: null, zurueckZu: "liste",
   // Zeitraum für alles: Abrechnungsperiode, mit ‹ › blätterbar
   uVon: START.von, uBis: START.bis, eigenerZeitraum: false, uBelege: [], uLaedt: false,
   uGeraet: "", uZahlart: "", uKonto: "", uAuftrag: "", uStatus: "", uFilterOffen: false,
+  // Gespeicherte Zeiträume (je Person, höchstens drei) als Schnellwahl
+  perioden: [],
+  // Filter für "Meine Belege" — eigene, unabhängig von der Übersicht
+  mZahlart: "", mKonto: "", mAuftrag: "", mStatus: "", mFilterOffen: false,
+  // Eigene Zuweisungen: darf ich eigene Belege gleich selbst genehmigen?
+  meineKst: [], meineKonten: [], zuweisungenPerson: [],
   istPruefer: false, freigabe: [], zuweisungen: [], zuweisungenKonto: [], verlauf: [],
   // Am Rechner klappt die Auswahl für Konto/KST direkt unter dem Feld auf: { art, i }
   wahlOffen: null,

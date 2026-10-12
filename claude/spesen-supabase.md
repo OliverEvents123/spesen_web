@@ -121,8 +121,8 @@ Index auf `(geraet)`.
 ### `spesen_periode`
 
 Gespeicherte Zeiträume, **persönlich je Benutzer, höchstens drei**.
-**Seit dem neuen Aussehen (12.10.2026) von der App nicht mehr benutzt** — der
-Zeitraum wird mit ‹ › geblättert. Tabelle bleibt, falls Oli sie zurück will.
+Seit dem neuen Aussehen (12.10.2026): „Zeitraum speichern" im eigenen
+Zeitraum, als Schnellwahl unter dem Zeitraum.
 
 | Spalte | Typ |
 |---|---|
@@ -334,3 +334,17 @@ nicht auf Supabase. Es kann also:
 Es kann **nicht** von sich aus Tabellen anlegen, Policies setzen oder Functions
 deployen. Jeder Datenbankschritt bleibt ein Schritt von dir im Browser. Darum
 gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
+
+## Ergänzungen 12.10.2026 (`kommentar-korrektur-personen.sql`)
+
+- `spesen_beleg.kommentar text` — freiwilliger Kommentar des Erfassers.
+- `spesen_zuweisung_person (email, person)` — Supervisor × Person: die
+  User-Zahlungen (`zahlart = 'vorkasse'`) dieser Person brauchen seine
+  Genehmigung. Lesen: eigene Zeilen oder Admin; schreiben: Admin.
+- `darf_entscheiden(…, p_zahlart)` und `beleg_hat_pruefer(…, p_zahlart)` —
+  Fassungen mit Zahlart; Policies, `freigabe_liste`, `beleg_entscheiden`,
+  `beleg_umkontieren` und der Trigger `beleg_regeln` benutzen sie.
+- `beleg_korrigieren(p_id, p_betrag, p_mwst, p_datum)` — Prüfer korrigieren
+  bei Kreditkarte/Bar Betrag, Satz und Datum eines eingereichten Belegs.
+- `verlauf-pruefer.sql`: Verlauf für Prüfer (ihre Belege) und
+  `benutzer_namen()` für Namen statt E-Mail.

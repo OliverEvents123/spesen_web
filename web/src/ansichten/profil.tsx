@@ -115,7 +115,8 @@ function FreigabeZeile({ b, an }: { b: any; an?: boolean }) {
     <button className={"zl" + (an ? " an" : "")} data-akt="bearbeiten" data-id={b.id} data-w="freigabe">
       <span className="ini">{initialen(personName(b.geraet))}</span>
       <span className="mitte"><b>{belegKopf(b)}</b>
-        <span className="kn mu">{personName(b.geraet)} · {auftragAnzeige(b.auftrag_nr)} · eingereicht {kurzZeit(b.eingereicht_am)}</span></span>
+        <span className="kn mu">{personName(b.geraet)} · Konto {b.konto_nummer} · eingereicht {kurzZeit(b.eingereicht_am)}</span>
+        {b.kommentar && <span className="kn kommentar">„{b.kommentar}“</span>}</span>
       <span className="seite"><span className="betragz">{chfLang(b.betrag)}</span>
         {!an && !istBreit() && <span className="kn fett" style={{ color: "var(--akzent)" }}>prüfen ›</span>}</span>
     </button>);
@@ -133,11 +134,11 @@ export function Freigabe() {
   const listeTeil = liste.length === 0
     ? <div className="karte leer">Nichts zu prüfen.</div>
     : <>
-        {gruppe("Vorauskasse · Rückerstattung", vk)}
+        {gruppe("User-Zahlungen · Rückerstattung", vk)}
         {gruppe("Kreditkarte / Bar · nur prüfen", kb)}
-        <Hinweis>Du siehst hier die Belege deiner Kostenstellen und Konten. Wer zuerst entscheidet, gilt.</Hinweis>
+        <Hinweis>Du siehst hier die Belege deiner Kostenstellen und Konten.</Hinweis>
       </>;
-  const sub = liste.length === 1 ? "1 Beleg wartet" : `${liste.length} Belege warten`;
+  const sub = liste.length === 1 ? "1 Freigabe offen" : `${liste.length} Freigaben offen`;
 
   if (istBreit()) return (
     <Seite titel={"Freigabe · " + sub} pfad="Spesen / Freigabe" tab>

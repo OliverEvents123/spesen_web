@@ -7,7 +7,7 @@
 import { S, sb, render, laeuft } from "./zustand";
 import {
   NETZTEXT, GESPERRT_TEXT, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
-  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm
+  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN
 } from "./grundlagen";
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
@@ -16,7 +16,7 @@ import {
   kontoSpeichern, favSpeichern, favLoeschen, favHoch, favAnwenden, favUebernehmen, belegBearbeiten,
   belegOeffnen, auftragObjekt, gruppiere, uGefiltert, uTitel, uDateiname, belegeFreigeben,
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
-  zuruecksetzen, zeigeLogin
+  zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -78,10 +78,74 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     return zeitraumLaden();
   }
   if (a === "eigenerZeitraum") { S.eigenerZeitraum = !S.eigenerZeitraum; return render(); }
-  if (a === "filterAuf")       { S.uFilterOffen = !S.uFilterOffen; return render(); }
-  if (a === "filterWeg")       { S[d.f] = ""; return render(); }
+  // Filter: data-b="m" für Meine Belege, sonst die Übersicht
+  if (a === "filterAuf") {
+    if (d.b === "m") S.mFilterOffen = !S.mFilterOffen; else S.uFilterOffen = !S.uFilterOffen;
+    return render();
+  }
+  if (a === "filterWeg") {
+    S[d.f] = "";
+    if (d.f === "bSuche") S.bSucheNeu++;   // Suchfelder neu aufbauen, damit sie leer sind
+    return render();
+  }
+  // Kachel: setzt einen Filter (data-f = Feld, data-v = Wert), nochmals tippen hebt ihn auf.
+  // data-f="alle-m" bzw. "alle-u": alle Kachel-Filter weg.
+  if (a === "kachelFilter") {
+    if (d.f === "alle-m") { S.mStatus = ""; S.mZahlart = ""; }
+    else if (d.f === "alle-u") { S.uStatus = ""; }
+    else {
+      const neu = S[d.f] === d.v ? "" : d.v;
+      // Status und Zahlart der Meine-Belege-Kacheln schliessen sich aus
+      if (d.f === "mStatus") S.mZahlart = "";
+      if (d.f === "mZahlart") S.mStatus = "";
+      S[d.f] = neu;
+    }
+    render();
+    // Am Handy gleich zur gefilterten Liste
+    if (!istBreit() && d.f !== "alle-m" && d.f !== "alle-u") {
+      setTimeout(() => {
+        const ziel = document.getElementById("belegliste");
+        if (ziel) ziel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+    return;
+  }
+
+  // ---------- Gespeicherte Zeiträume ----------
+  if (a === "periodeWahl") {
+    const p = S.perioden.find((x) => String(x.id) === String(d.id));
+    if (!p) return;
+    S.uVon = p.von; S.uBis = p.bis; S.eigenerZeitraum = false;
+    return zeitraumLaden();
+  }
+  if (a === "periodeNeu") {
+    if (S.perioden.length >= MAX_PERIODEN) {
+      alert(`Es gehen höchstens ${MAX_PERIODEN} gespeicherte Zeiträume. Lösch zuerst einen über das ✕.`);
+      return;
+    }
+    const vorschlag = `${kurzDatum(S.uVon)}–${kurzDatum(S.uBis)}`;
+    const name = prompt("Name für diesen Zeitraum:", vorschlag);
+    if (name === null) return;
+    const { error } = await periodeSpeichern(name || vorschlag, S.uVon, S.uBis);
+    if (error) {
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
+      return;
+    }
+    await ladePerioden();
+    S.eigenerZeitraum = false;
+    S.meldung = "Zeitraum gespeichert — jetzt mit einem Klick wählbar.";
+    return render();
+  }
+  if (a === "periodeWeg") {
+    const p = S.perioden.find((x) => String(x.id) === String(d.id));
+    if (!p) return;
+    if (!confirm(`Gespeicherten Zeitraum „${p.name}" löschen? Die Belege bleiben unberührt.`)) return;
+    const { error } = await periodeLoeschen(p.id);
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
+    await ladePerioden();
+    return render();
+  }
   // Kacheln der Übersicht: noch einmal tippen hebt den Filter auf
-  if (a === "kachel")          { S.uStatus = (S.uStatus === d.v ? "" : d.v); return render(); }
 
   // ---------- Admin: Benutzer ----------
   if (a === "tabBenutzer") {
@@ -163,15 +227,18 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   // ---------- Admin: Zuweisungen ----------
-  if (a === "zuwNeu" || a === "zuwKontoNeu") {
+  if (a === "zuwNeu" || a === "zuwKontoNeu" || a === "zuwPersonNeu") {
     const neu = wert(d.f).trim();
-    if (!neu) { alert(a === "zuwNeu" ? "Bitte eine KST eingeben." : "Bitte ein Konto wählen."); return; }
+    if (!neu) { alert(a === "zuwNeu" ? "Bitte eine KST eingeben." : a === "zuwKontoNeu" ? "Bitte ein Konto wählen."
+                                     : "Bitte eine Person wählen."); return; }
     if (a === "zuwNeu" && neu !== OHNE_KST.id && S.auftraege.length
         && !S.auftraege.some((x) => x.id === neu)
         && !confirm(`KST ${neu} ist in FileMaker (dieses und letztes Jahr) nicht bekannt. Trotzdem zuweisen?`)) return;
     const { error } = a === "zuwNeu"
       ? await sb.from("spesen_zuweisung").insert({ email: d.e, auftrag_nr: neu })
-      : await sb.from("spesen_zuweisung_konto").insert({ email: d.e, konto_nummer: neu });
+      : a === "zuwKontoNeu"
+      ? await sb.from("spesen_zuweisung_konto").insert({ email: d.e, konto_nummer: neu })
+      : await sb.from("spesen_zuweisung_person").insert({ email: d.e, person: neu });
     if (error) {
       alert(error.code === "23505" ? "Ist schon zugewiesen."
             : istNetzfehler(error) ? NETZTEXT : "Nicht gespeichert:\n" + error.message);
@@ -182,10 +249,12 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     await ladeZuweisungen(); return render();
   }
 
-  if (a === "zuwWeg" || a === "zuwKontoWeg") {
+  if (a === "zuwWeg" || a === "zuwKontoWeg" || a === "zuwPersonWeg") {
     const { error } = a === "zuwWeg"
       ? await sb.from("spesen_zuweisung").delete().eq("email", d.e).eq("auftrag_nr", d.v)
-      : await sb.from("spesen_zuweisung_konto").delete().eq("email", d.e).eq("konto_nummer", d.v);
+      : a === "zuwKontoWeg"
+      ? await sb.from("spesen_zuweisung_konto").delete().eq("email", d.e).eq("konto_nummer", d.v)
+      : await sb.from("spesen_zuweisung_person").delete().eq("email", d.e).eq("person", d.v);
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
     await ladeZuweisungen(); return render();
   }
@@ -439,11 +508,13 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "mwst")    { S.neu.mwst = d.v; return render(); }
   if (a === "zahlart") { S.neu.zahlart = d.v; return render(); }
+  if (a === "korrMwst") { S.neu.korrMwst = d.v; return render(); }
 
   // ---------- Export ----------
   const zumExport = () => uGefiltert().map((b) => ({
     ...b, bezeichnung: kontoName(b.konto_nummer),
-    gebucht: buchungsBetrag(b), statusText: statusName(statusVon(b)) }));
+    gebucht: buchungsBetrag(b), statusText: statusName(statusVon(b)),
+    entscheidName: b.entscheid_von && b.entscheid_von !== "automatisch" ? personName(b.entscheid_von) : "" }));
 
   if (a === "expCsv") {
     const belege = zumExport();
@@ -517,10 +588,34 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     }
     if (status === "abgelehnt" && !confirm("Beleg ablehnen? Der Erfasser sieht deinen Kommentar.")) return;
     laeuft("entscheid", "Moment …");
+    // Noch nicht gespeicherte Korrektur zuerst speichern. Geht der Beleg dabei
+    // an eine andere KST, wird hier nicht mehr entschieden.
+    if (n.pruefen && n.zahlartDb !== "vorkasse" && korrekturOffen(n)) {
+      const kstNeu = n.auftrag.id !== n.auftragAlt;
+      if (!(await korrekturSpeichern(n))) return;
+      if (kstNeu) return zurueckNachSpeichern("Korrektur gespeichert — der Beleg liegt jetzt bei der neuen KST.");
+    }
     const { error } = await entscheiden(n.id, status, betrag, grund);
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
     return zurueckNachSpeichern(status === "teilweise"
       ? `Teilweise genehmigt: CHF ${chf(betrag)}.` : `Beleg ${statusName(status)}.`);
+  }
+
+  // Korrektur beim Prüfen (Kreditkarte/Bar): Betrag, Satz, Datum — und
+  // falls geändert auch Konto/KST. Danach bleibt der Beleg zum Entscheiden offen.
+  if (a === "korrigieren") {
+    const n = S.neu;
+    laeuft(a, "Speichere …");
+    if (!(await korrekturSpeichern(n))) return;
+    const id = n.id;
+    await ladeFreigabe();
+    // Liegt er noch bei mir, gleich wieder öffnen — zum Entscheiden
+    if (S.freigabe.some((x) => String(x.id) === String(id))) {
+      await belegBearbeiten(id, "freigabe");
+      S.meldung = "Korrektur gespeichert. Jetzt entscheiden.";
+      return render();
+    }
+    return zurueckNachSpeichern("Korrektur gespeichert — der Beleg liegt jetzt bei der neuen KST.");
   }
 
   if (a === "umkontieren") {
@@ -563,15 +658,46 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   // ---------- Beleg speichern ----------
-  if (a === "speichern" || a === "speichernFrei") return belegSpeichern(a);
+  if (a === "speichern" || a === "speichernFrei" || a === "speichernGenehmigen") return belegSpeichern(a);
+}
+
+// Korrektur beim Prüfen: ist etwas geändert? (Betrag, MwSt, Datum, Konto, KST)
+function korrekturOffen(n: any) {
+  const werte = n.zahlartDb !== "vorkasse" && (Math.abs(betragVon(n.korrBetrag) - parseFloat(n.betragDb)) > 0.004
+    || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
+  return werte || n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt;
+}
+
+// Speichert die Korrektur. Gibt false zurück, wenn es nicht geklappt hat.
+async function korrekturSpeichern(n: any) {
+  const betrag = betragVon(n.korrBetrag);
+  if (!(betrag > 0)) { alert("Bitte einen Betrag grösser als 0 eingeben."); return false; }
+  if (!n.korrDatum) { alert("Bitte ein Belegdatum angeben."); return false; }
+  const werteNeu = n.zahlartDb !== "vorkasse" && (Math.abs(betrag - parseFloat(n.betragDb)) > 0.004
+                || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
+  const kontNeu = n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt;
+  if (werteNeu) {
+    const { error } = await sb.rpc("beleg_korrigieren", { p_id: n.id, p_betrag: betrag,
+                                   p_mwst: parseFloat(n.korrMwst), p_datum: n.korrDatum });
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return false; }
+  }
+  if (kontNeu) {
+    const { error } = await umkontieren(n.id, n.konto.nummer, n.auftrag.id);
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return false; }
+  }
+  return true;
 }
 
 async function belegSpeichern(a: string) {
   const n = S.neu;
   const geteilt = Array.isArray(n.positionen);
-  const freigeben = a === "speichernFrei";
-  if (freigeben && !confirm("Beleg speichern und zur Prüfung freigeben?\n"
-                            + "Danach lässt er sich nicht mehr ändern.")) return;
+  // "Speichern und genehmigen": eigener Beleg, für den ich selbst zuständig
+  // bin — freigeben und gleich entscheiden, statt ihn zweimal anzufassen.
+  const genehmigen = a === "speichernGenehmigen";
+  const freigeben = a === "speichernFrei" || genehmigen;
+  if (freigeben && !confirm(genehmigen
+        ? "Beleg speichern und genehmigen?\nDanach lässt er sich nicht mehr ändern."
+        : "Beleg speichern und zur Prüfung freigeben?\nDanach lässt er sich nicht mehr ändern.")) return;
 
   // Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
   // die erste Position steht zusätzlich oben, damit alte Auswertungen
@@ -615,6 +741,10 @@ async function belegSpeichern(a: string) {
     datei_pfad:   pfad,
     monat:        n.datum.slice(0, 7)
   };
+  // Kommentar nur mitschicken, wenn es einen gibt oder die Spalte schon
+  // bekannt ist — eine Datenbank ohne die Spalte würde sonst ablehnen.
+  const kommentar = String(n.kommentar || "").trim();
+  if (kommentar || n.kommentarDa) daten.kommentar = kommentar || null;
 
   // Beim Ändern geht die Freigabe im selben Schritt mit. Ein neuer Beleg
   // muss erst als "offen" angelegt werden — so will es die Datenbank —
@@ -666,6 +796,17 @@ async function belegSpeichern(a: string) {
       ? "Beleg gespeichert — ohne Prüfung direkt erledigt."
       : "Beleg gespeichert und zur Prüfung freigegeben.";
   }
+
+  // Selbst genehmigen: nur wenn er nach dem Freigeben wirklich auf mich wartet
+  const id = n.id || neueId;
+  if (genehmigen && id) {
+    const { data: jetzt } = await sb.from("spesen_beleg").select("status").eq("id", id).maybeSingle();
+    if (jetzt && jetzt.status === "eingereicht") {
+      const { error: e2 } = await entscheiden(id, n.zahlart === "vorkasse" ? "genehmigt" : "geprueft", null, null);
+      text = e2 ? `Gespeichert und freigegeben, aber nicht genehmigt: ${e2.message}`
+                : `Beleg über CHF ${chf(betrag)} gespeichert und ${n.zahlart === "vorkasse" ? "genehmigt" : "geprüft"}.`;
+    }
+  }
   await zurueckNachSpeichern(text);
 }
 
@@ -708,6 +849,14 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "uauftrag") { S.uAuftrag = ziel.value; render(); return; }
   if (f === "uzahlart") { S.uZahlart = ziel.value; render(); return; }
   if (f === "ustatus")  { S.uStatus  = ziel.value; render(); return; }
+  if (f === "mzahlart") { S.mZahlart = ziel.value; render(); return; }
+  if (f === "mstatus")  { S.mStatus  = ziel.value; render(); return; }
+  if (f === "mkonto")   { S.mKonto   = ziel.value; render(); return; }
+  if (f === "mauftrag") { S.mAuftrag = ziel.value; render(); return; }
+  if (f === "korrDatum" && S.neu) {
+    if (!ziel.value) { ziel.value = S.neu.korrDatum; return; }
+    S.neu.korrDatum = ziel.value; return render();
+  }
 }
 
 // Beim Tippen übernehmen. Die Felder behalten dabei den Fokus.
@@ -724,6 +873,8 @@ export function eingabe(ziel: HTMLInputElement) {
 
   if (f === "suche")   { S.suche = ziel.value; return render(); }
   if (f === "bsuche")  { S.bSuche = ziel.value; return render(); }
+  if (f === "kommentar" && S.neu)  { S.neu.kommentar = ziel.value; return; }
+  if (f === "korrBetrag" && S.neu) { S.neu.korrBetrag = ziel.value; return render(); }
   if (f === "favname" && S.favEdit) { S.favEdit.name = ziel.value; return; }
   if (f === "bname" && S.benEdit)   { S.benEdit.name  = ziel.value; return; }
   if (f === "bmail" && S.benEdit)   { S.benEdit.email = ziel.value; return; }

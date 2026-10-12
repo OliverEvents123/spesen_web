@@ -20,7 +20,8 @@ function Bildschirm() {
     case "erfassen":    return S.neu ? <Erfassen /> : <MeineBelege />;
     case "kontoWahl":   return <KontoWahl />;
     case "auftragWahl": return <AuftragWahl />;
-    case "uebersicht":  return <Uebersicht />;
+    // User haben keine Übersicht — nur ihre Belege
+    case "uebersicht":  return S.istPruefer ? <Uebersicht /> : <MeineBelege />;
     case "freigabe":    return <Freigabe />;
     case "profil":      return <Profil />;
     case "passwort":    return <Passwort />;

@@ -172,7 +172,7 @@ button.kachel:hover { box-shadow:0 0 0 2px var(--rand), var(--schatten); }
 .kachel.an { box-shadow:0 0 0 2px var(--akzent), var(--schatten); }
 
 /* Farbige Karten am Rechner */
-.farbkarten { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px,1fr)); gap:20px; row-gap:34px; margin-top:16px; }
+.farbkarten { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:20px; row-gap:34px; margin-top:16px; }
 .farbkarte { padding:0 16px 14px; display:flex; flex-direction:column; }
 .farbkarte .farbe { margin-top:-22px; min-height:160px; border-radius:10px; padding:16px; color:#fff;
                     display:flex; flex-direction:column; gap:10px; justify-content:center; }
@@ -360,3 +360,16 @@ td .tknopf { border:0; background:none; color:var(--akzent); font-weight:700; fo
 /* Rotes Band oben in der Testfassung */
 .testband { background:#a3241f; color:#fff; text-align:center; letter-spacing:.05em; font-size:13px;
             font-weight:700; padding:7px 12px; }
+
+/* ---------- Ergänzungen (Anpassungen nach dem ersten Test) ---------- */
+.ini.nr { font:700 11px var(--mono); letter-spacing:-.02em; }
+.kommentar { color:var(--grau); font-style:italic; overflow-wrap:anywhere; }
+.f-gruen { background:var(--gruen); box-shadow:0 6px 14px rgba(46,157,74,.35); }
+.chip.an { background:var(--akzent); color:#fff; }
+.chip.an button { background:rgba(255,255,255,.25); color:#fff; }
+.chip .chipwahl { width:auto; height:auto; border-radius:0; background:none; color:inherit; font:inherit;
+                  font-weight:700; padding:0; display:inline-flex; gap:6px; align-items:baseline; }
+.link[disabled] { color:var(--grau2); cursor:default; }
+@media (min-width:1200px) {
+  .kacheln.drei { grid-template-columns:repeat(3, minmax(0,1fr)); }
+}

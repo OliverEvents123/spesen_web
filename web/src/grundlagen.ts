@@ -2,7 +2,8 @@
 // Feste Werte und kleine Helfer ohne Zugriff auf den Zustand.
 
 // ---------- Feste Werte ----------
-export const ZAHLART: Record<string, string> = { karte: "Kreditkarte", bar: "Bar", vorkasse: "Vorauskasse" };
+// "vorkasse" heisst in der Oberfläche "User-Zahlung": die Person hat selbst bezahlt.
+export const ZAHLART: Record<string, string> = { karte: "Kreditkarte", bar: "Bar", vorkasse: "User-Zahlung" };
 export const zahlartName = (z?: string) => ZAHLART[z || "karte"] || z;
 
 // Status eines Belegs. In der Datenbank heisst "erfasst" noch "offen".
@@ -17,6 +18,10 @@ export const STATUS: Record<string, string> = {
 // Für den Filter: zwei Gruppen zusätzlich zu den einzelnen Status
 export const STATUS_FILTER: Record<string, string> = {
   unerledigt: "offen (erfasst oder eingereicht)", erledigt: "erledigt (entschieden)", ...STATUS
+};
+// Für "Meine Belege": was noch etwas braucht (auch abgelehnte) und was erledigt ist
+export const STATUS_FILTER_MEINE: Record<string, string> = {
+  offenePunkte: "offene Punkte (erfasst, eingereicht, abgelehnt)", erledigt: "erledigt", ...STATUS
 };
 // Farbe der Statusmarke
 export const statusKlasse = (s?: string) => ({
@@ -42,6 +47,7 @@ export const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhi
 export const GESPERRT_TEXT = "Dieser Beleg lässt sich nicht mehr ändern oder löschen — "
                            + "er ist zur Prüfung freigegeben oder gehört einem anderen Gerät.";
 export const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
+export const MAX_PERIODEN = 3;         // gespeicherte Zeiträume je Benutzer; die Datenbank hält dieselbe Grenze
 export const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
 export const SAETZE = ["8.1", "2.6", "3.8", "0"];
 
@@ -60,8 +66,8 @@ export const istGeschuetzt = (mail: string) =>
 export const ROLLEN: Record<string, [string, string]> = {
   user:          ["User",          "Sieht und erfasst nur die eigenen Belege."],
   projektleiter: ["Projektleiter", "Prüft und genehmigt die Belege seiner Kostenstellen (unten zuweisen)."],
-  supervisor:    ["Supervisor",    "Prüft und genehmigt die Belege seiner Konten (unten zuweisen) und "
-                                 + "die Belege von Benutzern mit eingerichteter Prüfung."],
+  supervisor:    ["Supervisor",    "Prüft die Belege seiner Konten und genehmigt die User-Zahlungen seiner "
+                                 + "Personen (unten zuweisen), dazu Belege von Benutzern mit eingerichteter Prüfung."],
   admin:         ["Admin",         "Sieht alles, darf alles entscheiden und Benutzer und Konten verwalten."]
 };
 export const rolleName = (r: string) => (ROLLEN[r] || [r])[0];

@@ -5,6 +5,7 @@
 
 import { S, sb, render } from "./zustand";
 import { SUPABASE_URL, SUPABASE_KEY } from "./konfig";
+import { SpesenExport } from "./export";
 import {
   OHNE_KST, NETZTEXT, istBreit, istNetzfehler, heute, chf, chfLang, kurzName, kurzZeit,
   statusVon, statusName, statusKlasse, istEntschieden, zahlartName, auftragAnzeige, langDatum,
@@ -15,7 +16,7 @@ import {
 export const leererBeleg = () => ({
   id: null, status: "offen", konto: null, auftrag: null, mwst: "8.1", betragText: "",
   positionen: null, datum: heute(), zahlart: "karte", datei: null, vorschau: null,
-  altPfad: null, altUrl: null
+  altPfad: null, altUrl: null, kommentar: ""
 });
 
 export const leerePosition = (vorlage?: any) => ({
@@ -54,7 +55,8 @@ export async function ladeAlles() {
     sb.rpc("ist_admin"),
     sb.from("spesen_benutzer").select("name,rolle").eq("email", ich).maybeSingle(),
     sb.rpc("benutzer_namen"),
-    ladeMeine()
+    ladeMeine(),
+    ladePerioden()
   ]);
   S.konten    = k.data || [];
   S.favoriten = f.data || [];
@@ -67,7 +69,7 @@ export async function ladeAlles() {
   // Fehlt die Funktion (Datenbank ohne Etappe 2), bleibt alles wie bisher.
   const pr = await sb.rpc("ist_pruefer");
   S.istPruefer = !pr.error && pr.data === true;
-  if (S.istPruefer) await Promise.all([ladeFreigabe(), ladeVerlauf()]);
+  if (S.istPruefer) await Promise.all([ladeFreigabe(), ladeVerlauf(), ladeEigeneZuweisungen()]);
 
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
   if (!S.auftraege.length) S.auftraege = await ladeAuftraege();
@@ -186,13 +188,53 @@ export const zuruecksetzen = (id, ziel) =>
 
 // ---------- Zuweisungen (nur Admin) ----------
 export async function ladeZuweisungen() {
-  const [z, k] = await Promise.all([
+  const [z, k, p] = await Promise.all([
     sb.from("spesen_zuweisung").select("email,auftrag_nr").order("auftrag_nr"),
-    sb.from("spesen_zuweisung_konto").select("email,konto_nummer").order("konto_nummer")
+    sb.from("spesen_zuweisung_konto").select("email,konto_nummer").order("konto_nummer"),
+    sb.from("spesen_zuweisung_person").select("email,person").order("person")
   ]);
-  S.zuweisungen      = z.data || [];
-  S.zuweisungenKonto = k.data || [];
+  S.zuweisungen       = z.data || [];
+  S.zuweisungenKonto  = k.data || [];
+  S.zuweisungenPerson = p.error ? [] : (p.data || []);
 }
+
+// Meine eigenen Zuweisungen (KST, Konten) — darf ich eigene Belege selbst genehmigen?
+async function ladeEigeneZuweisungen() {
+  const ich = S.session.user.email;
+  const [z, k] = await Promise.all([
+    sb.from("spesen_zuweisung").select("auftrag_nr").eq("email", ich),
+    sb.from("spesen_zuweisung_konto").select("konto_nummer").eq("email", ich)
+  ]);
+  S.meineKst    = (z.data || []).map((x) => x.auftrag_nr);
+  S.meineKonten = (k.data || []).map((x) => x.konto_nummer);
+}
+
+// Bin ich für diesen (eigenen) Beleg selbst zuständig? Dann gibt es
+// "Speichern und genehmigen" — sonst würde ich ihn zweimal anfassen.
+// Gleiche Regel wie darf_entscheiden in der Datenbank.
+export function kannSelbstEntscheiden(n: any) {
+  if (S.istAdmin) return true;
+  const zeilen = Array.isArray(n.positionen) ? n.positionen : [n];
+  return zeilen.some((p) => (p.auftrag && S.meineKst.includes(p.auftrag.id))
+                         || (p.konto && S.meineKonten.includes(p.konto.nummer)));
+}
+
+// ---------- Gespeicherte Zeiträume ----------
+// Je Person höchstens MAX_PERIODEN, nur sie selbst sieht sie.
+export async function ladePerioden() {
+  const { data, error } = await sb.from("spesen_periode")
+    .select("*").order("sortierung").order("von", { ascending: false });
+  S.perioden = error ? [] : (data || []);
+}
+
+export async function periodeSpeichern(name, von, bis) {
+  const hoechste = S.perioden.reduce((m, p) => Math.max(m, p.sortierung || 0), 0);
+  return sb.from("spesen_periode")
+    .insert({ geraet: S.session.user.email, name: String(name).trim(),
+              von, bis, sortierung: hoechste + 10 });
+}
+
+export const periodeLoeschen = (id) => sb.from("spesen_periode").delete().eq("id", id);
 
 // Zählt mit, welche Abfrage die neueste ist. Stellt man den Zeitraum schnell
 // zweimal um, darf die langsamere erste Antwort die zweite nicht überschreiben.
@@ -317,10 +359,12 @@ export function gruppiere(belege: any[]) {
       const s = `${p.konto_nummer}|${p.auftrag_nr}|${p.mwst}|${b.zahlart || "karte"}`;
       if (!m.has(s)) m.set(s, { konto: p.konto_nummer, bezeichnung: kontoName(p.konto_nummer),
                                 auftrag: p.auftrag_nr, satz: Number(p.mwst),
-                                zahlart: (b.zahlart || "karte"), anzahl: 0, brutto: 0 });
+                                zahlart: (b.zahlart || "karte"), anzahl: 0, brutto: 0, kommentare: [] });
       const g = m.get(s);
       g.anzahl += 1;
       g.brutto += parseFloat(p.betrag);
+      const k = String(b.kommentar || "").trim();
+      if (k && !g.kommentare.includes(k)) g.kommentare.push(k);
     }
   }
   const liste = [...m.values()].map((g) => {
@@ -350,6 +394,21 @@ function belegImFilter(b) {
            mwst: teile[0].mwst, konto_nummer: teile[0].konto_nummer,
            auftrag_nr: teile[0].auftrag_nr };
 }
+
+// ---------- Meine Belege: eigener Filter ----------
+const meineStatusPasst = (b, st) => !st ? true
+  : st === "offenePunkte" ? ["offen", "eingereicht", "abgelehnt"].includes(statusVon(b))
+  : st === "erledigt"     ? istErledigt(b) && statusVon(b) !== "abgelehnt"
+  : statusVon(b) === st;
+const meineZeilePasst = (p) => (!S.mKonto || p.konto_nummer === S.mKonto)
+                            && (!S.mAuftrag || p.auftrag_nr === S.mAuftrag);
+// ohne: "status" oder "zahlart" — für die Zähler auf den Kacheln
+export const meineGefiltert = (ohne?: string) => S.belege.filter((b) =>
+  (ohne === "zahlart" || ohne === "alles" || !S.mZahlart || (b.zahlart || "karte") === S.mZahlart) &&
+  (ohne === "status" || ohne === "alles" || meineStatusPasst(b, S.mStatus)) &&
+  belegZeilen(b).some(meineZeilePasst));
+export const istMeinOffen = (b) => meineStatusPasst(b, "offenePunkte");
+export const istMeinErledigt = (b) => meineStatusPasst(b, "erledigt");
 
 // Statusfilter: ein einzelner Status oder eine der zwei Gruppen
 export const istErledigt = (b) => istEntschieden(b) || statusVon(b) === "abgeschlossen";
@@ -444,9 +503,25 @@ export function dateiGewaehlt(file: File) {
   }
 
   if (S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
-  S.neu.datei    = file;
-  S.neu.vorschau = file.type === "application/pdf" ? null : URL.createObjectURL(file);
+  const n = S.neu;
+  n.datei    = file;
+  n.vorschau = file.type === "application/pdf" ? null : URL.createObjectURL(file);
   render();
+  // PDF: erste Seite als Bild zeigen
+  if (file.type === "application/pdf") {
+    file.arrayBuffer().then(SpesenExport.ersteSeite).then((bild) => {
+      if (S.neu === n && n.datei === file) { n.vorschau = bild; render(); }
+    }).catch(() => { /* bleibt bei "PDF: Name" */ });
+  }
+}
+
+// Vorschau eines hinterlegten PDFs: erste Seite als Bild, kommt nach
+async function pdfVorschauLaden(n: any, url: string) {
+  try {
+    const puffer = await (await fetch(url)).arrayBuffer();
+    const bild = await SpesenExport.ersteSeite(puffer);
+    if (S.neu === n) { n.altUrl = bild; render(); }
+  } catch { /* bleibt bei "PDF-Beleg hinterlegt" */ }
 }
 
 export async function belegOeffnen(pfad) {
@@ -471,10 +546,11 @@ export async function belegBearbeiten(id, woher) {
          || S.uBelege.find(gleich) || S.freigabe.find(gleich);
   if (!b) return;
 
-  let url = null;
-  if (b.datei_pfad && !b.datei_pfad.toLowerCase().endsWith(".pdf")) {
+  let url = null, pdfUrl = null;
+  if (b.datei_pfad) {
     const { data } = await sb.storage.from("belege").createSignedUrl(b.datei_pfad, 600);
-    url = data ? data.signedUrl : null;
+    const signiert = data ? data.signedUrl : null;
+    if (b.datei_pfad.toLowerCase().endsWith(".pdf")) pdfUrl = signiert; else url = signiert;
   }
 
   const aufgeteilt = Array.isArray(b.positionen) && b.positionen.length > 1;
@@ -499,8 +575,13 @@ export async function belegBearbeiten(id, woher) {
       auftrag: auftragObjekt(p.auftrag_nr)
     })) : null,
     datum: b.beleg_datum, zahlart: b.zahlart || "karte",
-    datei: null, vorschau: null, altPfad: b.datei_pfad, altUrl: url
+    datei: null, vorschau: null, altPfad: b.datei_pfad, altUrl: url, altPdf: !!pdfUrl,
+    // Kommentar: "kommentarDa" merkt sich, ob die Datenbank die Spalte schon kennt
+    kommentar: b.kommentar || "", kommentarDa: "kommentar" in b,
+    // Korrektur beim Prüfen (Kreditkarte/Bar): Betrag, Satz, Datum
+    korrBetrag: chf(b.betrag), korrMwst: String(b.mwst), korrDatum: b.beleg_datum
   };
+  if (pdfUrl) pdfVorschauLaden(S.neu, pdfUrl);
   S.posIndex  = null;
   S.wahlOffen = null;
   S.zurueckZu = ["liste", "uebersicht", "freigabe"].includes(woher) ? woher : "liste";

@@ -7,8 +7,8 @@ import React from "react";
 import { S } from "../zustand";
 import {
   istBreit, chf, chfLang, datumCH, zeitCH, langDatum, kurzDatum, statusVon, statusName, statusKlasse,
-  zahlartName, auftragAnzeige, istAufgeteilt, buchungsBetrag, initialen, istPeriode,
-  ZAHLART, STATUS_FILTER, OHNE_KST
+  zahlartName, auftragAnzeige, istAufgeteilt, buchungsBetrag, initialen, istPeriode, belegZeilen,
+  ZAHLART, STATUS_FILTER, STATUS_FILTER_MEINE, OHNE_KST, MAX_PERIODEN
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
@@ -83,27 +83,44 @@ export function BetragZelle({ b }: { b: any }) {
 const anteilText = (b: any) =>
   b.gesamtBetrag != null ? ` · Anteil von CHF ${chfLang(b.gesamtBetrag)}` : "";
 
+// Ein Beleg heisst nach seiner KST: "Gurtenfestival 2026 2601".
+// Das Konto steht klein darunter.
+export function kstTitel(nr: string) {
+  if (nr === OHNE_KST.id) return OHNE_KST.name;
+  const a = S.auftraege.find((x) => x.id === nr);
+  return a && a.name ? `${a.name} ${nr}` : `KST ${nr}`;
+}
+const kontoText = (nr: string) => `${nr} ${kontoName(nr)}`.trim();
+
 export function belegKopf(b: any) {
-  if (istAufgeteilt(b)) return `Aufgeteilt auf ${b.positionen.length} Positionen` + anteilText(b);
-  return (kontoName(b.konto_nummer) || b.konto_nummer) + anteilText(b);
+  if (istAufgeteilt(b))
+    return [...new Set(b.positionen.map((p) => kstTitel(p.auftrag_nr)))].join(", ") + anteilText(b);
+  return kstTitel(b.auftrag_nr) + anteilText(b);
 }
 
+// Kurz für die Kachel links: die KST-Nummer
+export const belegKurz = (b: any) => {
+  const nr = istAufgeteilt(b) ? b.positionen[0].auftrag_nr : b.auftrag_nr;
+  return nr === OHNE_KST.id ? "—" : String(nr || "—");
+};
+
+const kontenText = (b: any) => istAufgeteilt(b)
+  ? b.positionen.map((p) => p.konto_nummer).join(" + ") : kontoText(b.konto_nummer);
+
 export function belegDetail(b: any, mitPerson?: boolean) {
-  const teile = [kurzDatum(b.beleg_datum)];
-  if (!istAufgeteilt(b)) teile.push(auftragAnzeige(b.auftrag_nr));
-  teile.push(zahlartName(b.zahlart));
+  const teile = [kurzDatum(b.beleg_datum), kontenText(b), zahlartName(b.zahlart)];
   if (mitPerson) teile.push(personName(b.geraet));
   return teile.join(" · ");
 }
 
 // Eine Zeile am Stück — für die Tabellen am Rechner
 export function belegText(b: any) {
-  if (istAufgeteilt(b)) {
-    const kst = [...new Set(b.positionen.map((p) => auftragAnzeige(p.auftrag_nr)))].join(", ");
-    return `${b.positionen.map((p) => p.konto_nummer).join(" + ")} · KST ${kst}` + anteilText(b);
-  }
-  return `${b.konto_nummer} · KST ${auftragAnzeige(b.auftrag_nr)} · ${b.mwst} %` + anteilText(b);
+  if (istAufgeteilt(b)) return `Konten ${kontenText(b)}` + anteilText(b);
+  return `Konto ${kontoText(b.konto_nummer)} · ${b.mwst} %` + anteilText(b);
 }
+
+const Kommentar = ({ b }: { b: any }) => b.kommentar
+  ? <span className="kn kommentar">„{b.kommentar}“</span> : null;
 
 // Der "Stempel": wer hat wann wie entschieden
 export function stempelText(n: any) {
@@ -126,9 +143,9 @@ export function KnopfFreigeben({ liste, woher, className }: { liste: any[]; wohe
 export function BelegZeile({ b, woher, person }: { b: any; woher: string; person?: boolean }) {
   return (
     <button className="zl" data-akt="bearbeiten" data-id={b.id} data-w={woher}>
-      <span className="ini">{initialen(belegKopf(b))}</span>
+      <span className="ini nr">{belegKurz(b)}</span>
       <span className="mitte"><b>{belegKopf(b)}</b>
-        <span className="kn mu">{belegDetail(b, person)}</span></span>
+        <span className="kn mu">{belegDetail(b, person)}</span><Kommentar b={b} /></span>
       <span className="seite"><BetragZelle b={b} /><StatusMarke b={b} kurz /></span>
     </button>);
 }
@@ -148,7 +165,8 @@ export function BelegTabelle({ liste, woher, person }: { liste: any[]; woher: st
         {liste.map((b) => (
           <tr key={b.id}>
             <td className="mono nw">{langDatum(b.beleg_datum)}</td>
-            <td><b>{belegKopf(b)}</b><br /><span className="neben kn">{belegText(b)}</span></td>
+            <td><b>{belegKopf(b)}</b><br /><span className="neben kn">{belegText(b)}</span>
+              {b.kommentar && <><br /><Kommentar b={b} /></>}</td>
             {person && <td className="nw">{personName(b.geraet)}</td>}
             <td className="nw">{zahlartName(b.zahlart)}</td>
             <td><StatusMarke b={b} /></td>
@@ -169,15 +187,17 @@ export function belegeSuchen(liste: any[]) {
   const q = S.bSuche.trim().toLowerCase();
   if (!q) return liste;
   return liste.filter((b) => [belegKopf(b), belegText(b), chf(b.betrag), chfLang(b.betrag), personName(b.geraet),
-                              zahlartName(b.zahlart), statusName(statusVon(b)), datumCH(b.beleg_datum)]
+                              zahlartName(b.zahlart), statusName(statusVon(b)), datumCH(b.beleg_datum),
+                              b.kommentar || ""]
     .join(" ").toLowerCase().includes(q));
 }
 
 // ---------- Kacheln und farbige Karten ----------
 const FARBE: Record<string, string> = { blau: "#4c5fd5", dunkel: "#1c1f2e", gruen: "#2e9d4a",
                                         orange: "#e8590c", rot: "#d64545" };
-export function Kachel({ lab, wert, fuss, farbe, icon, akt, v, an }:
-  { lab: string; wert: any; fuss: any; farbe: string; icon: string; akt?: string; v?: string; an?: boolean }) {
+// f/v: Antippen setzt den Filter S[f] = v (siehe "kachelFilter" in aktionen.ts)
+export function Kachel({ lab, wert, fuss, farbe, icon, f: feld, v, an }:
+  { lab: string; wert: any; fuss: any; farbe: string; icon: string; f?: string; v?: string; an?: boolean }) {
   const f = FARBE[farbe];
   const innen = <>
     <div className="oben">
@@ -186,8 +206,8 @@ export function Kachel({ lab, wert, fuss, farbe, icon, akt, v, an }:
     </div>
     <div className="fuss">{fuss}</div>
   </>;
-  if (!akt) return <div className="karte kachel">{innen}</div>;
-  return <button className={"karte kachel" + (an ? " an" : "")} data-akt={akt} data-v={v}
+  if (!feld) return <div className="karte kachel">{innen}</div>;
+  return <button className={"karte kachel" + (an ? " an" : "")} data-akt="kachelFilter" data-f={feld} data-v={v}
                  aria-pressed={!!an}>{innen}</button>;
 }
 
@@ -213,7 +233,34 @@ export function Balken({ zeilen }: { zeilen: { name: string; wert: number }[] })
 
 // ---------- Zeitraum ----------
 export const zeitraumText = () => `${langDatum(S.uVon).slice(0, 6)}–${langDatum(S.uBis)}`;
-const zeitraumLabel = () => istPeriode(S.uVon, S.uBis) ? "Abrechnungsperiode" : "Eigener Zeitraum";
+const gespeichert = () => S.perioden.find((p) => p.von === S.uVon && p.bis === S.uBis);
+const zeitraumLabel = () => gespeichert() ? gespeichert().name
+  : istPeriode(S.uVon, S.uBis) ? "Abrechnungsperiode" : "Eigener Zeitraum";
+
+// Gespeicherte Zeiträume als Schnellwahl (höchstens drei je Person)
+export function Schnellwahl() {
+  if (!S.perioden.length) return null;
+  return (
+    <div className="chips">
+      {S.perioden.map((p) => {
+        const an = p.von === S.uVon && p.bis === S.uBis;
+        return (
+          <span className={"chip" + (an ? " an" : "")} key={p.id}>
+            <button className="chipwahl" data-akt="periodeWahl" data-id={p.id} aria-pressed={an}>
+              {p.name} <span className="mono kn">{kurzDatum(p.von)}–{kurzDatum(p.bis)}</span></button>
+            <button data-akt="periodeWeg" data-id={p.id} aria-label={`Zeitraum ${p.name} löschen`}>✕</button>
+          </span>);
+      })}
+    </div>);
+}
+
+const ZeitraumKnoepfe = () => (
+  <div style={{ padding: "0 6px 8px", display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+    <button className="link" data-akt="periodeNeu" disabled={S.perioden.length >= MAX_PERIODEN}>
+      + Zeitraum speichern</button>
+    <button className="link" data-akt="periodeJetzt">Zur laufenden Periode</button>
+    {S.perioden.length >= MAX_PERIODEN && <span className="kn mu">3 von 3 gespeichert — zuerst einen über ✕ löschen.</span>}
+  </div>);
 
 const ZeitraumFelder = () => (
   <div className="zeitraumfelder">
@@ -233,11 +280,8 @@ export function PeriodeWahl() {
           <span className="kl">{zeitraumLabel()}</span><b>{zeitraumText()}</b></button>
         <button className="pf" data-akt="periode" data-v="1" aria-label="Nächste Periode">›</button>
       </div>
-      {S.eigenerZeitraum && <>
-        <ZeitraumFelder />
-        <div style={{ padding: "0 6px 8px" }}>
-          <button className="link" data-akt="periodeJetzt">Zur laufenden Periode</button></div>
-      </>}
+      {S.eigenerZeitraum && <><ZeitraumFelder /><ZeitraumKnoepfe /></>}
+      {S.perioden.length > 0 && <div style={{ padding: "0 8px 8px" }}><Schnellwahl /></div>}
     </div>);
 }
 
@@ -253,11 +297,11 @@ export function PeriodeKlein() {
       Eigener Zeitraum</button>
   </>;
 }
-export const ZeitraumRechner = () => S.eigenerZeitraum
-  ? <div className="karte" style={{ maxWidth: 520 }}><ZeitraumFelder />
-      <div style={{ padding: "0 6px 8px" }}><button className="link" data-akt="periodeJetzt">Zur laufenden Periode</button></div>
-    </div>
-  : null;
+export const ZeitraumRechner = () => <>
+  {S.eigenerZeitraum &&
+    <div className="karte" style={{ maxWidth: 560 }}><ZeitraumFelder /><ZeitraumKnoepfe /></div>}
+  {S.perioden.length > 0 && <div style={{ marginTop: -8 }}><Schnellwahl /></div>}
+</>;
 
 // ---------- Filter ----------
 // Auswahlfeld, das sich neu aufbaut, wenn sich der Wert von aussen ändert
@@ -267,57 +311,78 @@ function Auswahl({ id, feld, wert, children }: { id: string; feld: string; wert:
 
 const darfPerson = () => S.istAdmin || S.istPruefer;
 
-export function FilterChips() {
+// Zwei Filter-Bereiche: "u" = Übersicht, "m" = Meine Belege. Felder heissen
+// S.uZahlart / S.mZahlart usw.
+type Bereich = "u" | "m";
+
+export function FilterChips({ b = "u" }: { b?: Bereich }) {
+  const statusNamen = b === "m" ? STATUS_FILTER_MEINE : STATUS_FILTER;
   const chips: [string, string][] = [];
-  if (S.uGeraet)  chips.push(["uGeraet", "Person: " + personName(S.uGeraet)]);
-  if (S.uZahlart) chips.push(["uZahlart", ZAHLART[S.uZahlart]]);
-  if (S.uStatus)  chips.push(["uStatus", "Status: " + (STATUS_FILTER[S.uStatus] || S.uStatus)]);
-  if (S.uKonto)   chips.push(["uKonto", "Konto " + S.uKonto]);
-  if (S.uAuftrag) chips.push(["uAuftrag", "KST " + auftragAnzeige(S.uAuftrag)]);
+  if (b === "u" && S.uGeraet) chips.push(["uGeraet", "Person: " + personName(S.uGeraet)]);
+  if (S[b + "Zahlart"]) chips.push([b + "Zahlart", ZAHLART[S[b + "Zahlart"]]]);
+  if (S[b + "Status"])  chips.push([b + "Status", "Status: " + (statusNamen[S[b + "Status"]] || S[b + "Status"])]);
+  if (S[b + "Konto"])   chips.push([b + "Konto", "Konto " + S[b + "Konto"]]);
+  if (S[b + "Auftrag"]) chips.push([b + "Auftrag", "KST " + auftragAnzeige(S[b + "Auftrag"])]);
+  if (S.bSuche.trim())  chips.push(["bSuche", "Suche: " + S.bSuche.trim()]);
   return <>
     {chips.map(([f, t]) => (
       <span className="chip" key={f}>{t}<button data-akt="filterWeg" data-f={f} aria-label={`${t} entfernen`}>✕</button></span>))}
   </>;
 }
 
-export function FilterFelder() {
-  if (!S.uFilterOffen) return null;
-  const personen = [...new Set(S.uBelege.map((b) => b.geraet))].sort() as string[];
+// Was kommt in einer Liste an Konten und KST vor? Füllt die Auswahlfelder.
+function vorkommen(liste: any[], feld: string) {
+  const s = new Set<string>();
+  for (const x of liste) for (const p of belegZeilen(x)) s.add(p[feld]);
+  return [...s].sort((a, c) => String(a).localeCompare(String(c), "de", { numeric: true }));
+}
+
+export function FilterFelder({ b = "u" }: { b?: Bereich }) {
+  if (!S[b + "FilterOffen"]) return null;
+  const liste = b === "m" ? S.belege : S.uBelege;
+  const personen = [...new Set(S.uBelege.map((x) => x.geraet))].sort() as string[];
+  const statusNamen = b === "m" ? STATUS_FILTER_MEINE : STATUS_FILTER;
   return (
     <div className="karte innen"><div className="filterfeld">
-      {darfPerson() &&
+      <div className="feld"><label htmlFor={b + "suche"}>Suchen</label>
+        <input id={b + "suche"} type="search" placeholder="KST, Konto, Kommentar, Betrag …"
+               defaultValue={S.bSuche} key={"s" + S.bSucheNeu} data-feld="bsuche" /></div>
+      {b === "u" && darfPerson() &&
         <div className="feld"><label htmlFor="ugeraet">Person</label>
           <Auswahl id="ugeraet" feld="ugeraet" wert={S.uGeraet}>
             <option value="">Alle Personen</option>
             {personen.map((g) => <option key={g} value={g}>{personName(g)}</option>)}
           </Auswahl></div>}
-      <div className="feld"><label htmlFor="uzahlart">Zahlungsart</label>
-        <Auswahl id="uzahlart" feld="uzahlart" wert={S.uZahlart}>
+      <div className="feld"><label htmlFor={b + "zahlart"}>Zahlungsart</label>
+        <Auswahl id={b + "zahlart"} feld={b + "zahlart"} wert={S[b + "Zahlart"]}>
           <option value="">Alle</option>
           {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
         </Auswahl></div>
-      <div className="feld"><label htmlFor="ustatus">Status</label>
-        <Auswahl id="ustatus" feld="ustatus" wert={S.uStatus}>
+      <div className="feld"><label htmlFor={b + "status"}>Status</label>
+        <Auswahl id={b + "status"} feld={b + "status"} wert={S[b + "Status"]}>
           <option value="">Alle</option>
-          {Object.entries(STATUS_FILTER).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
+          {Object.entries(statusNamen).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
         </Auswahl></div>
-      <div className="feld"><label htmlFor="ukonto">Konto</label>
-        <Auswahl id="ukonto" feld="ukonto" wert={S.uKonto}>
+      <div className="feld"><label htmlFor={b + "konto"}>Konto</label>
+        <Auswahl id={b + "konto"} feld={b + "konto"} wert={S[b + "Konto"]}>
           <option value="">Alle Konten</option>
-          {kontenImZeitraum().map((k) => <option key={k} value={k}>{k}{kontoName(k) ? " " + kontoName(k) : ""}</option>)}
+          {vorkommen(liste, "konto_nummer").map((k) => <option key={k} value={k}>{k}{kontoName(k) ? " " + kontoName(k) : ""}</option>)}
         </Auswahl></div>
-      <div className="feld"><label htmlFor="uauftrag">KST</label>
-        <Auswahl id="uauftrag" feld="uauftrag" wert={S.uAuftrag}>
+      <div className="feld"><label htmlFor={b + "auftrag"}>KST</label>
+        <Auswahl id={b + "auftrag"} feld={b + "auftrag"} wert={S[b + "Auftrag"]}>
           <option value="">Alle Kostenstellen</option>
-          {auftraegeImZeitraum().map((a) => <option key={a} value={a}>{kstName(a)}</option>)}
+          {vorkommen(liste, "auftrag_nr").map((a) => <option key={a} value={a}>{kstName(a)}</option>)}
         </Auswahl></div>
     </div></div>);
 }
 
-export const FilterKnopf = () => {
-  const n = [S.uGeraet, S.uZahlart, S.uStatus, S.uKonto, S.uAuftrag].filter(Boolean).length;
-  return <button className={"k2 klein" + (S.uFilterOffen ? " fett" : "")} data-akt="filterAuf"
-                 aria-expanded={S.uFilterOffen}>Filter{n ? ` · ${n}` : ""}</button>;
+export const FilterKnopf = ({ b = "u" }: { b?: Bereich }) => {
+  const felder = [S[b + "Zahlart"], S[b + "Status"], S[b + "Konto"], S[b + "Auftrag"], S.bSuche.trim()];
+  if (b === "u") felder.push(S.uGeraet);
+  const n = felder.filter(Boolean).length;
+  const offen = S[b + "FilterOffen"];
+  return <button className={"k2 klein" + (offen ? " fett" : "")} data-akt="filterAuf" data-b={b}
+                 aria-expanded={offen}>Filter{n ? ` · ${n}` : ""}</button>;
 };
 
 // Name einer KST für die Anzeige: "2601 Gurtenfestival"

@@ -40,7 +40,7 @@ function Tabbar() {
   return (
     <nav className="tabbar" aria-label="Hauptnavigation">
       {t("liste", "tabListe", "Belege", "doc")}
-      {t("uebersicht", "tabUebersicht", "Übersicht", "grid")}
+      {S.istPruefer && t("uebersicht", "tabUebersicht", "Übersicht", "grid")}
       <div className="tabmitte"><button data-akt="neu" aria-label="Beleg erfassen"><Ico n="kamera" /></button></div>
       {S.istPruefer && t("freigabe", "tabFreigabe", "Freigabe", "check", S.freigabe.length)}
       {t("profil", "zuProfil", "Profil", "person")}
@@ -58,7 +58,7 @@ function Leiste() {
       <div className="marke"><span className="zeichen">TP</span><b>TIT-PIT Spesen</b></div>
       <button className="k1" data-akt="neu" style={{ boxShadow: "none" }}>+ Spesen erfassen</button>
       <nav className="nav" aria-label="Hauptnavigation">
-        {n("uebersicht", "tabUebersicht", "Übersicht", "grid")}
+        {S.istPruefer && n("uebersicht", "tabUebersicht", "Übersicht", "grid")}
         {n("liste", "tabListe", "Meine Belege", "doc")}
         {S.istPruefer && n("freigabe", "tabFreigabe", "Freigabe", "check", S.freigabe.length)}
         {n("favoriten", "zuFavoriten", "Favoriten", "stern")}

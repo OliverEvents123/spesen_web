@@ -31,6 +31,37 @@ Entwurf", Blöcke „D komplett"). Umgebaut in `web/`, alle Abläufe bleiben:
 Nächste Schritte: SQL im Test-Projekt ausführen, Oli testet unter `/test/`
 (Teststand = Arbeitsbranch), danach „schleifen" und live.
 
+### Erste Runde Anpassungen (12.10.2026, nach Olis Test)
+
+- **User** haben keine Übersicht mehr — nur Meine Belege und Favoriten
+  (Handy: Belege · Kamera · Profil). Damit auch kein PDF/CSV-Export für User.
+- **Meine Belege** (alle Rollen): Kacheln Belege (Summe + Anzahl),
+  User-Zahlungen (gesamt / genehmigt), Offene Punkte, Erledigt — antippen
+  filtert; dazu eigener Filter mit Suche. Aufgaben-Karten mit antippbaren Belegen.
+- **„Vorauskasse" heisst jetzt „User-Zahlung"** (App, PDF, CSV, Fehlertexte).
+  In der Datenbank bleibt `zahlart = 'vorkasse'`.
+- Belege heissen nach der **KST** („Gurtenfestival 2026 2601"), das Konto
+  steht klein darunter. Kontierung: Konto nur Nummer, Bezeichnung = KST-Name
+  und die Kommentare der Belege (nur in der App — PDF/CSV unverändert).
+- **Kommentar** je Beleg (freiwillig), durchsuchbar, im CSV als letzte Spalte.
+- **PDF-Belege** zeigen die erste Seite als Vorschau (pdf.js, wie im Export).
+- **Übersicht** (PL/Supervisor/Admin): ohne MwSt-Kachel; Karten Nach KST,
+  Nach Person, Freigaben offen, Export. Handy: Export vor der Kontierung,
+  „Offen" blendet Export/Kontierung aus und springt zur Liste.
+- **Prüfen** bei Kreditkarte/Bar: Betrag, MwSt, Datum korrigierbar
+  (`beleg_korrigieren`); eine offene Korrektur wird vor dem Entscheid gespeichert.
+- **Eigene KST**: Wer selbst zuständig ist (PL/Supervisor, Admin immer),
+  bekommt „Speichern und genehmigen".
+- **Supervisor × Personen**: deren User-Zahlungen warten auf den Supervisor
+  (Tabelle `spesen_zuweisung_person`, beim Benutzer zuweisen).
+- **Zeitraum speichern** (bis drei je Person) als Schnellwahl — nutzt wieder
+  `spesen_periode`.
+- PDF: rechts oben je Beleg „genehmigt: Name / Datum".
+- Texte: „x Freigaben offen" statt „x warten auf dich".
+
+SQL dafür: **`supabase/kommentar-korrektur-personen.sql`** (nach
+`verlauf-pruefer.sql`). Lokal gegen Postgres geprüft.
+
 ## Umstieg auf React (12.10.2026)
 
 Die App war noch nicht im produktiven Einsatz — darum jetzt umgestellt statt
@@ -92,12 +123,12 @@ Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 
 1. ~~SQL Etappe 1+2 und Function `benutzer` im Test-Projekt~~ — erledigt.
 2. ~~Freigaben in `/test/` testen~~ — erledigt (alte Fassung, 12.10.).
-3. `verlauf-pruefer.sql` im Test-Projekt ausführen (Oli).
+3. `verlauf-pruefer.sql` und `kommentar-korrektur-personen.sql` im Test-Projekt ausführen (Oli).
 4. Offen: **Etappe 3** (Karten je Kostenstelle) — vor oder nach dem Live-Gang.
 5. **Live-Gang**, alles auf einmal, in dieser Reihenfolge:
    1. `etappe1-status.sql` im Live-Projekt
    2. `etappe2-freigabe.sql` im Live-Projekt
-   3. `verlauf-pruefer.sql` im Live-Projekt
+   3. `verlauf-pruefer.sql` und `kommentar-korrektur-personen.sql` im Live-Projekt
    4. Edge Function `benutzer` im Live-Projekt deployen
    5. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
       ohne Prüfung durch)
