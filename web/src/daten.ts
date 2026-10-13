@@ -16,7 +16,7 @@ import {
 export const leererBeleg = () => ({
   id: null, status: "offen", konto: null, auftrag: null, mwst: "8.1", betragText: "",
   positionen: null, datum: heute(), zahlart: "karte", datei: null, vorschau: null,
-  altPfad: null, altUrl: null, kommentar: ""
+  altPfad: null, altUrl: null, kommentar: "", zahlgeraet: null
 });
 
 export const leerePosition = (vorlage?: any) => ({
@@ -36,6 +36,8 @@ export const leeresKonto = () => {
            sortierung: String(hoechste + 10), aktiv: true };
 };
 
+export const leeresGeraet = () => ({ neu: true, id: null, name: "", auftrag_nr: "", aktiv: true });
+
 export const kontoName = (nr: string) => {
   const k = S.konten.find((x) => x.nummer === nr);
   return k ? k.bezeichnung : "";
@@ -49,12 +51,13 @@ const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv";
 
 export async function ladeAlles() {
   const ich = S.session.user.email;
-  const [k, f, adm, me, nam] = await Promise.all([
+  const [k, f, adm, me, nam, ger] = await Promise.all([
     sb.from("spesen_konto").select(KONTO_SPALTEN).order("sortierung").order("nummer"),
     sb.from("spesen_favorit").select("*").order("sortierung").order("id"),
     sb.rpc("ist_admin"),
     sb.from("spesen_benutzer").select("name,rolle").eq("email", ich).maybeSingle(),
     sb.rpc("benutzer_namen"),
+    sb.from("spesen_zahlgeraet").select("*").order("name"),
     ladeMeine(),
     ladePerioden()
   ]);
@@ -65,6 +68,9 @@ export async function ladeAlles() {
   // Namen statt E-Mail — fehlt die Funktion (ältere Datenbank), bleibt es bei der E-Mail
   if (!nam.error && Array.isArray(nam.data))
     S.namen = Object.fromEntries(nam.data.map((x) => [x.email, x.name]));
+  // Geräte — fehlt die Tabelle (Datenbank ohne geraete.sql), gibt es keine Auswahl
+  S.geraeteDa   = !ger.error;
+  S.zahlgeraete = ger.error ? [] : (ger.data || []);
 
   // Fehlt die Funktion (Datenbank ohne Etappe 2), bleibt alles wie bisher.
   const pr = await sb.rpc("ist_pruefer");
@@ -159,6 +165,53 @@ export function verlaufEintrag(v: any) {
   return { farbe, titel: `${titel} · ${was}`, sub: `${personName(v.wer)} · ${kurzZeit(v.wann)}`,
            belegId: b ? b.id : null };
 }
+
+// ---------- Geräte ----------
+export async function ladeGeraete() {
+  const { data, error } = await sb.from("spesen_zahlgeraet").select("*").order("name");
+  S.geraeteDa   = !error;
+  S.zahlgeraete = error ? [] : (data || []);
+}
+
+export const geraetName = (id: any) => {
+  if (id == null || id === "") return "";
+  const g = S.zahlgeraete.find((x) => String(x.id) === String(id));
+  return g ? g.name : "Gerät " + id;
+};
+
+// Welche Geräte kommen für diesen Beleg in Frage? Nur bei Kreditkarte, nur
+// aktive auf einer seiner KST — dazu das schon gewählte, auch wenn inaktiv.
+export function geraeteFuer(n: any) {
+  if (!n || n.zahlart !== "karte" || !S.zahlgeraete.length) return [];
+  const kst = (Array.isArray(n.positionen) ? n.positionen : [n])
+    .map((p) => p.auftrag && p.auftrag.id).filter(Boolean);
+  return S.zahlgeraete.filter((g) => kst.includes(g.auftrag_nr)
+    && (g.aktiv !== false || String(g.id) === String(n.zahlgeraet)));
+}
+
+// Das Gerät, das gespeichert wird: das gewählte, wenn es passt —
+// gibt es nur eines, ist es das.
+export function geraetGewaehlt(n: any) {
+  const liste = geraeteFuer(n);
+  const g = liste.find((x) => String(x.id) === String(n.zahlgeraet));
+  if (g) return g.id;
+  return liste.length === 1 ? liste[0].id : null;
+}
+
+// Mehrere Geräte zur Wahl, aber keines gewählt?
+export const geraetFehlt = (n: any) => geraeteFuer(n).length > 1 && geraetGewaehlt(n) == null;
+
+export function geraetSpeichern(g: any) {
+  const daten = { name: String(g.name || "").trim(), auftrag_nr: String(g.auftrag_nr || "").trim(),
+                  aktiv: !!g.aktiv };
+  if (g.neu) return sb.from("spesen_zahlgeraet").insert(daten);
+  return sb.from("spesen_zahlgeraet").update(daten).eq("id", g.id);
+}
+
+export const geraetLoeschen = (id) => sb.from("spesen_zahlgeraet").delete().eq("id", id);
+
+// Wie viele Belege hat ein Gerät im gewählten Zeitraum?
+export const belegeAufGeraet = (id) => S.uBelege.filter((b) => String(b.zahlgeraet_id) === String(id)).length;
 
 export async function ladeFavoriten() {
   const { data } = await sb.from("spesen_favorit").select("*").order("sortierung").order("id");
@@ -421,6 +474,7 @@ const statusPasst = (b, st) => !st ? true
 // ohneStatus: alle Filter ausser dem Status — für die Zähler auf den Kacheln
 export const uGefiltert = (ohneStatus?: boolean) => S.uBelege.filter((b) =>
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
+  (!S.uZahlgeraet || String(b.zahlgeraet_id) === S.uZahlgeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
   (ohneStatus || statusPasst(b, S.uStatus)) &&
   belegZeilen(b).some(zeilePasst)).map(belegImFilter);
@@ -446,6 +500,7 @@ export const uTitel = () => {
     S.uGeraet ? personName(S.uGeraet) : (S.istAdmin ? "Alle Personen" : S.session.user.email),
     S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
   ];
+  if (S.uZahlgeraet) teile.push("Gerät " + geraetName(S.uZahlgeraet));
   if (S.uStatus)  teile.push("Status " + (STATUS_FILTER[S.uStatus] || S.uStatus));
   if (S.uKonto)   teile.push("Konto " + S.uKonto);
   if (S.uAuftrag) teile.push("Auftrag " + auftragAnzeige(S.uAuftrag));
@@ -457,6 +512,7 @@ export const uDateiname = () =>
   (S.uKonto   ? "_K" + S.uKonto   : "") +
   (S.uAuftrag ? "_A" + String(S.uAuftrag).replace(/\s+/g, "") : "") +
   (S.uZahlart ? "_" + S.uZahlart : "") +
+  (S.uZahlgeraet ? "_" + geraetName(S.uZahlgeraet).replace(/[^\wäöüÄÖÜ-]+/g, "") : "") +
   (S.uGeraet ? "_" + kurzName(S.uGeraet) : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
 // Wie viele Belege hat ein Gerät im gewählten Zeitraum?
@@ -578,6 +634,7 @@ export async function belegBearbeiten(id, woher) {
     datei: null, vorschau: null, altPfad: b.datei_pfad, altUrl: url, altPdf: !!pdfUrl,
     // Kommentar: "kommentarDa" merkt sich, ob die Datenbank die Spalte schon kennt
     kommentar: b.kommentar || "", kommentarDa: "kommentar" in b,
+    zahlgeraet: b.zahlgeraet_id ?? null,
     // Korrektur beim Prüfen (Kreditkarte/Bar): Betrag, Satz, Datum
     korrBetrag: chf(b.betrag), korrMwst: String(b.mwst), korrDatum: b.beleg_datum
   };

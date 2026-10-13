@@ -348,3 +348,12 @@ gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
   bei Kreditkarte/Bar Betrag, Satz und Datum eines eingereichten Belegs.
 - `verlauf-pruefer.sql`: Verlauf für Prüfer (ihre Belege) und
   `benutzer_namen()` für Namen statt E-Mail.
+
+## Geräte 13.10.2026 (`geraete.sql`)
+
+- `spesen_zahlgeraet (id, name, auftrag_nr, aktiv, erstellt)` — Geräte je KST.
+  Lesen: alle Angemeldeten; schreiben: Admin.
+- `spesen_beleg.zahlgeraet_id` → `spesen_zahlgeraet(id)`, nur bei Kreditkarte
+  gesetzt. Ein Gerät mit Belegen lässt sich nicht löschen (Fremdschlüssel).
+- Nicht verwechseln: `spesen_beleg.geraet` ist die E-Mail der erfassenden
+  Person (Name aus der Zeit, als jedes Handy ein eigenes Login hatte).

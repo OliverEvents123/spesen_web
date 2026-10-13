@@ -22,11 +22,13 @@ export const S: any = {
   // abgelehnte, egal aus welcher Periode — das sind die offenen Aufgaben
   belege: [], offeneEigene: [],
   benutzer: [], benEdit: null, kontEdit: null,
+  // Geräte (Kreditkarte) je KST — in der Datenbank "zahlgeraet". geraeteDa: Tabelle vorhanden
+  zahlgeraete: [], geraeteDa: false, geraetEdit: null,
   ansicht: "liste", neu: null, favEdit: null, posIndex: null,
   suche: "", bSuche: "", bSucheNeu: 0, meldung: null, zurueckZu: "liste",
   // Zeitraum für alles: Abrechnungsperiode, mit ‹ › blätterbar
   uVon: START.von, uBis: START.bis, eigenerZeitraum: false, uBelege: [], uLaedt: false,
-  uGeraet: "", uZahlart: "", uKonto: "", uAuftrag: "", uStatus: "", uFilterOffen: false,
+  uGeraet: "", uZahlart: "", uKonto: "", uAuftrag: "", uStatus: "", uZahlgeraet: "", uFilterOffen: false,
   // Gespeicherte Zeiträume (je Person, höchstens drei) als Schnellwahl
   perioden: [],
   // Filter für "Meine Belege" — eigene, unabhängig von der Übersicht

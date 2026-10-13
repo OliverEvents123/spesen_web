@@ -36,6 +36,7 @@ export function Profil() {
         <section className="karte huelle">
           <Eintrag akt="tabBenutzer" ic="leute" titel="Benutzer" sub="Rollen, Prüfung, Kostenstellen" />
           <Eintrag akt="tabKonten" ic="liste" titel="Konten" sub={`${S.konten.length} Konten`} />
+          <Eintrag akt="tabGeraete" ic="karte" titel="Geräte" sub={`${S.zahlgeraete.length} Geräte · je KST`} />
         </section>
       </>}
       <span className="kl" style={{ marginBottom: -6 }}>Persönlich</span>

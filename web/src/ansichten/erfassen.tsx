@@ -7,7 +7,7 @@ import {
   istBreit, chf, chfLang, langDatum, zeitCH, betragVon, statusName, zahlartName, istGesperrt,
   istEntschieden, positionenSumme, positionenFertig, ZAHLART, SAETZE
 } from "../grundlagen";
-import { personName, kannSelbstEntscheiden } from "../daten";
+import { personName, kannSelbstEntscheiden, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName } from "../daten";
 import { Seite } from "./rahmen";
 import {
   Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, stempelText, kontoWahlText, auftragWahlText, kstTitel
@@ -84,6 +84,24 @@ function Position({ p, i, anzahl }: { p: any; i: number; anzahl: number }) {
     </section>);
 }
 
+// Kreditkarte auf einer KST mit Geräten: welches Gerät? Eines ist vorgewählt.
+function GeraetWahl({ n }: { n: any }) {
+  const liste = geraeteFuer(n);
+  if (!liste.length) return null;
+  const gewaehlt = geraetGewaehlt(n);
+  return (
+    <div><span className="lab">Gerät</span>
+      <div className={"seg" + (liste.length > 3 ? " gitter" : "")}>
+        {liste.map((g) => {
+          const an = String(gewaehlt) === String(g.id);
+          return <button key={g.id} className={an ? "an" : ""} data-akt="zahlgeraet" data-v={g.id}
+                         aria-pressed={an}>{g.name}</button>;
+        })}
+      </div>
+      {gewaehlt == null && <span className="kn" style={{ color: "var(--rot-text)" }}>Bitte das Gerät wählen.</span>}
+    </div>);
+}
+
 // ---------- Erfassen / Bearbeiten ----------
 export function Erfassen() {
   const n = S.neu;
@@ -92,7 +110,9 @@ export function Erfassen() {
   const geteilt = Array.isArray(n.positionen);
   const betrag = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
   const hatBeleg = !!(n.datei || n.altPfad);
-  const fertig = hatBeleg && (geteilt ? positionenFertig(n.positionen) : (betrag > 0 && n.konto && n.auftrag));
+  const angabenFertig = hatBeleg && (geteilt ? positionenFertig(n.positionen) : (betrag > 0 && n.konto && n.auftrag));
+  const fertig = angabenFertig && !geraetFehlt(n);
+  const fehltText = angabenFertig ? "Bitte das Gerät wählen" : "Beleg, Konto, KST und Betrag nötig";
   const breit = istBreit();
   const kt = kontoWahlText(n.konto), at = auftragWahlText(n.auftrag);
 
@@ -146,6 +166,7 @@ export function Erfassen() {
           <button key={w} className={n.zahlart === w ? "an" : ""} data-akt="zahlart" data-v={w}
                   aria-pressed={n.zahlart === w}>{t}</button>)}
       </div></div>
+    <GeraetWahl n={n} />
     <div className="feld"><label htmlFor="datum">Belegdatum</label>
       <input id="datum" type="date" defaultValue={n.datum} data-feld="datum" /></div>
     <div className="feld"><label htmlFor="kommentar">Kommentar (freiwillig)</label>
@@ -159,9 +180,9 @@ export function Erfassen() {
   const knoepfe = <>
     {selbst
       ? <Knopf akt="speichernGenehmigen" className="k1" disabled={!fertig}>
-          {fertig ? "Speichern und genehmigen" : "Beleg, Konto, KST und Betrag nötig"}</Knopf>
+          {fertig ? "Speichern und genehmigen" : fehltText}</Knopf>
       : <Knopf akt="speichernFrei" className="k1" disabled={!fertig}>
-          {fertig ? "Speichern und zur Prüfung freigeben" : "Beleg, Konto, KST und Betrag nötig"}</Knopf>}
+          {fertig ? "Speichern und zur Prüfung freigeben" : fehltText}</Knopf>}
     <Knopf akt="speichern" className="k2" disabled={!fertig}>
       {bearbeiten ? "Nur Änderungen speichern" : "Nur speichern"}</Knopf>
   </>;
@@ -298,6 +319,7 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
             <Zeile titel="Belegdatum"><span className="mono">{langDatum(n.datum)}</span></Zeile>
           </>}
         <Zeile titel="Bezahlt mit">{zahlartName(n.zahlart)}</Zeile>
+        {n.zahlgeraet != null && <Zeile titel="Gerät">{geraetName(n.zahlgeraet)}</Zeile>}
         {n.kommentar && <Zeile titel="Kommentar">{n.kommentar}</Zeile>}
         {n.geraet && n.geraet !== S.session.user.email && <Zeile titel="Erfasst von">{personName(n.geraet)}</Zeile>}
       </div>

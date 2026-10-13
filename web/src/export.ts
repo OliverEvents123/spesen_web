@@ -134,7 +134,8 @@ export const SpesenExport = (function () {
     function kopfzeile(seite, b, zusatz) {
       const gekuerzt = Math.abs(gebucht(b) - parseFloat(b.betrag)) > 0.004;
       let t = `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
-              `KST ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)} · ` +
+              `KST ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)}` +
+              (b.geraetName ? ` (${b.geraetName})` : "") + " · " +
               `CHF ${chf(gebucht(b))}` +
               (gekuerzt ? ` (von ${chf(b.betrag)})` : "") +
               (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "") +
@@ -183,7 +184,7 @@ export const SpesenExport = (function () {
         ["Konto",     `${b.konto_nummer} ${b.bezeichnung || ""}`.trim()],
         ["Auftrag",   String(b.auftrag_nr)],
         ["MwSt",      `${b.mwst} %`],
-        ["Bezahlt",   zahlartName(b.zahlart)],
+        ["Bezahlt",   zahlartName(b.zahlart) + (b.geraetName ? " · " + b.geraetName : "")],
         ["Betrag",    `CHF ${chf(b.betrag)}`],
         ...(gekuerzt ? [["Gebucht", `CHF ${chf(gebucht(b))}`]] : [])
       ];
@@ -368,13 +369,14 @@ export const SpesenExport = (function () {
     r("");
     r("EINZELNE BELEGE");
     r("Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt-Satz","Bezahlt mit","Betrag","Beleg","Gerät",
-      "Status","Gebucht","Entschieden von","Entschieden am","Kommentar Entscheid","Kommentar Beleg");
+      "Status","Gebucht","Entschieden von","Entschieden am","Kommentar Entscheid","Kommentar Beleg",
+      "Gerät Kreditkarte");
     belege.forEach((b, i) => r(i+1, datumCH(b.beleg_datum), b.konto_nummer, b.bezeichnung || "",
                                b.auftrag_nr, b.mwst, zahlartName(b.zahlart), chf(b.betrag),
                                b.datei_pfad ? "ja" : "fehlt", b.geraet,
                                b.statusText || "", chf(gebucht(b)), b.entscheid_von || "",
                                b.entscheid_am ? zeitCH(b.entscheid_am) : "", b.entscheid_grund || "",
-                               b.kommentar || ""));
+                               b.kommentar || "", b.geraetName || ""));
 
     speichern(new Blob(["\uFEFF" + z.join("\r\n")], { type:"text/csv;charset=utf-8" }),
               dateiname || `Spesen_${monat}.csv`);

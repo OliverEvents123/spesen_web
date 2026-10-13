@@ -49,7 +49,7 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
 - `src/ansichten/*.tsx` — die Bildschirme: `uebersicht` (Meine Belege,
   Übersicht), `erfassen` (Erfassen, Ansehen/Prüfen), `profil` (Profil,
   Passwort, Favoriten, Freigabe), `verwaltung` (Benutzer inkl. Zuweisungen,
-  Konten), `login`.
+  Konten, Geräte), `login`.
 - `src/stil.css` — Aussehen „Dashboard" (Entwurf Variante D vom 12.10.2026).
 - `public/sw.js` — Service Worker, nur in der echten App angemeldet.
 - `src/export.ts` — PDF/CSV, unverändert aus `export.js`.

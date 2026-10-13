@@ -62,6 +62,21 @@ Nächste Schritte: SQL im Test-Projekt ausführen, Oli testet unter `/test/`
 SQL dafür: **`supabase/kommentar-korrektur-personen.sql`** (nach
 `verlauf-pruefer.sql`). Lokal gegen Postgres geprüft.
 
+### Geräte (13.10.2026)
+
+- Verwaltung → **Geräte** (nur Admin): Gerät anlegen, benennen, einer KST
+  zuweisen; „Steht in der Auswahl" aus = nicht mehr wählbar. Löschen geht
+  nur, solange kein Beleg daran hängt.
+- Erfassen: bei **Kreditkarte** auf eine KST mit Geräten erscheint „Gerät".
+  Eines → vorgewählt; mehrere → muss gewählt werden. Bar/User-Zahlung: kein Gerät.
+- Übersicht: Filter „Gerät" (PL, Supervisor, Admin) — Export (PDF/CSV) folgt
+  dem Filter, Titel und Dateiname nennen das Gerät. CSV hat die neue Spalte
+  „Gerät Kreditkarte" (die alte Spalte „Gerät" ist weiterhin die E-Mail).
+- In der Datenbank heisst es `spesen_zahlgeraet` / `spesen_beleg.zahlgeraet_id`,
+  weil `spesen_beleg.geraet` schon die E-Mail der erfassenden Person ist.
+- SQL: **`supabase/geraete.sql`** (nach `kommentar-korrektur-personen.sql`).
+  Ohne die Datei läuft die App weiter, nur ohne Geräte.
+
 ## Umstieg auf React (12.10.2026)
 
 Die App war noch nicht im produktiven Einsatz — darum jetzt umgestellt statt
@@ -123,12 +138,12 @@ Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 
 1. ~~SQL Etappe 1+2 und Function `benutzer` im Test-Projekt~~ — erledigt.
 2. ~~Freigaben in `/test/` testen~~ — erledigt (alte Fassung, 12.10.).
-3. `verlauf-pruefer.sql` und `kommentar-korrektur-personen.sql` im Test-Projekt ausführen (Oli).
+3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql` und `geraete.sql` im Test-Projekt ausführen (Oli).
 4. Offen: **Etappe 3** (Karten je Kostenstelle) — vor oder nach dem Live-Gang.
 5. **Live-Gang**, alles auf einmal, in dieser Reihenfolge:
    1. `etappe1-status.sql` im Live-Projekt
    2. `etappe2-freigabe.sql` im Live-Projekt
-   3. `verlauf-pruefer.sql` und `kommentar-korrektur-personen.sql` im Live-Projekt
+   3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql` und `geraete.sql` im Live-Projekt
    4. Edge Function `benutzer` im Live-Projekt deployen
    5. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
       ohne Prüfung durch)

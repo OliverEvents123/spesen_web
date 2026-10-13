@@ -1,20 +1,21 @@
 // verwaltung.tsx
 // Nur Admin: Benutzer (mit Rolle, Prüfung und den zugewiesenen KST bzw.
-// Konten — früher eine eigene Seite "Zuweisungen") und Konten.
+// Konten — früher eine eigene Seite "Zuweisungen"), Konten und Geräte.
 
 import { S, schluessel } from "../zustand";
 import { istBreit, kurzZeit, kurzName, rolleName, istGeschuetzt, initialen, ROLLEN, SAETZE, OHNE_KST } from "../grundlagen";
-import { kontoName, aktiveKonten, belegeVon, postenAufKonto, leeresKonto, personName } from "../daten";
+import { kontoName, aktiveKonten, belegeVon, postenAufKonto, leeresKonto, personName, leeresGeraet, belegeAufGeraet } from "../daten";
 import { Seite } from "./rahmen";
 import { Ico, Knopf, Hinweis, kstName } from "./bausteine";
 
 const istGesperrt = (b) => b.gesperrt || !b.aktiv;
 
-// Am Handy: Umschalter zwischen Benutzer und Konten
+// Am Handy: Umschalter zwischen Benutzer, Konten und Geräten
 const Umschalter = () => istBreit() ? null : (
   <div className="seg">
     <button className={S.ansicht === "benutzer" ? "an" : ""} data-akt="tabBenutzer">Benutzer</button>
     <button className={S.ansicht === "konten" ? "an" : ""} data-akt="tabKonten">Konten</button>
+    <button className={S.ansicht === "geraete" ? "an" : ""} data-akt="tabGeraete">Geräte</button>
   </div>);
 
 /* ==========================================================
@@ -320,5 +321,100 @@ export function Konten() {
       <button className="k1" data-akt="kontoNeu">+ Neues Konto</button>
       <KontenListe />
       <KontoHinweis />
+    </Seite>);
+}
+
+/* ==========================================================
+   Geräte
+   ========================================================== */
+
+function GeraetForm() {
+  const g = S.geraetEdit;
+  return (
+    <div className="karte innen" key={schluessel(g)}>
+      <b style={{ fontSize: 17 }}>{g.neu ? "Neues Gerät" : g.name}</b>
+      <div className="feld"><label htmlFor="gname">Name</label>
+        <input id="gname" type="text" defaultValue={g.name} placeholder="Kreditkarte Gurtenfestival" data-feld="gname" /></div>
+      <div className="feld"><label htmlFor="gkst">KST</label>
+        <input id="gkst" list="kstliste" defaultValue={g.auftrag_nr} placeholder="KST-Nummer" data-feld="gkst" />
+        <span className="kn mu" style={{ paddingTop: 6 }}>Wer mit Kreditkarte auf diese KST bucht, wählt das Gerät aus.
+          Gibt es auf der KST nur eines, ist es vorgewählt.</span></div>
+      <div className="schalterzeile" style={{ alignItems: "center" }}>
+        <label htmlFor="gaktiv"><b>Steht in der Auswahl</b></label>
+        <input id="gaktiv" type="checkbox" className="schalter" defaultChecked={!!g.aktiv} data-feld="gaktiv" />
+      </div>
+      <Knopf akt="geraetSichern" className="k1">{g.neu ? "Gerät anlegen" : "Änderungen speichern"}</Knopf>
+      {!g.neu && <Knopf akt="geraetWeg" className="kr">Gerät löschen</Knopf>}
+      {!g.neu && <button className="link" data-akt="geraetNeu" style={{ alignSelf: "center" }}>Stattdessen neues anlegen</button>}
+    </div>);
+}
+
+function GeraeteListe() {
+  if (S.zahlgeraete.length === 0) return <div className="karte leer">Noch keine Geräte angelegt.</div>;
+  const offen = S.geraetEdit && !S.geraetEdit.neu && S.geraetEdit.id;
+  const status = (g) => g.aktiv === false ? <span className="pill p-erf">inaktiv</span> : null;
+  if (istBreit()) return (
+    <div className="karte"><div className="tabelle"><table>
+      <thead><tr><th>Name</th><th>KST</th><th>Status</th><th className="re">Belege im Zeitraum</th><th></th></tr></thead>
+      <tbody>
+        {S.zahlgeraete.map((g) => (
+          <tr key={g.id} className={offen === g.id ? "an" : ""}>
+            <td className="fett">{g.name}</td>
+            <td>{kstName(g.auftrag_nr)}</td>
+            <td>{status(g) || <span className="kn mu">aktiv</span>}</td>
+            <td className="re mono">{belegeAufGeraet(g.id)}</td>
+            <td className="re"><button className="tknopf" data-akt="geraetBearbeiten" data-id={g.id}>Ändern</button></td>
+          </tr>))}
+      </tbody>
+    </table></div></div>);
+
+  return (
+    <section className="karte huelle">
+      {S.zahlgeraete.map((g) => (
+        <div className="zl" key={g.id}>
+          <span className="ini"><Ico n="karte" s={18} /></span>
+          <span className="mitte"><b style={g.aktiv === false ? { color: "#8a90a6" } : undefined}>{g.name}</b>
+            <span className="kn mu">{kstName(g.auftrag_nr)}</span></span>
+          {status(g)}
+          <button className="pf blau" data-akt="geraetBearbeiten" data-id={g.id} aria-label="Gerät bearbeiten"><Ico n="stift" /></button>
+        </div>))}
+    </section>);
+}
+
+const GeraetHinweis = () => (
+  <div className="karte"><Hinweis>Ein Gerät gehört zu einer KST. Bei Kreditkarte auf diese KST wählt man es beim
+    Erfassen aus. In der Übersicht lässt sich danach filtern, der Export läuft dann pro Gerät. Ein Gerät, das schon
+    in Belegen steckt, lässt sich nicht löschen — dann aus der Auswahl nehmen.</Hinweis></div>);
+
+export function Geraete() {
+  // Am Rechner steht das Formular immer da — also eines bereitlegen.
+  if (!S.geraetEdit && (istBreit() || S.ansicht === "geraetForm")) S.geraetEdit = leeresGeraet();
+
+  if (istBreit()) return (
+    <Seite titel="Geräte" pfad={`Verwaltung / Geräte · ${S.zahlgeraete.length} Geräte`} tab
+           rechts={<button className="k1 klein" data-akt="geraetNeu">+ Neues Gerät</button>}>
+      <KstListe />
+      {!S.geraeteDa && <Hinweis>Die Datenbank kennt die Geräte noch nicht — zuerst geraete.sql ausführen.</Hinweis>}
+      <div className="spalten">
+        <div className="spalte"><GeraeteListe /><GeraetHinweis /></div>
+        <GeraetForm />
+      </div>
+    </Seite>);
+
+  if (S.ansicht === "geraetForm") {
+    const g = S.geraetEdit;
+    return (
+      <Seite titel={g.neu ? "Neues Gerät" : "Gerät ändern"} sub={g.neu ? "Name und KST festlegen" : g.name}>
+        <KstListe /><GeraetForm />
+      </Seite>);
+  }
+
+  return (
+    <Seite titel="Verwaltung" sub={`${S.zahlgeraete.length} Geräte`}>
+      <Umschalter />
+      {!S.geraeteDa && <Hinweis>Die Datenbank kennt die Geräte noch nicht — zuerst geraete.sql ausführen.</Hinweis>}
+      <button className="k1" data-akt="geraetNeu">+ Neues Gerät</button>
+      <GeraeteListe />
+      <GeraetHinweis />
     </Seite>);
 }

@@ -12,7 +12,7 @@ import {
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
-  verlaufEintrag
+  verlaufEintrag, geraetName
 } from "../daten";
 
 // ---------- Symbole ----------
@@ -35,6 +35,7 @@ const PFADE: Record<string, string> = {
   stift: "M4 20h4l10-10-4-4L4 16zM15.5 4.5l4 4 1.5-1.5-4-4z",
   info: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 8h2v7h-2zm0-4h2v2h-2z",
   plus: "M11 5h2v14h-2zM5 11h14v2H5z",
+  karte: "M2 5h20v14H2zm2 2v2h16V7zm0 5v5h16v-5zm2 2h5v1.5H6z",
   pfeilhoch: "M12 5l-6 6h4v8h4v-8h4z"
 };
 export const Ico = ({ n, s }: { n: string; s?: number }) => (
@@ -107,8 +108,12 @@ export const belegKurz = (b: any) => {
 const kontenText = (b: any) => istAufgeteilt(b)
   ? b.positionen.map((p) => p.konto_nummer).join(" + ") : kontoText(b.konto_nummer);
 
+// "Kreditkarte" bzw. "Kreditkarte · Gerät 1"
+export const bezahltText = (b: any) =>
+  zahlartName(b.zahlart) + (b.zahlgeraet_id != null ? " · " + geraetName(b.zahlgeraet_id) : "");
+
 export function belegDetail(b: any, mitPerson?: boolean) {
-  const teile = [kurzDatum(b.beleg_datum), kontenText(b), zahlartName(b.zahlart)];
+  const teile = [kurzDatum(b.beleg_datum), kontenText(b), bezahltText(b)];
   if (mitPerson) teile.push(personName(b.geraet));
   return teile.join(" · ");
 }
@@ -168,7 +173,7 @@ export function BelegTabelle({ liste, woher, person }: { liste: any[]; woher: st
             <td><b>{belegKopf(b)}</b><br /><span className="neben kn">{belegText(b)}</span>
               {b.kommentar && <><br /><Kommentar b={b} /></>}</td>
             {person && <td className="nw">{personName(b.geraet)}</td>}
-            <td className="nw">{zahlartName(b.zahlart)}</td>
+            <td className="nw">{zahlartName(b.zahlart)}{b.zahlgeraet_id != null && <><br /><span className="kn mu">{geraetName(b.zahlgeraet_id)}</span></>}</td>
             <td><StatusMarke b={b} /></td>
             <td className="re"><BetragZelle b={b} /></td>
             <td className="re nw">
@@ -187,7 +192,7 @@ export function belegeSuchen(liste: any[]) {
   const q = S.bSuche.trim().toLowerCase();
   if (!q) return liste;
   return liste.filter((b) => [belegKopf(b), belegText(b), chf(b.betrag), chfLang(b.betrag), personName(b.geraet),
-                              zahlartName(b.zahlart), statusName(statusVon(b)), datumCH(b.beleg_datum),
+                              bezahltText(b), statusName(statusVon(b)), datumCH(b.beleg_datum),
                               b.kommentar || ""]
     .join(" ").toLowerCase().includes(q));
 }
@@ -320,6 +325,7 @@ export function FilterChips({ b = "u" }: { b?: Bereich }) {
   const chips: [string, string][] = [];
   if (b === "u" && S.uGeraet) chips.push(["uGeraet", "Person: " + personName(S.uGeraet)]);
   if (S[b + "Zahlart"]) chips.push([b + "Zahlart", ZAHLART[S[b + "Zahlart"]]]);
+  if (b === "u" && S.uZahlgeraet) chips.push(["uZahlgeraet", "Gerät: " + geraetName(S.uZahlgeraet)]);
   if (S[b + "Status"])  chips.push([b + "Status", "Status: " + (statusNamen[S[b + "Status"]] || S[b + "Status"])]);
   if (S[b + "Konto"])   chips.push([b + "Konto", "Konto " + S[b + "Konto"]]);
   if (S[b + "Auftrag"]) chips.push([b + "Auftrag", "KST " + auftragAnzeige(S[b + "Auftrag"])]);
@@ -358,6 +364,13 @@ export function FilterFelder({ b = "u" }: { b?: Bereich }) {
           <option value="">Alle</option>
           {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
         </Auswahl></div>
+      {b === "u" && S.zahlgeraete.length > 0 &&
+        <div className="feld"><label htmlFor="uzahlgeraet">Gerät</label>
+          <Auswahl id="uzahlgeraet" feld="uzahlgeraet" wert={S.uZahlgeraet}>
+            <option value="">Alle Geräte</option>
+            {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>
+              {g.name} · {kstName(g.auftrag_nr)}</option>)}
+          </Auswahl></div>}
       <div className="feld"><label htmlFor={b + "status"}>Status</label>
         <Auswahl id={b + "status"} feld={b + "status"} wert={S[b + "Status"]}>
           <option value="">Alle</option>
@@ -378,7 +391,7 @@ export function FilterFelder({ b = "u" }: { b?: Bereich }) {
 
 export const FilterKnopf = ({ b = "u" }: { b?: Bereich }) => {
   const felder = [S[b + "Zahlart"], S[b + "Status"], S[b + "Konto"], S[b + "Auftrag"], S.bSuche.trim()];
-  if (b === "u") felder.push(S.uGeraet);
+  if (b === "u") felder.push(S.uGeraet, S.uZahlgeraet);
   const n = felder.filter(Boolean).length;
   const offen = S[b + "FilterOffen"];
   return <button className={"k2 klein" + (offen ? " fett" : "")} data-akt="filterAuf" data-b={b}

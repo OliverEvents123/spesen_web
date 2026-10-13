@@ -16,7 +16,8 @@ import {
   kontoSpeichern, favSpeichern, favLoeschen, favHoch, favAnwenden, favUebernehmen, belegBearbeiten,
   belegOeffnen, auftragObjekt, gruppiere, uGefiltert, uTitel, uDateiname, belegeFreigeben,
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
-  zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName
+  zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
+  leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -44,7 +45,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
   // Hauptseiten: was gerade offen war (Formulare, Prüfbeleg) schliessen
   const wechsel = (ansicht: string) => {
-    S.favEdit = null; S.benEdit = null; S.kontEdit = null; S.wahlOffen = null;
+    S.favEdit = null; S.benEdit = null; S.kontEdit = null; S.geraetEdit = null; S.wahlOffen = null;
     if (S.ansicht === "freigabe" || S.ansicht === "erfassen") S.neu = null;
     S.ansicht = ansicht;
   };
@@ -314,6 +315,70 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     return render();
   }
 
+  // ---------- Admin: Geräte ----------
+  if (a === "tabGeraete") {
+    wechsel("geraete");
+    if (istBreit()) S.geraetEdit = leeresGeraet();
+    render();
+    await ladeGeraete();
+    return render();
+  }
+
+  if (a === "geraetNeu") {
+    S.geraetEdit = leeresGeraet();
+    if (!istBreit()) S.ansicht = "geraetForm";
+    return render();
+  }
+
+  if (a === "geraetBearbeiten") {
+    const g = S.zahlgeraete.find((x) => String(x.id) === String(d.id));
+    if (!g) return;
+    S.geraetEdit = { neu: false, id: g.id, name: g.name || "", auftrag_nr: g.auftrag_nr || "",
+                     aktiv: g.aktiv !== false };
+    if (!istBreit()) S.ansicht = "geraetForm";
+    return render();
+  }
+
+  if (a === "geraetSichern") {
+    const g = S.geraetEdit;
+    const name = String(g.name || "").trim(), kst = String(g.auftrag_nr || "").trim();
+    if (!name) { alert("Bitte einen Namen für das Gerät eingeben."); return; }
+    if (!kst)  { alert("Bitte eine KST eingeben."); return; }
+    if (kst !== OHNE_KST.id && S.auftraege.length && !S.auftraege.some((x) => x.id === kst)
+        && !confirm(`KST ${kst} ist in FileMaker (dieses und letztes Jahr) nicht bekannt. Trotzdem speichern?`)) return;
+    laeuft(a, "Speichere …");
+    const { error } = await geraetSpeichern({ ...g, name, auftrag_nr: kst });
+    if (error) {
+      alert(istNetzfehler(error) ? NETZTEXT : "Konnte nicht gespeichert werden:\n" + error.message);
+      return;
+    }
+    await ladeGeraete();
+    S.meldung    = g.neu ? "Gerät angelegt." : "Gerät gespeichert.";
+    S.geraetEdit = istBreit() ? leeresGeraet() : null;
+    S.ansicht    = "geraete";
+    return render();
+  }
+
+  if (a === "geraetWeg") {
+    const g = S.geraetEdit;
+    if (!g || g.neu) return;
+    if (!confirm(`Gerät „${g.name}" löschen?`)) return;
+    laeuft(a, "Lösche …");
+    const { error } = await geraetLoeschen(g.id);
+    if (error) {
+      // 23503: steckt schon in Belegen
+      alert(error.code === "23503"
+        ? "Dieses Gerät steckt schon in Belegen und lässt sich darum nicht löschen. Schalte „Steht in der Auswahl“ aus — dann ist es nicht mehr wählbar."
+        : istNetzfehler(error) ? NETZTEXT : "Konnte nicht gelöscht werden:\n" + error.message);
+      return;
+    }
+    await ladeGeraete();
+    S.meldung    = "Gerät gelöscht.";
+    S.geraetEdit = istBreit() ? leeresGeraet() : null;
+    S.ansicht    = "geraete";
+    return render();
+  }
+
   // ---------- Eigenes Passwort ----------
   if (a === "zuPasswort") { wechsel("passwort"); return render(); }
 
@@ -445,9 +510,10 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     if (S.ansicht === "favForm")   { S.favEdit = null; S.ansicht = "favoriten"; return render(); }
     if (S.ansicht === "benForm")   { S.benEdit = null; S.ansicht = "benutzer"; return render(); }
     if (S.ansicht === "kontoForm") { S.kontEdit = null; S.ansicht = "konten"; return render(); }
+    if (S.ansicht === "geraetForm") { S.geraetEdit = null; S.ansicht = "geraete"; return render(); }
     if (S.ansicht === "freigabe" || S.ansicht === "profil") { S.neu = null; S.ansicht = "liste"; return render(); }
-    if (S.ansicht === "benutzer" || S.ansicht === "konten") {
-      S.benEdit = null; S.kontEdit = null; S.ansicht = heim; return render();
+    if (S.ansicht === "benutzer" || S.ansicht === "konten" || S.ansicht === "geraete") {
+      S.benEdit = null; S.kontEdit = null; S.geraetEdit = null; S.ansicht = heim; return render();
     }
     // bleibt: die Auswahlbildschirme für Konto und Auftrag
     S.posIndex = null;
@@ -508,12 +574,14 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "mwst")    { S.neu.mwst = d.v; return render(); }
   if (a === "zahlart") { S.neu.zahlart = d.v; return render(); }
+  if (a === "zahlgeraet") { S.neu.zahlgeraet = Number(d.v); return render(); }
   if (a === "korrMwst") { S.neu.korrMwst = d.v; return render(); }
 
   // ---------- Export ----------
   const zumExport = () => uGefiltert().map((b) => ({
     ...b, bezeichnung: kontoName(b.konto_nummer),
     gebucht: buchungsBetrag(b), statusText: statusName(statusVon(b)),
+    geraetName: b.zahlgeraet_id != null ? geraetName(b.zahlgeraet_id) : "",
     entscheidName: b.entscheid_von && b.entscheid_von !== "automatisch" ? personName(b.entscheid_von) : "" }));
 
   if (a === "expCsv") {
@@ -694,6 +762,7 @@ async function belegSpeichern(a: string) {
   // "Speichern und genehmigen": eigener Beleg, für den ich selbst zuständig
   // bin — freigeben und gleich entscheiden, statt ihn zweimal anzufassen.
   const genehmigen = a === "speichernGenehmigen";
+  if (geraetFehlt(n)) { alert("Bitte das Gerät wählen."); return; }
   const freigeben = a === "speichernFrei" || genehmigen;
   if (freigeben && !confirm(genehmigen
         ? "Beleg speichern und genehmigen?\nDanach lässt er sich nicht mehr ändern."
@@ -745,6 +814,8 @@ async function belegSpeichern(a: string) {
   // bekannt ist — eine Datenbank ohne die Spalte würde sonst ablehnen.
   const kommentar = String(n.kommentar || "").trim();
   if (kommentar || n.kommentarDa) daten.kommentar = kommentar || null;
+  // Gerät nur bei Kreditkarte — und nur, wenn die Datenbank die Geräte kennt
+  if (S.geraeteDa) daten.zahlgeraet_id = n.zahlart === "karte" ? geraetGewaehlt(n) : null;
 
   // Beim Ändern geht die Freigabe im selben Schritt mit. Ein neuer Beleg
   // muss erst als "offen" angelegt werden — so will es die Datenbank —
@@ -829,6 +900,7 @@ export function aenderung(ziel: HTMLInputElement) {
 
   if (f === "kaktiv" && S.kontEdit)    { S.kontEdit.aktiv = ziel.checked; return; }
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
+  if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
 
   // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.
   if (f === "uvon") {
@@ -849,6 +921,7 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "uauftrag") { S.uAuftrag = ziel.value; render(); return; }
   if (f === "uzahlart") { S.uZahlart = ziel.value; render(); return; }
   if (f === "ustatus")  { S.uStatus  = ziel.value; render(); return; }
+  if (f === "uzahlgeraet") { S.uZahlgeraet = ziel.value; render(); return; }
   if (f === "mzahlart") { S.mZahlart = ziel.value; render(); return; }
   if (f === "mstatus")  { S.mStatus  = ziel.value; render(); return; }
   if (f === "mkonto")   { S.mKonto   = ziel.value; render(); return; }
@@ -881,5 +954,7 @@ export function eingabe(ziel: HTMLInputElement) {
 
   if (f === "knummer" && S.kontEdit) { S.kontEdit.nummer      = ziel.value; return; }
   if (f === "kbez"    && S.kontEdit) { S.kontEdit.bezeichnung = ziel.value; return; }
+  if (f === "gname" && S.geraetEdit) { S.geraetEdit.name       = ziel.value; return; }
+  if (f === "gkst"  && S.geraetEdit) { S.geraetEdit.auftrag_nr = ziel.value; return; }
   if (f === "ksort"   && S.kontEdit) { S.kontEdit.sortierung  = ziel.value; return; }
 }

@@ -13,6 +13,7 @@ function aktiv() {
   if (a === "favForm") return "favoriten";
   if (a === "benForm") return "benutzer";
   if (a === "kontoForm") return "konten";
+  if (a === "geraetForm") return "geraete";
   return a;
 }
 
@@ -66,6 +67,7 @@ function Leiste() {
           <div className="gr">VERWALTUNG</div>
           {n("benutzer", "tabBenutzer", "Benutzer", "leute")}
           {n("konten", "tabKonten", "Konten", "liste")}
+          {n("geraete", "tabGeraete", "Geräte", "karte")}
         </>}
       </nav>
       <div style={{ flex: 1 }} />
