@@ -12,7 +12,7 @@ import {
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
-  verlaufEintrag, geraetName
+  verlaufEintrag, geraetName, imBereich
 } from "../daten";
 
 // ---------- Symbole ----------
@@ -168,19 +168,17 @@ export function BelegTabelle({ liste, woher, person }: { liste: any[]; woher: st
       </tr></thead>
       <tbody>
         {liste.map((b) => (
-          <tr key={b.id}>
+          <tr key={b.id} className="klickbar" data-akt="bearbeiten" data-id={b.id}
+              data-w={zuPruefen(b) ? "freigabe" : woher} title={zuPruefen(b) ? "Prüfen" : "Öffnen"}>
             <td className="mono nw">{langDatum(b.beleg_datum)}</td>
-            <td><b>{belegKopf(b)}</b><br /><span className="neben kn">{belegText(b)}</span>
+            <td className="buchung"><b>{belegKopf(b)}</b><br /><span className="neben kn">{belegText(b)}</span>
               {b.kommentar && <><br /><Kommentar b={b} /></>}</td>
             {person && <td className="nw">{personName(b.geraet)}</td>}
             <td className="nw">{zahlartName(b.zahlart)}{b.zahlgeraet_id != null && <><br /><span className="kn mu">{geraetName(b.zahlgeraet_id)}</span></>}</td>
             <td><StatusMarke b={b} /></td>
             <td className="re"><BetragZelle b={b} /></td>
             <td className="re nw">
-              {b.datei_pfad && <button className="tknopf" data-akt="belegAuf" data-p={b.datei_pfad}>Beleg</button>}
-              {zuPruefen(b)
-                ? <button className="tknopf" data-akt="bearbeiten" data-id={b.id} data-w="freigabe">Prüfen</button>
-                : <button className="tknopf" data-akt="bearbeiten" data-id={b.id} data-w={woher}>Öffnen</button>}
+              {zuPruefen(b) ? <span className="tknopf">Prüfen ›</span> : <span className="pfeilchen">›</span>}
             </td>
           </tr>))}
       </tbody>
@@ -195,45 +193,6 @@ export function belegeSuchen(liste: any[]) {
                               bezahltText(b), statusName(statusVon(b)), datumCH(b.beleg_datum),
                               b.kommentar || ""]
     .join(" ").toLowerCase().includes(q));
-}
-
-// ---------- Kacheln und farbige Karten ----------
-const FARBE: Record<string, string> = { blau: "#4c5fd5", dunkel: "#1c1f2e", gruen: "#2e9d4a",
-                                        orange: "#e8590c", rot: "#d64545" };
-// f/v: Antippen setzt den Filter S[f] = v (siehe "kachelFilter" in aktionen.ts)
-export function Kachel({ lab, wert, fuss, farbe, icon, f: feld, v, an }:
-  { lab: string; wert: any; fuss: any; farbe: string; icon: string; f?: string; v?: string; an?: boolean }) {
-  const f = FARBE[farbe];
-  const innen = <>
-    <div className="oben">
-      <span className="ic" style={{ background: f, boxShadow: `0 4px 10px ${f}66` }}><Ico n={icon} /></span>
-      <span className="wert"><span className="kl">{lab}</span><br /><span className="zahlwert">{wert}</span></span>
-    </div>
-    <div className="fuss">{fuss}</div>
-  </>;
-  if (!feld) return <div className="karte kachel">{innen}</div>;
-  return <button className={"karte kachel" + (an ? " an" : "")} data-akt="kachelFilter" data-f={feld} data-v={v}
-                 aria-pressed={!!an}>{innen}</button>;
-}
-
-export function Farbkarte({ farbe, titel, sub, unten, children }:
-  { farbe: string; titel: string; sub: string; unten?: any; children: any }) {
-  return (
-    <div className="karte farbkarte">
-      <div className={"farbe f-" + farbe}>{children}</div>
-      <div className="unten"><span><b>{titel}</b><span className="kn mu">{sub}</span></span>{unten}</div>
-    </div>);
-}
-
-// Balken je Gruppe (KST oder Konto) für die dunkle Karte
-export function Balken({ zeilen }: { zeilen: { name: string; wert: number }[] }) {
-  if (!zeilen.length) return <span className="kn" style={{ opacity: .8 }}>Keine Beträge im Zeitraum.</span>;
-  const max = Math.max(...zeilen.map((z) => z.wert)) || 1;
-  return <>{zeilen.map((z) => (
-    <div className="balken" key={z.name}>
-      <div className="txt"><span>{z.name}</span><span className="mono">{chfLang(z.wert)}</span></div>
-      <div className="spur"><div style={{ width: Math.max(2, Math.round(z.wert / max * 100)) + "%" }} /></div>
-    </div>))}</>;
 }
 
 // ---------- Zeitraum ----------
@@ -345,8 +304,10 @@ function vorkommen(liste: any[], feld: string) {
 
 export function FilterFelder({ b = "u" }: { b?: Bereich }) {
   if (!S[b + "FilterOffen"]) return null;
-  const liste = b === "m" ? S.belege : S.uBelege;
-  const personen = [...new Set(S.uBelege.map((x) => x.geraet))].sort() as string[];
+  // Übersicht: nur was im gewählten Abschnitt vorkommt
+  const imAbschnitt = S.uBelege.filter((x) => imBereich(x));
+  const liste = b === "m" ? S.belege : imAbschnitt;
+  const personen = [...new Set(imAbschnitt.map((x) => x.geraet))].sort() as string[];
   const statusNamen = b === "m" ? STATUS_FILTER_MEINE : STATUS_FILTER;
   return (
     <div className="karte innen"><div className="filterfeld">
@@ -479,19 +440,48 @@ export function WahlListe({ art, seite }: { art: string; seite?: boolean }) {
 }
 
 // ---------- Verlauf ----------
+// Eine Liste untereinander: Punkt, was geschah und an welchem Beleg, wer und wann.
+// Im Abschnitt (Projektleitung, Supervisor) nur die Schritte seiner Belege.
 const VERLAUF_FARBE: Record<string, string> = { erf: "#9ba1bb", ein: "#e8590c", gep: "#4c5fd5",
   bes: "#7a3aa8", gen: "#2e9d4a", abl: "#d64545" };
 export function VerlaufListe({ anzahl }: { anzahl?: number }) {
-  const liste = S.verlauf.slice(0, anzahl || 8);
-  if (!liste.length) return <div className="kn mu">Noch keine Einträge.</div>;
-  return <>{liste.map((v) => {
-    const e = verlaufEintrag(v);
-    return (
-      <div key={v.id} style={{ display: "flex", gap: 12 }}>
-        <span style={{ width: 22, height: 22, borderRadius: 999, background: VERLAUF_FARBE[e.farbe] || "#1c1f2e",
-                       flexShrink: 0, marginTop: 1 }} />
-        <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <b style={{ fontSize: 14 }}>{e.titel}</b><span className="kn mu">{e.sub}</span></span>
-      </div>);
-  })}</>;
+  const liste = S.verlauf.map((v) => ({ v, e: verlaufEintrag(v) }))
+    .filter(({ e }) => e.beleg ? imBereich(e.beleg) : (!S.bereich || S.bereich === "admin"))
+    .slice(0, anzahl || 8);
+  if (!liste.length) return <div className="leer">Noch keine Einträge.</div>;
+  return (
+    <div className="verlauf">
+      {liste.map(({ v, e }) => {
+        const was = [e.beleg ? belegKopf(e.beleg) : "Beleg", e.betrag != null ? "CHF " + chfLang(e.betrag) : ""]
+          .filter(Boolean).join(" · ");
+        const innen = <>
+          <span className="punkt" style={{ background: VERLAUF_FARBE[e.farbe] || "#1c1f2e" }} />
+          <span className="v-was"><b>{e.titel}</b><span>{was}</span></span>
+          <span className="v-wer"><span>{e.wer}</span><span className="mono kn mu">{e.wann}</span></span>
+        </>;
+        return e.belegId
+          ? <button key={v.id} className="vzeile" data-akt="bearbeiten" data-id={e.belegId} data-w="uebersicht">{innen}</button>
+          : <div key={v.id} className="vzeile">{innen}</div>;
+      })}
+    </div>);
 }
+
+// ---------- Reiter mit Zahlen (statt Kacheln) ----------
+// f: Feld im Zustand, das der Reiter setzt; v: Wert. Rechts optional eine Summe.
+export function Reiterleiste({ f, reiter, rechts }:
+  { f: string; reiter: { v: string; lab: string; n: number }[]; rechts?: any }) {
+  return (
+    <div className="reiterleiste" role="tablist">
+      {reiter.map((r) => {
+        const an = (S[f] || "") === r.v;
+        return <button key={r.v || "alle"} role="tab" aria-selected={an} className={"reiter" + (an ? " an" : "")}
+                       data-akt="setze" data-f={f} data-v={r.v}>{r.lab} <b>{r.n}</b></button>;
+      })}
+      {rechts && <span className="summe">{rechts}</span>}
+    </div>);
+}
+
+// Eine schmale Zeile für das, was etwas braucht (statt grosser Karten)
+export const Hinweiszeile = ({ farbe, children, knopf }: { farbe?: string; children: any; knopf?: any }) => (
+  <div className={"hinweiszeile" + (farbe ? " " + farbe : "")}>
+    <span className="txt">{children}</span>{knopf}</div>);

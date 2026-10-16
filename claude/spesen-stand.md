@@ -1,6 +1,34 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 12.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 16.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Darstellung nach Vorbild „PDF Master" (16.10.2026) — Arbeitsbranch, noch nicht live
+
+Oli hat Screens aus seinem Tool „TIT-PIT PDF Master BH" geschickt; nur die
+Darstellung ändert sich, die Abläufe bleiben.
+
+- **Menü am Rechner in Abschnitten:** „Meine Spesen" (Meine Belege,
+  Favoriten) haben alle. Dazu je nach Zuweisung **Projektleitung** (wer KST
+  hat) und **Supervisor** (Rolle Supervisor oder Konten/Personen), für Admins
+  **Administration** (Übersicht, Freigabe, Benutzer, Konten, Geräte). Jeder
+  Abschnitt hat seine eigene Übersicht und Freigabe mit eigener Zahl
+  (`S.bereich`, `imBereich()` in `daten.ts`). Am Handy bleibt die Leiste
+  unten; dort zeigen Übersicht und Freigabe alles, was man sehen darf.
+- Weisse Kopfleiste mit Titel und Rahmenknöpfen, Seitenleiste bis ganz unten.
+- **Keine Kacheln und farbigen Karten mehr:** Reiter mit Zahlen
+  (Alle / Offene Punkte / Erledigt bzw. Alle / Offen / Erledigt), rechts die
+  Summe; schmale Hinweiszeilen für abgelehnt, nicht freigegeben, Freigaben offen.
+- **Meine Belege:** „Schnell erfassen" mit den Favoriten, Tabelle (ganze Zeile
+  klickbar).
+- **Übersicht:** links Gruppen mit Summen (KST / Konto / Person, Klick
+  filtert), rechts Reiter Belege · Kontierung · Verlauf; Export oben rechts.
+- **Verlauf** als Liste untereinander; fehlende Belege werden nachgeladen,
+  damit nicht nur „Beleg" dasteht.
+- **Arbeitsplatz am Rechner** (Freigabe und geöffnete Belege): Liste links,
+  Beleg gross in der Mitte, rechts die Angaben mit fester Fussleiste.
+  Freigabe mit „x von y erledigt", ‹ / Überspringen / Genehmigen bzw.
+  Geprüft. Erfassen: zuerst eine grosse Ablage (ziehen oder auswählen).
+- Handy: Freigabe und Erfassen unverändert.
 
 ## Neues Aussehen „Dashboard" (12.10.2026) — auf dem Arbeitsbranch, noch nicht live
 

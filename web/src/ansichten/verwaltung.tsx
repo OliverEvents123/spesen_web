@@ -195,7 +195,7 @@ function adminSub() {
 
 export function Benutzer() {
   if (istBreit()) return (
-    <Seite titel="Benutzer" pfad={"Verwaltung / Benutzer · " + adminSub()} tab
+    <Seite titel="Benutzer" pfad={adminSub()} tab
            rechts={<button className="k1 klein" data-akt="benNeu">+ Neuer Benutzer</button>}>
       <KstListe />
       <div className="spalten">
@@ -298,7 +298,7 @@ export function Konten() {
   if (!S.kontEdit && (istBreit() || S.ansicht === "kontoForm")) S.kontEdit = leeresKonto();
 
   if (istBreit()) return (
-    <Seite titel="Konten" pfad={`Verwaltung / Konten · ${S.konten.length} Konten`} tab
+    <Seite titel="Konten" pfad={`${S.konten.length} Konten`} tab
            rechts={<button className="k1 klein" data-akt="kontoNeu">+ Neues Konto</button>}>
       <div className="spalten">
         <div className="spalte"><KontenListe /><KontoHinweis /></div>
@@ -391,7 +391,7 @@ export function Geraete() {
   if (!S.geraetEdit && (istBreit() || S.ansicht === "geraetForm")) S.geraetEdit = leeresGeraet();
 
   if (istBreit()) return (
-    <Seite titel="Geräte" pfad={`Verwaltung / Geräte · ${S.zahlgeraete.length} Geräte`} tab
+    <Seite titel="Geräte" pfad={`${S.zahlgeraete.length} Geräte`} tab
            rechts={<button className="k1 klein" data-akt="geraetNeu">+ Neues Gerät</button>}>
       <KstListe />
       {!S.geraeteDa && <Hinweis>Die Datenbank kennt die Geräte noch nicht — zuerst geraete.sql ausführen.</Hinweis>}

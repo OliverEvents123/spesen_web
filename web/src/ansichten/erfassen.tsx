@@ -5,12 +5,18 @@
 import { S, schluessel } from "../zustand";
 import {
   istBreit, chf, chfLang, langDatum, zeitCH, betragVon, statusName, zahlartName, istGesperrt,
-  istEntschieden, positionenSumme, positionenFertig, ZAHLART, SAETZE
+  istEntschieden, positionenSumme, positionenFertig, ZAHLART, SAETZE,
+  kurzDatum, statusVon, statusKlasse, OHNE_KST
 } from "../grundlagen";
-import { personName, kannSelbstEntscheiden, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName } from "../daten";
+import {
+  personName, kannSelbstEntscheiden, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName,
+  freigabeIm, imBereich, BEREICH_NAME
+} from "../daten";
+import { apListe } from "../aktionen";
 import { Seite } from "./rahmen";
 import {
-  Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, stempelText, kontoWahlText, auftragWahlText, kstTitel
+  Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, Meldung, stempelText, kontoWahlText, auftragWahlText, kstTitel,
+  belegKopf
 } from "./bausteine";
 
 const herkunft = () => ({ uebersicht: "Übersicht", freigabe: "Freigabe" } as any)[S.zurueckZu] || "Meine Belege";
@@ -177,15 +183,20 @@ export function Erfassen() {
   // Bin ich selbst für den Beleg zuständig (eigene KST/Konten, Admin)?
   // Dann gleich genehmigen statt zweimal anfassen.
   const selbst = n.konto && n.auftrag || geteilt ? kannSelbstEntscheiden(n) : false;
-  const knoepfe = <>
-    {selbst
-      ? <Knopf akt="speichernGenehmigen" className="k1" disabled={!fertig}>
-          {fertig ? "Speichern und genehmigen" : fehltText}</Knopf>
-      : <Knopf akt="speichernFrei" className="k1" disabled={!fertig}>
-          {fertig ? "Speichern und zur Prüfung freigeben" : fehltText}</Knopf>}
-    <Knopf akt="speichern" className="k2" disabled={!fertig}>
-      {bearbeiten ? "Nur Änderungen speichern" : "Nur speichern"}</Knopf>
-  </>;
+  const hauptKnopf = selbst
+    ? <Knopf akt="speichernGenehmigen" className="k1" disabled={!fertig}>
+        {fertig ? "Speichern und genehmigen" : fehltText}</Knopf>
+    : <Knopf akt="speichernFrei" className="k1" disabled={!fertig}>
+        {fertig ? "Speichern und zur Prüfung freigeben" : fehltText}</Knopf>;
+  const nurKnopf = <Knopf akt="speichern" className="k2" disabled={!fertig}>
+    {bearbeiten ? "Nur Änderungen speichern" : "Nur speichern"}</Knopf>;
+  const knoepfe = <>{hauptKnopf}{nurKnopf}</>;
+  // Am Rechner unten in der Fussleiste: kürzer, damit beide in eine Zeile passen
+  const hauptKurz = <Knopf akt={selbst ? "speichernGenehmigen" : "speichernFrei"} className="k1" disabled={!fertig}
+                           title={fertig ? undefined : fehltText}>
+    {!fertig ? (angabenFertig ? "Gerät wählen" : "Angaben fehlen")
+      : selbst ? "Speichern und genehmigen" : "Speichern und freigeben"}</Knopf>;
+  const nurKurz = <Knopf akt="speichern" className="k2" disabled={!fertig}>Nur speichern</Knopf>;
 
   const extra = bearbeiten && <>
     {!geteilt && n.konto && n.auftrag &&
@@ -197,19 +208,21 @@ export function Erfassen() {
   const sub = geteilt ? `${n.positionen.length} Positionen`
             : (bearbeiten ? "Werte ändern und speichern" : "Angaben prüfen und speichern");
 
+  // Rechner, neuer Beleg ohne Datei: zuerst nur die grosse Ablage
+  if (breit && !hatBeleg && !bearbeiten) return <Ablage n={n} />;
+
+  // Rechner: Arbeitsplatz — Liste (beim Bearbeiten), Beleg gross, rechts die Felder
   if (breit) return (
-    <Seite titel={titel} pfad={herkunft() + " / " + titel}
-           rechts={<button className="k2 klein" data-akt="zurueck">Abbrechen</button>}>
-      <div className="spalten erfassen" key={schluessel(n)}>
-        <div className="spalte">{abgelehnt}<BelegKarte n={n} gross /></div>
-        <div className="karte innen">
-          {favoriten}
-          {geteilt ? geteiltTeil : einfachTeil}
-          {rest}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", paddingTop: 4 }}>{knoepfe}</div>
-          {extra}
-        </div>
-      </div>
+    <Seite titel={titel} pfad={bearbeiten ? herkunft() : undefined} voll
+           rechts={<button className="k2 klein" data-akt="zurueck">{bearbeiten ? "Schliessen" : "Abbrechen"}</button>}>
+      <Arbeitsplatz woher={bearbeiten ? S.zurueckZu : null} n={n}
+        fuss={<>{bearbeiten ? <NavKnoepfe /> : <span className="ap-nav" />}{nurKurz}{hauptKurz}</>}>
+        {abgelehnt}
+        {favoriten}
+        {geteilt ? geteiltTeil : einfachTeil}
+        {rest}
+        {extra}
+      </Arbeitsplatz>
     </Seite>);
 
   return (
@@ -232,7 +245,9 @@ const Zeile = ({ titel, children }: { titel: string; children?: any }) => (
 // Der Inhalt eines eingereichten oder entschiedenen Belegs. Aus der Freigabe
 // geöffnet (n.pruefen) kommt das Entscheid-Feld dazu. Admins haben den Rückweg.
 // breit: zweispaltig (Bild links) — am Rechner.
-export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
+// panel: rechts im Arbeitsplatz — ohne Bild (steht in der Mitte) und ohne
+// Hauptknopf im Entscheid (steht unten in der Fussleiste).
+export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; panel?: boolean }) {
   const geteilt = Array.isArray(n.positionen);
   const betrag  = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
   const s = n.status;
@@ -285,8 +300,8 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
 
   const angaben = (
     <section className="karte huelle">
-      {!breit && bild}
-      <div style={!breit ? { borderTop: "1px solid var(--linie)" } : undefined}>
+      {!breit && !panel && bild}
+      <div style={!breit && !panel ? { borderTop: "1px solid var(--linie)" } : undefined}>
         {geteilt
           ? n.positionen.map((p, i) => (
               <Zeile key={i} titel={`Position ${i + 1}`}>
@@ -345,7 +360,7 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
 
   const rechts = <>
     {kopf}
-    {n.pruefen && <Entscheid n={n} betrag={betrag} />}
+    {n.pruefen && <Entscheid n={n} betrag={betrag} ohneHaupt={panel} />}
     {angaben}
     {n.pruefen
       ? <span className="kn mu">Dein Entscheid wird mit E-Mail und Uhrzeit auf dem Beleg und im PDF vermerkt.</span>
@@ -364,8 +379,11 @@ export function BelegInhalt({ n, breit }: { n: any; breit?: boolean }) {
 function BelegAnsehen({ n }: { n: any }) {
   const titel = n.pruefen ? "Beleg prüfen" : "Beleg ansehen";
   if (istBreit()) return (
-    <Seite titel={titel} pfad={herkunft() + " / " + titel}>
-      <BelegInhalt n={n} breit />
+    <Seite titel={titel} pfad={herkunft()} voll
+           rechts={<button className="k2 klein" data-akt="zurueck">Schliessen</button>}>
+      <Arbeitsplatz woher={S.zurueckZu} n={n} fuss={<NavKnoepfe />}>
+        <BelegInhalt n={n} panel />
+      </Arbeitsplatz>
     </Seite>);
   return (
     <Seite titel={titel} sub={statusName(n.status)}>
@@ -375,7 +393,7 @@ function BelegAnsehen({ n }: { n: any }) {
 
 // Das Entscheid-Feld. Kreditkarte/Bar: Geld ist weg, nur prüfen oder
 // vermerken. User-Zahlung (vorkasse): genehmigen, teilweise, ablehnen.
-function Entscheid({ n, betrag }: { n: any; betrag: number }) {
+function Entscheid({ n, betrag, ohneHaupt }: { n: any; betrag: number; ohneHaupt?: boolean }) {
   const vorkasse = n.zahlartDb === "vorkasse";
   return (
     <section className="karte innen entscheid" style={{ gap: 12 }}>
@@ -384,7 +402,7 @@ function Entscheid({ n, betrag }: { n: any; betrag: number }) {
         <span className="kn mu">{vorkasse ? "User-Zahlung — eigenes Geld. Du entscheidest über die Rückerstattung."
                                          : "Firmengeld ist schon ausgegeben — es geht nur um die Richtigkeit."}</span></span>
       {vorkasse ? <>
-          <Knopf akt="entscheid" className="k1 gruen" data-v="genehmigt">Genehmigen · CHF {chfLang(betrag)}</Knopf>
+          {!ohneHaupt && <Knopf akt="entscheid" className="k1 gruen" data-v="genehmigt">Genehmigen · CHF {chfLang(betrag)}</Knopf>}
           <div className="teilbox">
             <span className="kl">Teilweise genehmigen oder ablehnen</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -400,7 +418,7 @@ function Entscheid({ n, betrag }: { n: any; betrag: number }) {
           </div>
         </>
         : <>
-          <Knopf akt="entscheid" className="k1 gruen" data-v="geprueft">Geprüft — stimmt</Knopf>
+          {!ohneHaupt && <Knopf akt="entscheid" className="k1 gruen" data-v="geprueft">Geprüft — stimmt</Knopf>}
           <div className="teilbox">
             <label htmlFor="egrund" style={{ margin: 0 }}>Kommentar (nötig für Besprechung)</label>
             <textarea id="egrund" rows={2} placeholder="z. B. Quittung fehlt" />
@@ -419,4 +437,178 @@ export function KontoWahl() {
 export function AuftragWahl() {
   const sub = S.posIndex != null ? `Position ${S.posIndex + 1}` : `aus FileMaker · ${S.auftraege.length} Nummern`;
   return <Seite titel="Kostenstelle wählen" sub={sub}><WahlListe art="auftrag" seite /></Seite>;
+}
+
+/* ==========================================================
+   Arbeitsplatz am Rechner
+   Links die Liste (Freigabe, Meine Belege oder Übersicht), in der Mitte der
+   Beleg gross, rechts die Angaben mit fester Fussleiste.
+   ========================================================== */
+
+const STATUS_FARBE: Record<string, string> = { erf: "#9ba1bb", ein: "#e8590c", gep: "#4c5fd5",
+  bes: "#7a3aa8", gen: "#2e9d4a", abl: "#d64545" };
+
+function ApEintrag({ b, woher, an }: { b: any; woher: string; an: boolean }) {
+  const unten = woher === "liste"
+    ? `${kurzDatum(b.beleg_datum)} · ${zahlartName(b.zahlart)}`
+    : `${personName(b.geraet)} · ${kurzDatum(b.beleg_datum)}`;
+  return (
+    <button className={"ap-eintrag" + (an ? " an" : "")} data-akt="bearbeiten" data-id={b.id} data-w={woher}
+            aria-current={an || undefined}>
+      <span className="punkt" style={{ background: STATUS_FARBE[statusKlasse(statusVon(b))] }} />
+      <span className="mitte"><b>{belegKopf(b)}</b><span className="kn mu">{unten}</span></span>
+      <span className="betragz kn">{chfLang(b.betrag)}</span>
+    </button>);
+}
+
+function ApListe({ woher }: { woher: string }) {
+  const liste = apListe(woher);
+  const offenId = S.neu && S.neu.id;
+  const an = (b) => String(b.id) === String(offenId);
+  if (woher === "freigabe") {
+    const fertig = S.erledigtJetzt.filter((b) => imBereich(b));
+    const gesamt = fertig.length + liste.length;
+    const vk = liste.filter((b) => b.zahlart === "vorkasse"), kb = liste.filter((b) => b.zahlart !== "vorkasse");
+    return (
+      <div className="ap-liste">
+        <div className="ap-listekopf">
+          <span className="kn">{fertig.length} von {gesamt} erledigt</span>
+          <div className="fortschritt"><div style={{ width: (gesamt ? fertig.length / gesamt * 100 : 0) + "%" }} /></div>
+        </div>
+        <div className="ap-eintraege">
+          {vk.length > 0 && <div className="ap-gruppe">User-Zahlungen</div>}
+          {vk.map((b) => <ApEintrag b={b} woher={woher} an={an(b)} key={b.id} />)}
+          {kb.length > 0 && <div className="ap-gruppe">Kreditkarte / Bar</div>}
+          {kb.map((b) => <ApEintrag b={b} woher={woher} an={an(b)} key={b.id} />)}
+          {fertig.length > 0 && <div className="ap-gruppe">Erledigt</div>}
+          {fertig.map((b) => (
+            <div className="ap-eintrag fertig" key={"f" + b.id}>
+              <span className="haken"><Ico n="check" s={16} /></span>
+              <span className="mitte"><b>{belegKopf(b)}</b>
+                <span className="kn mu">{personName(b.geraet)} · {statusName(b.status)}</span></span>
+              <span className="betragz kn">{chfLang(b.betrag)}</span>
+            </div>))}
+          {!liste.length && !fertig.length && <div className="leer">Nichts zu prüfen.</div>}
+        </div>
+      </div>);
+  }
+  return (
+    <div className="ap-liste">
+      <div className="ap-listekopf">
+        <span className="kn"><b>{woher === "uebersicht" ? "Übersicht" : "Meine Belege"}</b> · {liste.length === 1 ? "1 Beleg" : liste.length + " Belege"}</span>
+      </div>
+      <div className="ap-eintraege">
+        {liste.map((b) => <ApEintrag b={b} woher={woher} an={an(b)} key={b.id} />)}
+        {!liste.length && <div className="leer">Keine Belege.</div>}
+      </div>
+    </div>);
+}
+
+// Der Beleg in der Mitte — gross, wie ein Blatt Papier
+function ApBeleg({ n }: { n: any }) {
+  // Prüfer ändern keine fremden Belegdateien
+  const aenderbar = !n.pruefen && (!n.id || !istGesperrt(n));
+  const bild = n.datei ? n.vorschau : n.altUrl;
+  const hat = !!(n.datei || n.altPfad);
+  return (
+    <div className="ap-beleg ablage">
+      {!hat && !aenderbar
+        ? <div className="ablagegross klein ruhig"><b>Kein Beleg hinterlegt</b>
+            <span className="mu">Zu diesem Beleg gibt es keine Datei.</span></div>
+        : !hat
+        ? <div className="ablagegross klein">
+            <span className="symbol"><Ico n="doc" s={26} /></span>
+            <b>Kein Beleg hinterlegt</b>
+            <span className="mu">Ziehe ein PDF oder Bild hierher oder wähle eine Datei aus.</span>
+            <button className="k1 klein" data-akt="waehlen">Beleg auswählen …</button>
+          </div>
+        : bild ? <img className="papier" src={bild} alt="Beleg" />
+        : <div className="pdfmarke papierleer">{n.datei ? "PDF: " + n.datei.name
+            : n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>}
+      {hat && <div className="ap-belegknoepfe">
+        {n.altPfad && !n.datei && <button className="k2 klein" data-akt="belegAuf" data-p={n.altPfad}>Beleg gross öffnen</button>}
+        {aenderbar && <button className="k2 klein" data-akt="belegNeu">Anderen Beleg</button>}
+      </div>}
+      <div className="ziehhinweis">Datei hier ablegen</div>
+    </div>);
+}
+
+// ‹ › durch die Liste links
+export const NavKnoepfe = () => <span className="ap-nav">
+  <button className="pf" data-akt="apNav" data-v="-1" aria-label="Vorheriger Beleg">‹</button>
+  <button className="pf" data-akt="apNav" data-v="1" aria-label="Nächster Beleg">›</button>
+</span>;
+
+export function Arbeitsplatz({ woher, n, fuss, children }: { woher: string | null; n: any; fuss?: any; children: any }) {
+  return (
+    <div className={"arbeitsplatz" + (woher ? "" : " ohneliste")}>
+      {woher && <ApListe woher={woher} />}
+      {n ? <ApBeleg n={n} /> : <div className="ap-beleg"><div className="leer">Links einen Beleg wählen.</div></div>}
+      <div className="ap-panel">
+        <div className="ap-panelinhalt" key={n ? schluessel(n) : "leer"}><Meldung />{children}</div>
+        {fuss && <div className="ap-fuss">{fuss}</div>}
+      </div>
+    </div>);
+}
+
+// Freigabe am Rechner: Liste mit Fortschritt, Beleg, Entscheid.
+// Unten: zurück, überspringen und der Hauptentscheid.
+export function FreigabePlatz() {
+  const n = S.neu && S.neu.id && S.neu.pruefen ? S.neu : null;
+  const liste = freigabeIm();
+  const titel = "Freigabe" + (S.bereich ? " · " + BEREICH_NAME[S.bereich] : "");
+  const sub = liste.length === 1 ? "1 Freigabe offen" : `${liste.length} Freigaben offen`;
+  if (!liste.length && !n) {
+    const fertig = S.erledigtJetzt.filter((b) => imBereich(b)).length;
+    return (
+      <Seite titel={titel} pfad={sub} tab>
+        <div className="ablageflaeche">
+          <div className="ablagegross ruhig">
+            <span className="symbol gruen"><Ico n="check" s={26} /></span>
+            <h2>Alles erledigt</h2>
+            <span className="mu">{fertig ? `${fertig} von ${fertig} entschieden. ` : ""}Hier wartet nichts mehr auf dich.</span>
+            <button className="k2 klein" data-akt="tabUebersicht" data-b={S.bereich || undefined}>Zur Übersicht</button>
+          </div>
+        </div>
+      </Seite>);
+  }
+  const vorkasse = n && n.zahlartDb === "vorkasse";
+  const betrag = n ? (Array.isArray(n.positionen) ? positionenSumme(n.positionen) : betragVon(n.betragText)) : 0;
+  const i = n ? liste.findIndex((b) => String(b.id) === String(n.id)) : -1;
+  return (
+    <Seite titel={titel} pfad={sub} tab voll>
+      <Arbeitsplatz woher="freigabe" n={n}
+        fuss={n && <>
+          <span className="ap-nav">
+            <button className="pf" data-akt="apNav" data-v="-1" aria-label="Vorheriger Beleg" disabled={i <= 0}>‹</button>
+          </span>
+          <button className="k2 klein" data-akt="apNav" data-v="1" disabled={liste.length < 2}>Überspringen ›</button>
+          <Knopf akt="entscheid" className="k1 klein gruen" data-v={vorkasse ? "genehmigt" : "geprueft"}>
+            <Ico n="check" s={16} /> {vorkasse ? `Genehmigen · CHF ${chfLang(betrag)}` : "Geprüft — stimmt"}</Knopf>
+        </>}>
+        {n ? <>
+          <span className="kl">Beleg {i + 1} von {liste.length}</span>
+          <BelegInhalt n={n} panel />
+        </> : <div className="leer">Links einen Beleg wählen.</div>}
+      </Arbeitsplatz>
+    </Seite>);
+}
+
+// Neuer Beleg am Rechner: zuerst nur die grosse Ablage
+function Ablage({ n }: { n: any }) {
+  return (
+    <Seite titel="Beleg erfassen"
+           rechts={<button className="k2 klein" data-akt="zurueck">Abbrechen</button>}>
+      <div className="ablageflaeche">
+        <div className="ablagegross ablage">
+          <span className="symbol"><Ico n="doc" s={26} /></span>
+          <h2>Beleg erfassen</h2>
+          <span className="mu">Ziehe ein PDF oder Bild hierher oder wähle eine Datei aus.</span>
+          <button className="k1 klein" data-akt="waehlen">Beleg auswählen …</button>
+          {n.konto && n.auftrag &&
+            <span className="kn mu" style={{ marginTop: 6 }}>Konto {n.konto.nummer} {n.konto.bezeichnung} und
+              KST {n.auftrag.id === OHNE_KST.id ? OHNE_KST.name : n.auftrag.id} sind schon gesetzt.</span>}
+        </div>
+      </div>
+    </Seite>);
 }

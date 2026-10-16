@@ -60,7 +60,7 @@ export function App() {
   }, []);
 
   return (
-    <div ref={wurzel}>
+    <div ref={wurzel} className={"app" + (IST_TEST ? " mit-band" : "")}>
       {IST_TEST &&
         <div className="testband">TESTUMGEBUNG · eigene Testdatenbank, nicht die echten Belege</div>}
       <Bildschirm />

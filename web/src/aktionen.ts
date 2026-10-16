@@ -17,7 +17,8 @@ import {
   belegOeffnen, auftragObjekt, gruppiere, uGefiltert, uTitel, uDateiname, belegeFreigeben,
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
-  leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt
+  leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
+  standardBereich, freigabeIm, meineGefiltert
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -41,6 +42,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     await sb.auth.signOut();
     S.auftraege = []; S.uBelege = []; S.belege = []; S.offeneEigene = []; S.benutzer = [];
     S.freigabe = []; S.verlauf = []; S.namen = {}; S.neu = null; S.ansicht = "liste";
+    S.meineKst = []; S.meineKonten = []; S.meinePersonen = []; S.bereich = ""; S.verlaufBelege = {};
     return zeigeLogin();
   }
   // Hauptseiten: was gerade offen war (Formulare, Prüfbeleg) schliessen
@@ -50,7 +52,12 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     S.ansicht = ansicht;
   };
   if (a === "tabListe")      { wechsel("liste"); return render(); }
+  // Übersicht und Freigabe gibt es je Abschnitt (data-b: pl, sup, admin).
+  // Am Handy ohne Abschnitt: alles, was ich sehen darf.
   if (a === "tabUebersicht") {
+    const neu = istBreit() ? (d.b || S.bereich || standardBereich()) : "";
+    if (neu !== S.bereich) { S.uAuftrag = ""; S.uKonto = ""; S.uGeraet = ""; S.uGruppe = ""; }
+    S.bereich = neu;
     wechsel("uebersicht"); render();
     await ladeUebersicht(true);
     if (S.istPruefer) { await ladeVerlauf(); render(); }
@@ -89,29 +96,6 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     if (d.f === "bSuche") S.bSucheNeu++;   // Suchfelder neu aufbauen, damit sie leer sind
     return render();
   }
-  // Kachel: setzt einen Filter (data-f = Feld, data-v = Wert), nochmals tippen hebt ihn auf.
-  // data-f="alle-m" bzw. "alle-u": alle Kachel-Filter weg.
-  if (a === "kachelFilter") {
-    if (d.f === "alle-m") { S.mStatus = ""; S.mZahlart = ""; }
-    else if (d.f === "alle-u") { S.uStatus = ""; }
-    else {
-      const neu = S[d.f] === d.v ? "" : d.v;
-      // Status und Zahlart der Meine-Belege-Kacheln schliessen sich aus
-      if (d.f === "mStatus") S.mZahlart = "";
-      if (d.f === "mZahlart") S.mStatus = "";
-      S[d.f] = neu;
-    }
-    render();
-    // Am Handy gleich zur gefilterten Liste
-    if (!istBreit() && d.f !== "alle-m" && d.f !== "alle-u") {
-      setTimeout(() => {
-        const ziel = document.getElementById("belegliste");
-        if (ziel) ziel.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
-    }
-    return;
-  }
-
   // ---------- Gespeicherte Zeiträume ----------
   if (a === "periodeWahl") {
     const p = S.perioden.find((x) => String(x.id) === String(d.id));
@@ -146,7 +130,6 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     await ladePerioden();
     return render();
   }
-  // Kacheln der Übersicht: noch einmal tippen hebt den Filter auf
 
   // ---------- Admin: Benutzer ----------
   if (a === "tabBenutzer") {
@@ -631,11 +614,36 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   if (a === "tabFreigabe") {
-    wechsel("freigabe"); S.zurueckZu = "freigabe";
+    S.bereich = istBreit() ? (d.b || S.bereich || standardBereich()) : "";
+    wechsel("freigabe"); S.zurueckZu = "freigabe"; S.erledigtJetzt = [];
     render();
     await ladeFreigabe();
     // Am Rechner gleich den ersten Beleg rechts daneben öffnen
-    if (istBreit() && S.freigabe.length) return belegBearbeiten(S.freigabe[0].id, "freigabe");
+    const liste = freigabeIm();
+    if (istBreit() && liste.length) return belegBearbeiten(liste[0].id, "freigabe");
+    return render();
+  }
+
+  // Arbeitsplatz am Rechner: vorheriger / nächster Beleg in der Liste links
+  // (in der Freigabe heisst "nächster" Überspringen)
+  if (a === "apNav") {
+    const woher = S.ansicht === "freigabe" ? "freigabe" : S.zurueckZu;
+    const liste = apListe(woher);
+    const i = liste.findIndex((b) => S.neu && String(b.id) === String(S.neu.id));
+    const ziel = liste[i + Number(d.v)] || (Number(d.v) > 0 ? liste[0] : null);
+    if (!ziel || (S.neu && String(ziel.id) === String(S.neu.id))) return;
+    return belegBearbeiten(ziel.id, woher);
+  }
+
+  // Einen Filter direkt setzen (Reiter mit Zahlen) — anders als die
+  // Kacheln hebt ein zweiter Klick ihn nicht auf
+  if (a === "setze") { S[d.f] = d.v || ""; return render(); }
+
+  // Übersicht links: Gruppe (KST, Konto, Person) anklicken filtert, nochmals hebt auf
+  if (a === "gruppeWahl") {
+    const feld = { kst: "uAuftrag", konto: "uKonto", person: "uGeraet" }[d.g];
+    for (const f of ["uAuftrag", "uKonto", "uGeraet"]) if (f !== feld) S[f] = "";
+    S[feld] = S[feld] === d.v ? "" : (d.v || "");
     return render();
   }
 
@@ -665,6 +673,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     }
     const { error } = await entscheiden(n.id, status, betrag, grund);
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
+    // Für den Fortschritt in der Freigabe ("2 von 5 erledigt")
+    const vorher = S.freigabe.find((x) => String(x.id) === String(n.id));
+    if (vorher) S.erledigtJetzt.push({ ...vorher, status });
     return zurueckNachSpeichern(status === "teilweise"
       ? `Teilweise genehmigt: CHF ${chf(betrag)}.` : `Beleg ${statusName(status)}.`);
   }
@@ -727,6 +738,13 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   // ---------- Beleg speichern ----------
   if (a === "speichern" || a === "speichernFrei" || a === "speichernGenehmigen") return belegSpeichern(a);
+}
+
+// Die Liste links im Arbeitsplatz — je nachdem, woher der Beleg geöffnet wurde
+export function apListe(woher: string) {
+  if (woher === "freigabe") return freigabeIm();
+  if (woher === "uebersicht") return uGefiltert();
+  return meineGefiltert();
 }
 
 // Korrektur beim Prüfen: ist etwas geändert? (Betrag, MwSt, Datum, Konto, KST)

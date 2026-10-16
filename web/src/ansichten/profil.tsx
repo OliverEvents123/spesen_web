@@ -5,7 +5,7 @@
 import { S, schluessel } from "../zustand";
 import { istBreit, chf, chfLang, auftragAnzeige, kurzZeit, initialen } from "../grundlagen";
 import { personName } from "../daten";
-import { BelegInhalt } from "./erfassen";
+import { FreigabePlatz } from "./erfassen";
 import { Seite } from "./rahmen";
 import {
   Ico, Knopf, Hinweis, Wahl, belegKopf, eigenerName, eigeneRolle, kontoWahlText, auftragWahlText
@@ -51,7 +51,7 @@ export function Profil() {
 // ---------- Passwort ----------
 export function Passwort() {
   return (
-    <Seite titel="Passwort ändern" sub={S.session.user.email} pfad="Profil / Passwort ändern">
+    <Seite titel="Passwort ändern" sub={S.session.user.email} pfad={S.session.user.email}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 480 }}>
         <section className="karte innen">
           <div className="feld"><label htmlFor="pw1">Neues Passwort</label>
@@ -68,7 +68,7 @@ export function Passwort() {
 // ---------- Favoriten ----------
 export function Favoriten() {
   return (
-    <Seite titel="Favoriten" sub={`${S.favoriten.length} gespeichert`} pfad="Spesen / Favoriten"
+    <Seite titel="Favoriten" sub={`${S.favoriten.length} gespeichert`} pfad={`${S.favoriten.length} gespeichert`}
            tab={istBreit()} rechts={<button className="k1 klein" data-akt="favNeu">+ Neuer Favorit</button>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 640 }}>
         <span className="mu" style={{ lineHeight: 1.45 }}>Ein Favorit setzt Konto und KST mit einem Tipp.
@@ -94,7 +94,7 @@ export function FavForm() {
   const fertig = f.konto && f.auftrag;
   const kt = kontoWahlText(f.konto), at = auftragWahlText(f.auftrag);
   return (
-    <Seite titel={f.id ? "Favorit ändern" : "Neuer Favorit"} sub="Konto und KST festlegen" pfad="Favoriten / Favorit">
+    <Seite titel={f.id ? "Favorit ändern" : "Neuer Favorit"} sub="Konto und KST festlegen" pfad="Favoriten">
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }} key={schluessel(f)}>
         <div className="feld"><label htmlFor="favname">Name</label>
           <input id="favname" type="text" data-feld="favname" defaultValue={f.name}
@@ -141,15 +141,8 @@ export function Freigabe() {
       </>;
   const sub = liste.length === 1 ? "1 Freigabe offen" : `${liste.length} Freigaben offen`;
 
-  if (istBreit()) return (
-    <Seite titel={"Freigabe · " + sub} pfad="Spesen / Freigabe" tab>
-      <div className="spalten liste">
-        <div className="spalte" style={{ gap: 14 }}>{listeTeil}</div>
-        <div>{S.neu && S.neu.id
-          ? <BelegInhalt n={S.neu} breit key={schluessel(S.neu)} />
-          : liste.length > 0 && <div className="karte leer">Links einen Beleg wählen.</div>}</div>
-      </div>
-    </Seite>);
+  // Am Rechner: Arbeitsplatz mit Liste, Beleg und Entscheid
+  if (istBreit()) return <FreigabePlatz />;
 
   return <Seite titel="Freigabe" sub={sub} tab>{listeTeil}</Seite>;
 }

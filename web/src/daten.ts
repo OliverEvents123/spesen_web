@@ -124,12 +124,27 @@ export async function zeitraumLaden() {
 
 // ---------- Verlauf ----------
 // Admin sieht alles, Prüfer den Verlauf der Belege, die sie sehen dürfen.
+// Belege, die nicht im geladenen Zeitraum liegen, werden nachgeholt —
+// sonst stünde in der Liste nur "Beleg".
 export async function ladeVerlauf() {
   const { data, error } = await sb.from("spesen_verlauf")
     .select("id,beleg_id,wann,wer,aktion,status,details")
-    .order("wann", { ascending: false }).limit(15);
+    .order("wann", { ascending: false }).limit(60);
   S.verlauf = error ? [] : (data || []);
+  const fehlt = [...new Set(S.verlauf.map((v) => v.beleg_id))]
+    .filter((id: any) => !verlaufBeleg(id) && !S.verlaufBelege[id]);
+  if (!fehlt.length) return;
+  const { data: b } = await sb.from("spesen_beleg")
+    .select("id,geraet,auftrag_nr,konto_nummer,betrag,positionen,zahlart,status").in("id", fehlt);
+  for (const x of b || []) S.verlaufBelege[x.id] = x;
 }
+
+// Der Beleg zu einem Verlaufseintrag, falls er geladen ist
+const verlaufBeleg = (id) => {
+  const gleich = (x) => String(x.id) === String(id);
+  return S.uBelege.find(gleich) || S.belege.find(gleich) || S.freigabe.find(gleich)
+      || S.verlaufBelege[id] || null;
+};
 
 // Name einer Person, sonst der Teil vor dem @
 export const personName = (mail: string) => {
@@ -139,17 +154,16 @@ export const personName = (mail: string) => {
   return (b && b.name) || kurzName(mail);
 };
 
-// Eine Zeile im Verlauf: Farbe, was geschah, wer wann
+// Eine Zeile im Verlauf: Farbe, was geschah (titel), welcher Beleg (beleg,
+// betrag), wer und wann. beleg ist null, wenn er nicht mehr zu finden ist.
 export function verlaufEintrag(v: any) {
-  const gleich = (x) => String(x.id) === String(v.beleg_id);
-  const b = S.uBelege.find(gleich) || S.belege.find(gleich) || S.freigabe.find(gleich);
+  const geladen = verlaufBeleg(v.beleg_id);
   const d = v.details || {};
   // In "angelegt"/"gelöscht" steht der ganze Beleg, sonst je Feld { alt, neu }
   const wert = (k) => (d[k] && typeof d[k] === "object" && "neu" in d[k]) ? d[k].neu : d[k];
-  const konto  = b ? b.konto_nummer : wert("konto_nummer");
-  const betrag = b ? b.betrag : wert("betrag");
-  const was = [konto ? (kontoName(konto) || konto) : "Beleg", betrag != null ? chfLang(betrag) : ""]
-    .filter(Boolean).join(" ");
+  const ganz = v.aktion === "angelegt" || v.aktion === "gelöscht";
+  const beleg = geladen || (ganz ? d : null);
+  const betrag = beleg ? beleg.betrag : wert("betrag");
   let titel = "Geändert", farbe = "gep";
   if (v.aktion === "angelegt")      { titel = "Erfasst";  farbe = "erf"; }
   else if (v.aktion === "gelöscht") { titel = "Gelöscht"; farbe = "abl"; }
@@ -162,8 +176,8 @@ export function verlaufEintrag(v: any) {
   } else if (d.konto_nummer || d.auftrag_nr) {
     titel = "Umkontiert" + (d.auftrag_nr ? ` · KST ${auftragAnzeige(d.auftrag_nr.alt)} → ${auftragAnzeige(d.auftrag_nr.neu)}` : "");
   }
-  return { farbe, titel: `${titel} · ${was}`, sub: `${personName(v.wer)} · ${kurzZeit(v.wann)}`,
-           belegId: b ? b.id : null };
+  return { farbe, titel, beleg, betrag, wer: personName(v.wer), wann: kurzZeit(v.wann),
+           belegId: geladen ? geladen.id : null };
 }
 
 // ---------- Geräte ----------
@@ -251,16 +265,55 @@ export async function ladeZuweisungen() {
   S.zuweisungenPerson = p.error ? [] : (p.data || []);
 }
 
-// Meine eigenen Zuweisungen (KST, Konten) — darf ich eigene Belege selbst genehmigen?
+// Meine eigenen Zuweisungen (KST, Konten, Personen) — darf ich eigene Belege
+// selbst genehmigen, und welche Abschnitte hat mein Menü?
 async function ladeEigeneZuweisungen() {
   const ich = S.session.user.email;
-  const [z, k] = await Promise.all([
+  const [z, k, p] = await Promise.all([
     sb.from("spesen_zuweisung").select("auftrag_nr").eq("email", ich),
-    sb.from("spesen_zuweisung_konto").select("konto_nummer").eq("email", ich)
+    sb.from("spesen_zuweisung_konto").select("konto_nummer").eq("email", ich),
+    sb.from("spesen_zuweisung_person").select("person").eq("email", ich)
   ]);
-  S.meineKst    = (z.data || []).map((x) => x.auftrag_nr);
-  S.meineKonten = (k.data || []).map((x) => x.konto_nummer);
+  S.meineKst      = (z.data || []).map((x) => x.auftrag_nr);
+  S.meineKonten   = (k.data || []).map((x) => x.konto_nummer);
+  S.meinePersonen = p.error ? [] : (p.data || []).map((x) => x.person);
 }
+
+// ---------- Abschnitte: Projektleitung, Supervisor, Administration ----------
+// Jeder Abschnitt hat seine eigene Übersicht und Freigabe.
+export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Administration" };
+
+export function bereiche(): string[] {
+  const l = [];
+  if (S.meineKst.length) l.push("pl");
+  if (S.ich.rolle === "supervisor" || S.meineKonten.length || S.meinePersonen.length) l.push("sup");
+  if (S.istAdmin) l.push("admin");
+  return l;
+}
+
+// Wo startet die Übersicht? Admin bei allem, sonst beim ersten Abschnitt.
+export const standardBereich = () => {
+  const l = bereiche();
+  return l.includes("admin") ? "admin" : (l[0] || "");
+};
+
+// Gehört ein Beleg in diesen Abschnitt?
+// Projektleitung: eine seiner KST ist mir zugewiesen.
+// Supervisor: eines seiner Konten, eine User-Zahlung meiner Personen — und
+// alles andere Fremde, das ich sehen darf, aber nicht über meine KST
+// (das sind Belege von Benutzern mit eingerichteter Prüfung).
+// Administration (und leer): alles.
+export function imBereich(b: any, bereich: string = S.bereich) {
+  if (!bereich || bereich === "admin") return true;
+  const zeilen = belegZeilen(b);
+  const kst = zeilen.some((p) => S.meineKst.includes(p.auftrag_nr));
+  if (bereich === "pl") return kst;
+  return zeilen.some((p) => S.meineKonten.includes(p.konto_nummer))
+      || ((b.zahlart || "karte") === "vorkasse" && S.meinePersonen.includes(b.geraet))
+      || (!kst && b.geraet !== S.session.user.email);
+}
+
+export const freigabeIm = (bereich: string = S.bereich) => S.freigabe.filter((b) => imBereich(b, bereich));
 
 // Bin ich für diesen (eigenen) Beleg selbst zuständig? Dann gibt es
 // "Speichern und genehmigen" — sonst würde ich ihn zweimal anfassen.
@@ -473,6 +526,7 @@ const statusPasst = (b, st) => !st ? true
 // Ein Beleg erscheint, wenn mindestens eine seiner Positionen passt.
 // ohneStatus: alle Filter ausser dem Status — für die Zähler auf den Kacheln
 export const uGefiltert = (ohneStatus?: boolean) => S.uBelege.filter((b) =>
+  imBereich(b) &&
   (!S.uGeraet  || b.geraet === S.uGeraet) &&
   (!S.uZahlgeraet || String(b.zahlgeraet_id) === S.uZahlgeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
@@ -497,6 +551,7 @@ export const uZeitraumText = () => `${langDatum(S.uVon)} – ${langDatum(S.uBis)
 export const uTitel = () => {
   const teile = [
     uZeitraumText(),
+    ...(S.bereich && S.bereich !== "admin" ? [BEREICH_NAME[S.bereich]] : []),
     S.uGeraet ? personName(S.uGeraet) : (S.istAdmin ? "Alle Personen" : S.session.user.email),
     S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
   ];
@@ -675,8 +730,8 @@ export async function zurueckNachSpeichern(text) {
   await ladeAlles();
   if (woher === "uebersicht" || istBreit()) await ladeUebersicht(true);
   // Am Rechner gleich den nächsten Beleg zum Prüfen zeigen
-  if (woher === "freigabe" && istBreit() && S.freigabe.length) {
-    await belegBearbeiten(S.freigabe[0].id, "freigabe");
+  if (woher === "freigabe" && istBreit() && freigabeIm().length) {
+    await belegBearbeiten(freigabeIm()[0].id, "freigabe");
     S.meldung = text;
   }
   render();
@@ -713,7 +768,8 @@ export async function nachAnmeldung(session) {
   S.loginMeldung = null;
   await ladeAlles();
   if (istBreit()) {
-    if (S.istAdmin || S.istPruefer) S.ansicht = "uebersicht";
+    S.bereich = standardBereich();
+    if (S.bereich) S.ansicht = "uebersicht";
     await ladeUebersicht(true);
   } else render();
 }

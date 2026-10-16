@@ -34,7 +34,17 @@ export const S: any = {
   // Filter für "Meine Belege" — eigene, unabhängig von der Übersicht
   mZahlart: "", mKonto: "", mAuftrag: "", mStatus: "", mFilterOffen: false,
   // Eigene Zuweisungen: darf ich eigene Belege gleich selbst genehmigen?
-  meineKst: [], meineKonten: [], zuweisungenPerson: [],
+  // Daraus ergeben sich auch die Abschnitte im Menü (Projektleitung, Supervisor).
+  meineKst: [], meineKonten: [], meinePersonen: [], zuweisungenPerson: [],
+  // Welcher Abschnitt gilt für Übersicht und Freigabe: "pl", "sup", "admin";
+  // leer = alles, was ich sehen darf (Handy)
+  bereich: "",
+  // Übersicht: Reiter rechts (belege, kontierung, verlauf) und Gruppen links (kst, konto, person)
+  uReiter: "belege", uGruppe: "",
+  // Freigabe: in dieser Runde schon entschiedene Belege (für "2 von 5 erledigt")
+  erledigtJetzt: [],
+  // Verlauf: Belege, die nicht im geladenen Zeitraum liegen (id → Beleg)
+  verlaufBelege: {},
   istPruefer: false, freigabe: [], zuweisungen: [], zuweisungenKonto: [], verlauf: [],
   // Am Rechner klappt die Auswahl für Konto/KST direkt unter dem Feld auf: { art, i }
   wahlOffen: null,
