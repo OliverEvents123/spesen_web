@@ -99,9 +99,20 @@ export async function ladeKstEinstellungen() {
 async function auftragsnummernHolen(abfrage: string) {
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?${abfrage}`,
-      { headers: { Authorization: `Bearer ${S.session.access_token}`, apikey: SUPABASE_KEY } });
+      { headers: { Authorization: `Bearer ${await gueltigesToken()}`, apikey: SUPABASE_KEY } });
     return await r.json();
   } catch { return { ok: false }; }
+}
+
+// Das Anmelde-Token läuft nach einer Stunde ab. Supabase erneuert es im
+// Hintergrund — aber nicht immer rechtzeitig (Tab lange im Hintergrund).
+// Darum vor jedem Aufruf einer Edge Function frisch holen; erzwingen = neu anfordern.
+export async function gueltigesToken(erzwingen?: boolean) {
+  try {
+    const { data } = erzwingen ? await sb.auth.refreshSession() : await sb.auth.getSession();
+    if (data && data.session) { S.session = data.session; return data.session.access_token; }
+  } catch { /* dann das gemerkte */ }
+  return S.session ? S.session.access_token : "";
 }
 
 const nachNummer = (a, b) => String(a.id).localeCompare(String(b.id), "de", { numeric: true });
@@ -805,14 +816,24 @@ export async function zurueckNachSpeichern(text) {
 // anlegen nur mit dem service_role-Schlüssel geht — und der bleibt dort.
 // Wirft nie: bei Netzfehler oder kaputter Antwort kommt { ok:false } zurück.
 export async function benutzerRuf(daten): Promise<any> {
-  try {
+  const rufen = async (token: string) => {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/benutzer`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${S.session.access_token}`,
+      headers: { Authorization: `Bearer ${token}`,
                  apikey: SUPABASE_KEY, "Content-Type": "application/json" },
       body: JSON.stringify(daten)
     });
-    return await r.json();
+    return { status: r.status, j: await r.json() };
+  };
+  try {
+    let { status, j } = await rufen(await gueltigesToken());
+    // Abgelaufene Anmeldung: einmal neu anmelden lassen und nochmals versuchen
+    if (status === 401 || (j && j.ok === false && /Anmeldung ungültig|Nicht angemeldet/.test(String(j.fehler)))) {
+      ({ j } = await rufen(await gueltigesToken(true)));
+      if (j && j.ok === false && /Anmeldung ungültig|Nicht angemeldet/.test(String(j.fehler)))
+        j = { ...j, fehler: "Deine Anmeldung ist abgelaufen. Bitte abmelden, neu anmelden und nochmals versuchen." };
+    }
+    return j;
   } catch (e) {
     return { ok: false, fehler: istNetzfehler(e) ? NETZTEXT : String(e.message || e) };
   }
