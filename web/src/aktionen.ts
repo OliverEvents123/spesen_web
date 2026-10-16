@@ -40,7 +40,9 @@ export async function klick(el: HTMLElement) {
 
 async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "abmelden") {
-    await sb.auth.signOut();
+    // Nur auf diesem Gerät abmelden. Ohne "local" meldet Supabase den Benutzer
+    // auf ALLEN Geräten ab — am PC kam dann z. B. "Anmeldung ungültig".
+    await sb.auth.signOut({ scope: "local" });
     S.auftraege = []; S.uBelege = []; S.belege = []; S.offeneEigene = []; S.benutzer = [];
     S.freigabe = []; S.verlauf = []; S.namen = {}; S.neu = null; S.ansicht = "liste";
     S.meineKst = []; S.meineKonten = []; S.meinePersonen = []; S.bereich = ""; S.verlaufBelege = {};
