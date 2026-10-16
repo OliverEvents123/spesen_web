@@ -202,15 +202,15 @@ Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql`, `geraete.sql` und `kst-auswahl.sql` im Test-Projekt ausführen, Edge Function `auftragsnummern` im Test-Projekt deployen (Oli).
 4. Offen: **Etappe 3** (Karten je Kostenstelle) — vor oder nach dem Live-Gang.
 5. **Live-Gang**, alles auf einmal, in dieser Reihenfolge:
-   1. `etappe1-status.sql` im Live-Projekt
-   2. `etappe2-freigabe.sql` im Live-Projekt
-   3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql`, `geraete.sql` und `kst-auswahl.sql` im Live-Projekt;
-      Edge Function `auftragsnummern` im Live-Projekt deployen
-   4. Edge Function `benutzer` im Live-Projekt deployen
-   5. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
+   1. **`supabase/live-gang.sql`** im Live-Projekt ausführen — enthält
+      etappe1, etappe2, verlauf-pruefer, kommentar-korrektur-personen,
+      geraete und kst-auswahl in einer Transaktion (lokal gegen schema.sql
+      zweimal hintereinander geprüft)
+   2. Edge Functions `auftragsnummern` und `benutzer` im Live-Projekt deployen
+   3. Claude merged den Pull Request (Arbeitsbranch → `main`)
+   4. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
       ohne Prüfung durch)
-   6. Claude bringt den Arbeitsbranch per Pull Request nach `main`
-   7. `supabase/schema.sql` auf den neuen Stand bringen
+   5. `supabase/schema.sql` auf den neuen Stand bringen
 
 Die App läuft mit dem neuen SQL weiter — die Reihenfolge SQL vor App
 ist deshalb gefahrlos.
