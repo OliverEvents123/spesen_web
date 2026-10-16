@@ -186,7 +186,21 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
       const j = await benutzerRuf({ aktion: "anlegen", email: mail, passwort: pw,
                                     name, rolle: b.rolle, pruefung: !!b.pruefung });
       if (!j.ok) { alert(j.fehler || "Anlegen fehlgeschlagen."); return; }
-      S.meldung = "Benutzer angelegt.";
+      // Vorgemerkte Zuweisungen jetzt speichern — nur die, die zur Rolle passen
+      const vor = b.vor || { kst: [], konto: [], person: [] };
+      const pl = b.rolle === "projektleiter", sup = b.rolle === "supervisor";
+      const auftraege = [
+        ...(pl  ? vor.kst.map((x) => sb.from("spesen_zuweisung").insert({ email: mail, auftrag_nr: x })) : []),
+        ...(sup ? vor.konto.map((x) => sb.from("spesen_zuweisung_konto").insert({ email: mail, konto_nummer: x })) : []),
+        ...(sup ? vor.person.map((x) => sb.from("spesen_zuweisung_person").insert({ email: mail, person: x })) : [])
+      ];
+      const ergebnisse = await Promise.all(auftraege);
+      const fehler = ergebnisse.filter((r) => r.error && r.error.code !== "23505");
+      if (auftraege.length) await ladeZuweisungen();
+      S.meldung = "Benutzer angelegt." + (auftraege.length
+        ? ` ${auftraege.length - fehler.length} Zuweisung${auftraege.length - fehler.length === 1 ? "" : "en"} gespeichert.` : "");
+      if (fehler.length) alert(`${fehler.length} Zuweisung(en) konnten nicht gespeichert werden — bitte beim Benutzer unter „Ändern“ nachtragen.\n`
+                               + fehler[0].error.message);
     } else {
       const name = wert("bname");
       const jn = await benutzerRuf({ aktion: "name", email: b.email, name });
@@ -218,7 +232,17 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
                                      : "Bitte eine Person wählen."); return; }
     if (a === "zuwNeu" && neu !== OHNE_KST.id && S.auftraege.length
         && !S.auftraege.some((x) => x.id === neu)
-        && !confirm(`KST ${neu} ist in FileMaker (dieses und letztes Jahr) nicht bekannt. Trotzdem zuweisen?`)) return;
+        && !confirm(`KST ${neu} ist in der Auswahl nicht bekannt. Trotzdem zuweisen?`)) return;
+    // Neuer Benutzer: nur vormerken — gespeichert wird mit "Benutzer anlegen"
+    if (S.benEdit && S.benEdit.neu) {
+      const art = a === "zuwNeu" ? "kst" : a === "zuwKontoNeu" ? "konto" : "person";
+      const vor = S.benEdit.vor || (S.benEdit.vor = { kst: [], konto: [], person: [] });
+      if (vor[art].includes(neu)) { alert("Ist schon vorgemerkt."); return; }
+      vor[art].push(neu);
+      const feld = document.getElementById(d.f) as HTMLInputElement;
+      if (feld) feld.value = "";
+      return render();
+    }
     const { error } = a === "zuwNeu"
       ? await sb.from("spesen_zuweisung").insert({ email: d.e, auftrag_nr: neu })
       : a === "zuwKontoNeu"
@@ -235,6 +259,11 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   if (a === "zuwWeg" || a === "zuwKontoWeg" || a === "zuwPersonWeg") {
+    if (S.benEdit && S.benEdit.neu && S.benEdit.vor) {
+      const art = a === "zuwWeg" ? "kst" : a === "zuwKontoWeg" ? "konto" : "person";
+      S.benEdit.vor[art] = S.benEdit.vor[art].filter((x) => x !== d.v);
+      return render();
+    }
     const { error } = a === "zuwWeg"
       ? await sb.from("spesen_zuweisung").delete().eq("email", d.e).eq("auftrag_nr", d.v)
       : a === "zuwKontoWeg"

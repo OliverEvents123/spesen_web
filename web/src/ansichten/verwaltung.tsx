@@ -43,17 +43,21 @@ const Chip = ({ text, akt, email, wert }) => (
 // Zuweisungen direkt beim Benutzer: KST (Projektleiter) bzw. Konten (Supervisor)
 // Zuweisungen direkt beim Benutzer: KST (Projektleiter), Konten (Supervisor)
 // und Personen, deren User-Zahlungen der Supervisor genehmigt.
+// Beim neuen Benutzer sind es Vormerkungen (b.vor), gespeichert mit "Benutzer anlegen".
 function Zuweisung({ b, art }: { b: any; art: "kst" | "konto" | "person" }) {
-  const feld = `zw-${art}-${b.email.replace(/[^a-z0-9]/gi, "_")}`;
+  const feld = `zw-${art}-${b.neu ? "neu" : b.email.replace(/[^a-z0-9]/gi, "_")}`;
+  const vor = b.neu ? ((b.vor || {})[art] || []) : null;
   let titel, chips, eingabe, neu;
   if (art === "kst") {
     titel = "Prüft diese Kostenstellen"; neu = "zuwNeu";
-    chips = S.zuweisungen.filter((z) => z.email === b.email).map((z) =>
+    chips = (vor ? vor.map((x) => ({ email: b.email, auftrag_nr: x }))
+                 : S.zuweisungen.filter((z) => z.email === b.email)).map((z) =>
       <Chip key={z.auftrag_nr} text={kstName(z.auftrag_nr)} akt="zuwWeg" email={b.email} wert={z.auftrag_nr} />);
     eingabe = <input id={feld} list="kstliste" placeholder="KST-Nummer" aria-label="KST-Nummer" style={{ flex: 1, minHeight: 42 }} />;
   } else if (art === "konto") {
     titel = "Prüft diese Konten"; neu = "zuwKontoNeu";
-    chips = S.zuweisungenKonto.filter((z) => z.email === b.email).map((z) =>
+    chips = (vor ? vor.map((x) => ({ email: b.email, konto_nummer: x }))
+                 : S.zuweisungenKonto.filter((z) => z.email === b.email)).map((z) =>
       <Chip key={z.konto_nummer} text={z.konto_nummer + " " + kontoName(z.konto_nummer)}
             akt="zuwKontoWeg" email={b.email} wert={z.konto_nummer} />);
     eingabe = <select id={feld} defaultValue="" aria-label="Konto" style={{ flex: 1, minHeight: 42 }}>
@@ -62,7 +66,8 @@ function Zuweisung({ b, art }: { b: any; art: "kst" | "konto" | "person" }) {
     </select>;
   } else {
     titel = "Genehmigt die User-Zahlungen dieser Personen"; neu = "zuwPersonNeu";
-    const schon = S.zuweisungenPerson.filter((z) => z.email === b.email);
+    const schon = vor ? vor.map((x) => ({ email: b.email, person: x }))
+                      : S.zuweisungenPerson.filter((z) => z.email === b.email);
     chips = schon.map((z) =>
       <Chip key={z.person} text={personName(z.person)} akt="zuwPersonWeg" email={b.email} wert={z.person} />);
     eingabe = <select id={feld} defaultValue="" aria-label="Person" style={{ flex: 1, minHeight: 42 }}>
@@ -83,6 +88,8 @@ function Zuweisung({ b, art }: { b: any; art: "kst" | "konto" | "person" }) {
       </div>
       {art === "person" &&
         <span className="kn mu">Deren User-Zahlungen warten dann auf diesen Supervisor (oder einen Admin).</span>}
+      {b.neu && chips.length > 0 &&
+        <span className="kn mu">Vorgemerkt — wird mit „Benutzer anlegen“ gespeichert.</span>}
     </div>);
 }
 
@@ -115,11 +122,9 @@ function BenForm() {
           {fest ? "Notfall-Administrator. Rolle und Sperre sind festgelegt, damit immer ein Weg in die Verwaltung offen bleibt."
                 : (ROLLEN[b.rolle] || ROLLEN.user)[1]}</p></div>
 
-      {!b.neu && (b.rolle === "projektleiter" || hatKst) && <Zuweisung b={b} art="kst" />}
-      {!b.neu && (b.rolle === "supervisor" || hatKonto) && <Zuweisung b={b} art="konto" />}
-      {!b.neu && (b.rolle === "supervisor" || hatPerson) && <Zuweisung b={b} art="person" />}
-      {b.neu && (b.rolle === "projektleiter" || b.rolle === "supervisor") &&
-        <span className="kn mu">Kostenstellen, Konten bzw. Personen nach dem Anlegen hier zuweisen.</span>}
+      {(b.rolle === "projektleiter" || hatKst) && <Zuweisung b={b} art="kst" />}
+      {(b.rolle === "supervisor" || hatKonto) && <Zuweisung b={b} art="konto" />}
+      {(b.rolle === "supervisor" || hatPerson) && <Zuweisung b={b} art="person" />}
 
       <div className="schalterzeile">
         <label htmlFor="bpruefung"><b>Prüfung einrichten</b>

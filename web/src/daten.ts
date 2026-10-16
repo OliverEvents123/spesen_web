@@ -27,8 +27,10 @@ export const leerePosition = (vorlage?: any) => ({
 
 export const leererFavorit = () => ({ id: null, name: "", konto: null, auftrag: null });
 
+// vor: beim Anlegen vorgemerkte Zuweisungen — gespeichert erst mit dem Benutzer
 export const leererBenutzer = () => ({ neu: true, email: "", name: "", rolle: "user",
-                                       gesperrt: false, pruefung: false });
+                                       gesperrt: false, pruefung: false,
+                                       vor: { kst: [], konto: [], person: [] } });
 
 export const leeresKonto = () => {
   const hoechste = S.konten.reduce((m, k) => Math.max(m, k.sortierung || 0), 0);
