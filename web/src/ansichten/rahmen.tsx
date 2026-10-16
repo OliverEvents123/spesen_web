@@ -52,7 +52,8 @@ function Tabbar() {
 
 // ---------- Rechner ----------
 // Seitenleiste mit Abschnitten: "Meine Spesen" haben alle, dazu je nach
-// Zuweisung Projektleitung und Supervisor, für Admins die Administration.
+// Zuweisung Projektleitung und Supervisor; Admins haben "Alle Belege"
+// (Übersicht, Freigabe) und darunter getrennt die Administration.
 // Jeder Abschnitt hat seine eigene Übersicht und Freigabe.
 function Leiste() {
   const an = aktivSchluessel();
@@ -64,12 +65,6 @@ function Leiste() {
     <div className="gr">{BEREICH_NAME[b].toUpperCase()}</div>
     {n("uebersicht:" + b, "tabUebersicht", "Übersicht", "grid", 0, b)}
     {n("freigabe:" + b, "tabFreigabe", "Freigabe", "check", freigabeIm(b).length, b)}
-    {b === "admin" && <>
-      {n("benutzer", "tabBenutzer", "Benutzer", "leute")}
-      {n("konten", "tabKonten", "Konten", "liste")}
-      {n("geraete", "tabGeraete", "Geräte", "karte")}
-      {n("kst", "tabKst", "Kostenstellen", "raute")}
-    </>}
   </div>;
   return (
     <aside className="leiste">
@@ -82,6 +77,14 @@ function Leiste() {
           {n("favoriten", "zuFavoriten", "Favoriten", "stern")}
         </div>
         {bereiche().map(abschnitt)}
+        {S.istAdmin &&
+          <div className="abschnitt">
+            <div className="gr">ADMINISTRATION</div>
+            {n("benutzer", "tabBenutzer", "Benutzer", "leute")}
+            {n("konten", "tabKonten", "Konten", "liste")}
+            {n("geraete", "tabGeraete", "Geräte", "karte")}
+            {n("kst", "tabKst", "Kostenstellen", "raute")}
+          </div>}
       </nav>
       <div style={{ flex: 1 }} />
       <div className="ich">

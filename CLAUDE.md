@@ -44,7 +44,8 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
   `<Knopf akt="…">`.
 - `src/ansichten/rahmen.tsx` — Rahmen jeder Seite (`<Seite>`): Handy mit
   dunklem Kopf und Leiste unten, Rechner (ab 900 px) mit Seitenleiste links
-  (Abschnitte Meine Spesen / Projektleitung / Supervisor / Administration)
+  (Abschnitte Meine Spesen / Projektleitung / Supervisor / Alle Belege /
+  Administration)
   und weisser Kopfleiste. `voll` = Arbeitsplatz ohne Rand.
 - `src/ansichten/bausteine.tsx` — Symbole, Kacheln, Zeitraum, Filter,
   Belegzeilen, Auswahl Konto/KST (am Rechner klappt sie unter dem Feld auf).

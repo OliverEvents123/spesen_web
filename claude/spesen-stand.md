@@ -10,7 +10,8 @@ Darstellung ändert sich, die Abläufe bleiben.
 - **Menü am Rechner in Abschnitten:** „Meine Spesen" (Meine Belege,
   Favoriten) haben alle. Dazu je nach Zuweisung **Projektleitung** (wer KST
   hat) und **Supervisor** (Rolle Supervisor oder Konten/Personen), für Admins
-  **Administration** (Übersicht, Freigabe, Benutzer, Konten, Geräte). Jeder
+  **Alle Belege** (Übersicht, Freigabe) und darunter getrennt
+  **Administration** (Benutzer, Konten, Geräte, Kostenstellen). Jeder
   Abschnitt hat seine eigene Übersicht und Freigabe mit eigener Zahl
   (`S.bereich`, `imBereich()` in `daten.ts`). Am Handy bleibt die Leiste
   unten; dort zeigen Übersicht und Freigabe alles, was man sehen darf.

@@ -331,7 +331,7 @@ async function ladeEigeneZuweisungen() {
 
 // ---------- Abschnitte: Projektleitung, Supervisor, Administration ----------
 // Jeder Abschnitt hat seine eigene Übersicht und Freigabe.
-export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Administration" };
+export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Alle Belege" };
 
 export function bereiche(): string[] {
   const l = [];

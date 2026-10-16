@@ -255,8 +255,10 @@ td .pfeilchen { color:var(--grau2); font-size:20px; }
 .marke b { color:#fff; font-size:21px; letter-spacing:.01em; }
 .marke span { color:#9aa3b8; font-size:15px; }
 .leiste > .k1 { box-shadow:none; margin:0 2px; }
-.nav { display:flex; flex-direction:column; gap:16px; }
-.abschnitt { display:flex; flex-direction:column; gap:2px; }
+.nav { display:flex; flex-direction:column; gap:0; }
+.abschnitt { display:flex; flex-direction:column; gap:2px; padding:14px 0; }
+.abschnitt:first-child { padding-top:4px; }
+.abschnitt + .abschnitt { border-top:1px solid rgba(255,255,255,.08); }
 .nav .gr { font-size:11px; font-weight:700; letter-spacing:.09em; color:#7c8599; padding:4px 12px 6px; }
 .nav button { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:8px; color:#d6dae4;
               font-size:15px; background:none; border:0; text-align:left; width:100%; }
