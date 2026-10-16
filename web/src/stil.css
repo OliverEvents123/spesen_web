@@ -486,3 +486,7 @@ button.vzeile:hover { background:var(--flaeche); }
 .jahrzeile:first-child { border-top:0; }
 .jahrhaken { display:flex; align-items:center; gap:10px; margin:0; color:var(--text); font-size:16px; }
 .jahrzeile .pf { width:32px; height:32px; font-size:14px; background:none; }
+
+/* Benutzer: gesperrte etwas zurückgenommen */
+.gesperrteliste { opacity:.85; }
+.gesperrteliste .kartenkopf h2 { color:var(--grau); }
