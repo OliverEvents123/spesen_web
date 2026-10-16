@@ -37,7 +37,7 @@ const HandyFilter = ({ b }: { b: "u" | "m" }) => <>
 const LeerePeriode = ({ leer }: { leer: boolean }) => leer && istLaufendePeriode()
   ? <Hinweiszeile farbe="blau"
       knopf={<button className="k2 klein" data-akt="periode" data-v="-1">‹ Letzte Periode</button>}>
-      <b>Noch keine Belege in dieser Periode</b> ({zeitraumText()}). Die Abrechnungsperiode läuft vom 16. bis zum 15.
+      <b>Noch keine Belege in dieser Periode</b>
     </Hinweiszeile>
   : null;
 
