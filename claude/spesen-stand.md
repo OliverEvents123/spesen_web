@@ -2,6 +2,21 @@
 
 **Zuletzt aktualisiert: 16.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
+## LIVE seit 16.10.2026
+
+Alles unten Beschriebene (neues Aussehen, Freigaben, Geräte,
+Kostenstellen-Auswahl) ist live: `supabase/live-gang.sql` im Live-Projekt
+ausgeführt, Edge Functions `auftragsnummern` und `benutzer` deployt,
+Pull Request #10 nach `main`.
+
+Noch offen nach dem Live-Gang:
+- Rollen und Zuweisungen in der echten App setzen (Oli) — bis dahin gehen
+  eingereichte Belege ohne Prüfung durch (ausser „Prüfung einrichten").
+- `supabase/schema.sql` auf den neuen Stand bringen.
+- Besprechen: Projektleiter und Brand aus FileMaker (Feldnamen auf dem
+  Layout `api_auftragsnr`; Brand → erlaubte Konten, Variante A Filter oder
+  B Kontoart).
+
 ## Darstellung nach Vorbild „PDF Master" (16.10.2026) — Arbeitsbranch, noch nicht live
 
 Oli hat Screens aus seinem Tool „TIT-PIT PDF Master BH" geschickt; nur die
