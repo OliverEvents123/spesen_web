@@ -67,7 +67,7 @@ function Zuweisung({ b, art }: { b: any; art: "kst" | "konto" | "person" }) {
       <Chip key={z.person} text={personName(z.person)} akt="zuwPersonWeg" email={b.email} wert={z.person} />);
     eingabe = <select id={feld} defaultValue="" aria-label="Person" style={{ flex: 1, minHeight: 42 }}>
       <option value="">Person wählen</option>
-      {S.benutzer.filter((x) => x.email !== b.email && !schon.some((z) => z.person === x.email))
+      {S.benutzer.filter((x) => x.email !== b.email && !istGesperrt(x) && !schon.some((z) => z.person === x.email))
         .map((x) => <option key={x.email} value={x.email}>{x.name || kurzName(x.email)}</option>)}
     </select>;
   }
@@ -139,15 +139,16 @@ function BenForm() {
     </div>);
 }
 
-function BenListe() {
-  if (S.benutzer.length === 0) return <div className="karte leer">Keine Benutzer geladen.</div>;
+// Zwei Listen: oben alle aktiven Benutzer (alle Rollen), darunter die
+// gesperrten — die können sich nicht anmelden, ihre Belege bleiben erhalten.
+function BenTabelle({ liste }: { liste: any[] }) {
   const offen = S.benEdit && S.benEdit.email;
-  if (istBreit()) return (
-    <div className="karte"><div className="tabelle"><table>
+  return (
+    <div className="tabelle"><table>
       <thead><tr><th>Name</th><th>Rolle</th><th>Prüft</th><th>Zuletzt</th><th className="re">Belege</th><th></th></tr></thead>
       <tbody>
-        {S.benutzer.map((b) => (
-          <tr key={b.email} className={offen === b.email ? "an" : ""}>
+        {liste.map((b) => (
+          <tr key={b.email} className={"klickbar" + (offen === b.email ? " an" : "")} data-akt="benBearbeiten" data-e={b.email}>
             <td><span style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <span className={"ini" + (istGesperrt(b) ? " aus" : "")} style={{ width: 34, height: 34 }}>{initialen(b.name || b.email)}</span>
               <span style={{ display: "flex", flexDirection: "column", whiteSpace: "nowrap" }}><b>{b.name || kurzName(b.email)}</b>
@@ -157,27 +158,47 @@ function BenListe() {
               {b.pruefung && <><br /><span className="mu">Prüfung eingerichtet</span></>}</td>
             <td className="kn mu nw">{b.angemeldet ? kurzZeit(b.angemeldet) : "nie"}</td>
             <td className="re mono">{belegeVon(b.email)}</td>
-            <td className="re"><button className="tknopf" data-akt="benBearbeiten" data-e={b.email}>Ändern</button></td>
+            <td className="re"><span className="tknopf">Ändern</span></td>
           </tr>))}
       </tbody>
-    </table></div></div>);
+    </table></div>);
+}
 
-  return (
-    <section className="karte huelle">
-      {S.benutzer.map((b) => {
-        const pr = prueftText(b.email);
-        return (
-          <div className="zl" key={b.email}>
-            <span className={"ini" + (istGesperrt(b) ? " aus" : "")}>{initialen(b.name || b.email)}</span>
-            <span className="mitte"><b>{b.name || kurzName(b.email)}</b>
-              <span className="kn mu">{b.email}</span>
-              {(pr || b.pruefung) && <span className="kn" style={{ color: "var(--akzent-text)" }}>
-                {[pr, b.pruefung ? "Prüfung eingerichtet" : ""].filter(Boolean).join(" · ")}</span>}</span>
-            {istGesperrt(b) ? <span className="pill p-abl">gesperrt</span> : <span className="pill p-rol">{rolleName(b.rolle)}</span>}
-            <button className="pf blau" data-akt="benBearbeiten" data-e={b.email} aria-label="Benutzer bearbeiten"><Ico n="stift" /></button>
-          </div>);
-      })}
-    </section>);
+function BenZeilen({ liste }: { liste: any[] }) {
+  return <>{liste.map((b) => {
+    const pr = prueftText(b.email);
+    return (
+      <div className="zl" key={b.email}>
+        <span className={"ini" + (istGesperrt(b) ? " aus" : "")}>{initialen(b.name || b.email)}</span>
+        <span className="mitte"><b>{b.name || kurzName(b.email)}</b>
+          <span className="kn mu">{b.email}</span>
+          {(pr || b.pruefung) && <span className="kn" style={{ color: "var(--akzent-text)" }}>
+            {[pr, b.pruefung ? "Prüfung eingerichtet" : ""].filter(Boolean).join(" · ")}</span>}</span>
+        {istGesperrt(b) ? <span className="pill p-abl">gesperrt</span> : <span className="pill p-rol">{rolleName(b.rolle)}</span>}
+        <button className="pf blau" data-akt="benBearbeiten" data-e={b.email} aria-label="Benutzer bearbeiten"><Ico n="stift" /></button>
+      </div>);
+  })}</>;
+}
+
+function BenListe() {
+  if (S.benutzer.length === 0) return <div className="karte leer">Keine Benutzer geladen.</div>;
+  const aktive = S.benutzer.filter((b) => !istGesperrt(b));
+  const gesperrte = S.benutzer.filter(istGesperrt);
+  const breit = istBreit();
+  const kopf = (titel: string, sub: string) => (
+    <div className="kartenkopf"><span><h2>{titel}</h2><span className="sub">{sub}</span></span></div>);
+  return <>
+    <section className={"karte" + (breit ? "" : " huelle")}>
+      {kopf("Aktive Benutzer", aktive.length === 1 ? "1 Benutzer" : `${aktive.length} Benutzer`)}
+      {aktive.length === 0 ? <div className="leer">Keine aktiven Benutzer.</div>
+        : breit ? <BenTabelle liste={aktive} /> : <BenZeilen liste={aktive} />}
+    </section>
+    {gesperrte.length > 0 &&
+      <section className={"karte gesperrteliste" + (breit ? "" : " huelle")}>
+        {kopf("Gesperrt / deaktiviert", "können sich nicht anmelden · Belege bleiben erhalten")}
+        {breit ? <BenTabelle liste={gesperrte} /> : <BenZeilen liste={gesperrte} />}
+      </section>}
+  </>;
 }
 
 const BenHinweis = () => (
@@ -191,8 +212,11 @@ const KstListe = () => (
   </datalist>);
 
 function adminSub() {
-  const admins = S.benutzer.filter((b) => b.rolle === "admin").length;
-  return `${S.benutzer.length} Benutzer · ${admins} ${admins === 1 ? "Administrator" : "Administratoren"}`;
+  const aktiv = S.benutzer.filter((b) => !istGesperrt(b));
+  const admins = aktiv.filter((b) => b.rolle === "admin").length;
+  const gesperrt = S.benutzer.length - aktiv.length;
+  return `${aktiv.length} aktiv · ${admins} ${admins === 1 ? "Administrator" : "Administratoren"}`
+       + (gesperrt ? ` · ${gesperrt} gesperrt` : "");
 }
 
 export function Benutzer() {

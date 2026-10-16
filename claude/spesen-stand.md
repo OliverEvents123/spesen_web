@@ -13,6 +13,13 @@ Noch offen nach dem Live-Gang:
 - Rollen und Zuweisungen in der echten App setzen (Oli) — bis dahin gehen
   eingereichte Belege ohne Prüfung durch (ausser „Prüfung einrichten").
 - `supabase/schema.sql` auf den neuen Stand bringen.
+- Benutzer: Liste geteilt in „Aktive Benutzer" und „Gesperrt / deaktiviert"
+  (Arbeitsbranch, noch nicht live). Gesperrte sind nicht mehr als Person
+  zuweisbar. Ob Gesperrte ihre Belege noch sehen sollen o. ä.: kommt Oli
+  nochmals darauf zurück.
+- `supabase/benutzer-loeschen.sql`: Altlasten-Benutzer endgültig löschen
+  (finn1, finn2, finn3, msd). Bricht ab, wenn sie noch Belege haben —
+  ausser `belege_mitloeschen := true`. Dateien im Storage von Hand löschen.
 - Besprechen: Projektleiter und Brand aus FileMaker (Feldnamen auf dem
   Layout `api_auftragsnr`; Brand → erlaubte Konten, Variante A Filter oder
   B Kontoart).
