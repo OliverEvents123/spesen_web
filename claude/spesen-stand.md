@@ -30,6 +30,22 @@ Darstellung ändert sich, die Abläufe bleiben.
   Geprüft. Erfassen: zuerst eine grosse Ablage (ziehen oder auswählen).
 - Handy: Freigabe und Erfassen unverändert.
 
+Zweite Runde (16.10.2026):
+- „Meine Belege" zeigt keine offenen Freigaben mehr — die stehen im Abschnitt.
+- Freigabe filtern nach Person, KST, Konto (Supervisor und Admin; am Rechner
+  in der Liste links, am Handy über der Liste).
+- Rechner: **Werkzeugleiste** oben auf Meine Belege und Übersicht, immer
+  sichtbar: Zeitraum-Auswahl (Laufende Periode, Letzte Periode, ältere,
+  gespeicherte, „Eigener Zeitraum …" mit Von/Bis), Suche, Filter.
+- Rechner: Beleg im Arbeitsplatz **zoomen** (Regler, − / +, Einpassen).
+  PDF-Vorschau dafür schärfer gerendert (1600 px).
+- Übersicht: Reiter in der Reihenfolge Kontierung · Belege · Verlauf,
+  Kontierung zuerst.
+- Handy: Übersicht oben mit Abschnitt („Projektleiter-Übersicht" usw.), bei
+  mehreren Abschnitten umschaltbar; Suchfeld immer unter der Periode,
+  daneben der Filterknopf.
+- Leere laufende Periode: Hinweis mit Knopf „‹ Letzte Periode".
+
 ## Neues Aussehen „Dashboard" (12.10.2026) — auf dem Arbeitsbranch, noch nicht live
 
 Oli hat aus vier Entwürfen Variante D gewählt (Design-Canvas „Spesen-App

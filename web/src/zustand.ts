@@ -40,7 +40,11 @@ export const S: any = {
   // leer = alles, was ich sehen darf (Handy)
   bereich: "",
   // Übersicht: Reiter rechts (belege, kontierung, verlauf) und Gruppen links (kst, konto, person)
-  uReiter: "belege", uGruppe: "",
+  uReiter: "kontierung", uGruppe: "",
+  // Freigabe filtern (Supervisor, Admin): Person, KST, Konto
+  fPerson: "", fKst: "", fKonto: "",
+  // Beleg am Rechner vergrössern (Prozent, 100 = auf Breite eingepasst)
+  zoom: 100,
   // Freigabe: in dieser Runde schon entschiedene Belege (für "2 von 5 erledigt")
   erledigtJetzt: [],
   // Verlauf: Belege, die nicht im geladenen Zeitraum liegen (id → Beleg)

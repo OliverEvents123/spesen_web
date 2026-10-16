@@ -8,7 +8,7 @@ import { S } from "../zustand";
 import {
   istBreit, chf, chfLang, datumCH, zeitCH, langDatum, kurzDatum, statusVon, statusName, statusKlasse,
   zahlartName, auftragAnzeige, istAufgeteilt, buchungsBetrag, initialen, istPeriode, belegZeilen,
-  ZAHLART, STATUS_FILTER, STATUS_FILTER_MEINE, OHNE_KST, MAX_PERIODEN
+  ZAHLART, STATUS_FILTER, STATUS_FILTER_MEINE, OHNE_KST, MAX_PERIODEN, periode
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
@@ -196,12 +196,28 @@ export function belegeSuchen(liste: any[]) {
 }
 
 // ---------- Zeitraum ----------
+// Abrechnungsperiode = 16. bis 15. des Folgemonats. Benannt wird sie relativ
+// zu heute ("Laufende Periode", "Letzte Periode"), damit klar ist, was gilt.
 export const zeitraumText = () => `${langDatum(S.uVon).slice(0, 6)}–${langDatum(S.uBis)}`;
 const gespeichert = () => S.perioden.find((p) => p.von === S.uVon && p.bis === S.uBis);
-const zeitraumLabel = () => gespeichert() ? gespeichert().name
-  : istPeriode(S.uVon, S.uBis) ? "Abrechnungsperiode" : "Eigener Zeitraum";
 
-// Gespeicherte Zeiträume als Schnellwahl (höchstens drei je Person)
+// Wie viele Perioden liegt der gewählte Zeitraum zurück? null = keine Periode
+function periodenAbstand(): number | null {
+  if (!istPeriode(S.uVon, S.uBis)) return null;
+  for (let i = 0; i > -36; i--) if (periode(i).von === S.uVon) return i;
+  for (let i = 1; i < 12; i++) if (periode(i).von === S.uVon) return i;
+  return null;
+}
+const PERIODE_NAME: Record<string, string> = { "0": "Laufende Periode", "-1": "Letzte Periode", "1": "Nächste Periode" };
+export const zeitraumLabel = () => {
+  if (gespeichert()) return gespeichert().name;
+  const i = periodenAbstand();
+  if (i == null) return "Eigener Zeitraum";
+  return PERIODE_NAME[String(i)] || `Periode vor ${-i} Monaten`;
+};
+export const istLaufendePeriode = () => periodenAbstand() === 0;
+
+// Gespeicherte Zeiträume als Schnellwahl (höchstens drei je Person) — Handy
 export function Schnellwahl() {
   if (!S.perioden.length) return null;
   return (
@@ -249,27 +265,63 @@ export function PeriodeWahl() {
     </div>);
 }
 
-// Rechner: kompakt in der Titelzeile
-export function PeriodeKlein() {
-  return <>
-    <span className="periodeklein">
-      <button className="pf" data-akt="periode" data-v="-1" aria-label="Vorherige Periode">‹</button>
-      <b>{zeitraumText()}</b>
-      <button className="pf" data-akt="periode" data-v="1" aria-label="Nächste Periode">›</button>
-    </span>
-    <button className={"k2 klein" + (S.eigenerZeitraum ? " fett" : "")} data-akt="eigenerZeitraum">
-      Eigener Zeitraum</button>
-  </>;
+// Rechner: eine Auswahl mit den letzten Perioden, den gespeicherten Zeiträumen
+// und "Eigener Zeitraum …", dazu ‹ › für die Nachbarperiode.
+function ZeitraumAuswahl() {
+  const i = periodenAbstand();
+  const g = gespeichert();
+  const eigen = S.eigenerZeitraum || (i == null && !g);
+  const wert = eigen ? "eigen" : g ? "g:" + g.id : "p:" + i;
+  const perioden = Array.from({ length: 13 }, (_, k) => -k);
+  if (i != null && !perioden.includes(i)) perioden.unshift(i);
+  return (
+    <div className="wz-zeitraum">
+      <button className="pf" data-akt="periode" data-v="-1" aria-label="Vorherige Periode" title="Vorherige Periode">‹</button>
+      <select data-feld="zeitraum" defaultValue={wert} key={wert + S.uVon + S.uBis} aria-label="Zeitraum">
+        <optgroup label="Abrechnungsperioden (16. bis 15.)">
+          {perioden.map((k) => {
+            const p = periode(k);
+            const name = PERIODE_NAME[String(k)];
+            return <option key={k} value={"p:" + k}>
+              {name ? `${name} · ` : ""}{langDatum(p.von).slice(0, 6)}–{langDatum(p.bis)}</option>;
+          })}
+        </optgroup>
+        {S.perioden.length > 0 &&
+          <optgroup label="Gespeichert">
+            {S.perioden.map((p) => <option key={p.id} value={"g:" + p.id}>
+              {p.name} · {kurzDatum(p.von)}–{kurzDatum(p.bis)}</option>)}
+          </optgroup>}
+        <option value="eigen">{eigen ? `Eigener Zeitraum · ${zeitraumText()}` : "Eigener Zeitraum …"}</option>
+      </select>
+      <button className="pf" data-akt="periode" data-v="1" aria-label="Nächste Periode" title="Nächste Periode">›</button>
+    </div>);
 }
-export const ZeitraumRechner = () => <>
-  {S.eigenerZeitraum &&
-    <div className="karte" style={{ maxWidth: 560 }}><ZeitraumFelder /><ZeitraumKnoepfe /></div>}
-  {S.perioden.length > 0 && <div style={{ marginTop: -8 }}><Schnellwahl /></div>}
-</>;
+
+// Rechner: Zeile für einen eigenen Zeitraum (Von, Bis, speichern) bzw.
+// zum Löschen eines gespeicherten
+function ZeitraumZusatz() {
+  const g = gespeichert();
+  const eigen = S.eigenerZeitraum || (periodenAbstand() == null && !g);
+  if (!eigen && !g) return null;
+  return (
+    <div className="wz-zeile">
+      {eigen && <>
+        <label className="wz-feld"><span>Von</span>
+          <input type="date" defaultValue={S.uVon} key={"v" + S.uVon} data-feld="uvon" /></label>
+        <label className="wz-feld"><span>Bis</span>
+          <input type="date" defaultValue={S.uBis} key={"b" + S.uBis} data-feld="ubis" /></label>
+        <button className="link" data-akt="periodeNeu" disabled={S.perioden.length >= MAX_PERIODEN}
+                title={S.perioden.length >= MAX_PERIODEN ? "Es gehen höchstens drei — zuerst einen löschen." : undefined}>
+          + Diesen Zeitraum speichern</button>
+      </>}
+      {g && <button className="link" data-akt="periodeWeg" data-id={g.id}>Gespeicherten Zeitraum „{g.name}“ löschen</button>}
+      <button className="link" data-akt="periodeJetzt">Zur laufenden Periode</button>
+    </div>);
+}
 
 // ---------- Filter ----------
 // Auswahlfeld, das sich neu aufbaut, wenn sich der Wert von aussen ändert
-function Auswahl({ id, feld, wert, children }: { id: string; feld: string; wert: string; children: any }) {
+function Auswahl({ id, feld, wert, children }: { id?: string; feld: string; wert: string; children: any }) {
   return <select id={id} data-feld={feld} defaultValue={wert} key={wert}>{children}</select>;
 }
 
@@ -278,6 +330,9 @@ const darfPerson = () => S.istAdmin || S.istPruefer;
 // Zwei Filter-Bereiche: "u" = Übersicht, "m" = Meine Belege. Felder heissen
 // S.uZahlart / S.mZahlart usw.
 type Bereich = "u" | "m";
+
+const filterAnzahl = (b: Bereich) => [S[b + "Zahlart"], S[b + "Status"], S[b + "Konto"], S[b + "Auftrag"],
+  ...(b === "u" ? [S.uGeraet, S.uZahlgeraet] : [])].filter(Boolean).length;
 
 export function FilterChips({ b = "u" }: { b?: Bereich }) {
   const statusNamen = b === "m" ? STATUS_FILTER_MEINE : STATUS_FILTER;
@@ -288,7 +343,6 @@ export function FilterChips({ b = "u" }: { b?: Bereich }) {
   if (S[b + "Status"])  chips.push([b + "Status", "Status: " + (statusNamen[S[b + "Status"]] || S[b + "Status"])]);
   if (S[b + "Konto"])   chips.push([b + "Konto", "Konto " + S[b + "Konto"]]);
   if (S[b + "Auftrag"]) chips.push([b + "Auftrag", "KST " + auftragAnzeige(S[b + "Auftrag"])]);
-  if (S.bSuche.trim())  chips.push(["bSuche", "Suche: " + S.bSuche.trim()]);
   return <>
     {chips.map(([f, t]) => (
       <span className="chip" key={f}>{t}<button data-akt="filterWeg" data-f={f} aria-label={`${t} entfernen`}>✕</button></span>))}
@@ -302,62 +356,84 @@ function vorkommen(liste: any[], feld: string) {
   return [...s].sort((a, c) => String(a).localeCompare(String(c), "de", { numeric: true }));
 }
 
-export function FilterFelder({ b = "u" }: { b?: Bereich }) {
-  if (!S[b + "FilterOffen"]) return null;
-  // Übersicht: nur was im gewählten Abschnitt vorkommt
+// Die einzelnen Filter als Auswahlfelder — am Handy aufklappbar, am Rechner
+// immer sichtbar in der Werkzeugleiste. ohneGruppen: Person, KST und Konto
+// weglassen (in der Übersicht stehen die links in der Gruppenliste).
+function filterAuswahl(b: Bereich, ohneGruppen?: boolean) {
   const imAbschnitt = S.uBelege.filter((x) => imBereich(x));
   const liste = b === "m" ? S.belege : imAbschnitt;
   const personen = [...new Set(imAbschnitt.map((x) => x.geraet))].sort() as string[];
   const statusNamen = b === "m" ? STATUS_FILTER_MEINE : STATUS_FILTER;
+  const f: [string, any][] = [];
+  if (b === "u" && darfPerson() && !ohneGruppen)
+    f.push(["Person", <Auswahl feld="ugeraet" wert={S.uGeraet}>
+      <option value="">Alle Personen</option>
+      {personen.map((g) => <option key={g} value={g}>{personName(g)}</option>)}</Auswahl>]);
+  f.push(["Zahlungsart", <Auswahl feld={b + "zahlart"} wert={S[b + "Zahlart"]}>
+    <option value="">Alle</option>
+    {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{n}</option>)}</Auswahl>]);
+  if (b === "u" && S.zahlgeraete.length > 0)
+    f.push(["Gerät", <Auswahl feld="uzahlgeraet" wert={S.uZahlgeraet}>
+      <option value="">Alle Geräte</option>
+      {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>{g.name} · {kstName(g.auftrag_nr)}</option>)}
+    </Auswahl>]);
+  f.push(["Status", <Auswahl feld={b + "status"} wert={S[b + "Status"]}>
+    <option value="">Alle</option>
+    {Object.entries(statusNamen).map(([w, n]) => <option key={w} value={w}>{n}</option>)}</Auswahl>]);
+  if (!ohneGruppen) {
+    f.push(["Konto", <Auswahl feld={b + "konto"} wert={S[b + "Konto"]}>
+      <option value="">Alle Konten</option>
+      {vorkommen(liste, "konto_nummer").map((k) => <option key={k} value={k}>{k}{kontoName(k) ? " " + kontoName(k) : ""}</option>)}
+    </Auswahl>]);
+    f.push(["KST", <Auswahl feld={b + "auftrag"} wert={S[b + "Auftrag"]}>
+      <option value="">Alle Kostenstellen</option>
+      {vorkommen(liste, "auftrag_nr").map((a) => <option key={a} value={a}>{kstName(a)}</option>)}
+    </Auswahl>]);
+  }
+  return f;
+}
+
+// Handy: aufklappbare Filterfelder unter dem Suchfeld
+export function FilterFelder({ b = "u" }: { b?: Bereich }) {
+  if (!S[b + "FilterOffen"]) return null;
   return (
     <div className="karte innen"><div className="filterfeld">
-      <div className="feld"><label htmlFor={b + "suche"}>Suchen</label>
-        <input id={b + "suche"} type="search" placeholder="KST, Konto, Kommentar, Betrag …"
-               defaultValue={S.bSuche} key={"s" + S.bSucheNeu} data-feld="bsuche" /></div>
-      {b === "u" && darfPerson() &&
-        <div className="feld"><label htmlFor="ugeraet">Person</label>
-          <Auswahl id="ugeraet" feld="ugeraet" wert={S.uGeraet}>
-            <option value="">Alle Personen</option>
-            {personen.map((g) => <option key={g} value={g}>{personName(g)}</option>)}
-          </Auswahl></div>}
-      <div className="feld"><label htmlFor={b + "zahlart"}>Zahlungsart</label>
-        <Auswahl id={b + "zahlart"} feld={b + "zahlart"} wert={S[b + "Zahlart"]}>
-          <option value="">Alle</option>
-          {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
-        </Auswahl></div>
-      {b === "u" && S.zahlgeraete.length > 0 &&
-        <div className="feld"><label htmlFor="uzahlgeraet">Gerät</label>
-          <Auswahl id="uzahlgeraet" feld="uzahlgeraet" wert={S.uZahlgeraet}>
-            <option value="">Alle Geräte</option>
-            {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>
-              {g.name} · {kstName(g.auftrag_nr)}</option>)}
-          </Auswahl></div>}
-      <div className="feld"><label htmlFor={b + "status"}>Status</label>
-        <Auswahl id={b + "status"} feld={b + "status"} wert={S[b + "Status"]}>
-          <option value="">Alle</option>
-          {Object.entries(statusNamen).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
-        </Auswahl></div>
-      <div className="feld"><label htmlFor={b + "konto"}>Konto</label>
-        <Auswahl id={b + "konto"} feld={b + "konto"} wert={S[b + "Konto"]}>
-          <option value="">Alle Konten</option>
-          {vorkommen(liste, "konto_nummer").map((k) => <option key={k} value={k}>{k}{kontoName(k) ? " " + kontoName(k) : ""}</option>)}
-        </Auswahl></div>
-      <div className="feld"><label htmlFor={b + "auftrag"}>KST</label>
-        <Auswahl id={b + "auftrag"} feld={b + "auftrag"} wert={S[b + "Auftrag"]}>
-          <option value="">Alle Kostenstellen</option>
-          {vorkommen(liste, "auftrag_nr").map((a) => <option key={a} value={a}>{kstName(a)}</option>)}
-        </Auswahl></div>
+      {filterAuswahl(b).map(([lab, feld]) => (
+        <label className="feld" key={lab}><span className="lab">{lab}</span>{feld}</label>))}
     </div></div>);
 }
 
 export const FilterKnopf = ({ b = "u" }: { b?: Bereich }) => {
-  const felder = [S[b + "Zahlart"], S[b + "Status"], S[b + "Konto"], S[b + "Auftrag"], S.bSuche.trim()];
-  if (b === "u") felder.push(S.uGeraet, S.uZahlgeraet);
-  const n = felder.filter(Boolean).length;
+  const n = filterAnzahl(b);
   const offen = S[b + "FilterOffen"];
   return <button className={"k2 klein" + (offen ? " fett" : "")} data-akt="filterAuf" data-b={b}
                  aria-expanded={offen}>Filter{n ? ` · ${n}` : ""}</button>;
 };
+
+// Suchfeld — am Handy immer direkt unter der Periode, daneben der Filterknopf
+export const SuchFeld = ({ breit }: { breit?: number }) => (
+  <input type="search" placeholder="Suchen: KST, Konto, Kommentar, Betrag …" aria-label="Belege durchsuchen"
+         defaultValue={S.bSuche} key={"s" + S.bSucheNeu} data-feld="bsuche"
+         style={breit ? { width: breit } : undefined} />);
+
+export const Suchzeile = ({ b = "u" }: { b?: Bereich }) => (
+  <div className="suchzeile"><SuchFeld /><FilterKnopf b={b} /></div>);
+
+// Rechner: Werkzeugleiste mit Zeitraum, Suche und den Filtern — immer sichtbar
+export function Werkzeugleiste({ b, ohneGruppen }: { b: Bereich; ohneGruppen?: boolean }) {
+  const aktiv = filterAnzahl(b) > 0 || !!S.bSuche.trim();
+  return (
+    <div className="karte werkzeugleiste">
+      <div className="wz-zeile">
+        <div className="wz-feld"><span>Zeitraum</span><ZeitraumAuswahl /></div>
+        <label className="wz-feld wz-suche"><span>Suchen</span><SuchFeld /></label>
+        {filterAuswahl(b, ohneGruppen).map(([lab, feld]) => (
+          <label className="wz-feld" key={lab}><span>{lab}</span>{feld}</label>))}
+        {aktiv && <button className="link wz-weg" data-akt="filterAlleWeg" data-b={b}>Filter zurücksetzen</button>}
+      </div>
+      <ZeitraumZusatz />
+    </div>);
+}
 
 // Name einer KST für die Anzeige: "2601 Gurtenfestival"
 export function kstName(nr: string) {

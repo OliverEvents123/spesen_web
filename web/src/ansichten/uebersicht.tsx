@@ -13,31 +13,33 @@ import {
 } from "../grundlagen";
 import {
   uGefiltert, gruppiere, uTitel, eigeneErfasste, istErledigt, personName, kontoName,
-  meineGefiltert, istMeinOffen, istMeinErledigt, freigabeIm, bereiche, BEREICH_NAME
+  meineGefiltert, istMeinOffen, istMeinErledigt, freigabeIm, bereiche, imBereich
 } from "../daten";
 import { Seite } from "./rahmen";
 import {
-  Ico, Knopf, PeriodeWahl, PeriodeKlein, ZeitraumRechner, FilterChips, FilterFelder, FilterKnopf,
+  Ico, Knopf, PeriodeWahl, FilterChips, FilterFelder, Suchzeile, Werkzeugleiste,
   BelegZeile, BelegTabelle, KnopfFreigeben, VerlaufListe, Reiterleiste, Hinweiszeile,
-  belegKopf, belegeSuchen, eigenerName, kstName, zeitraumText
+  belegKopf, belegeSuchen, eigenerName, kstName, zeitraumText, zeitraumLabel, istLaufendePeriode
 } from "./bausteine";
 
 const summe = (liste: any[]) => liste.reduce((t, b) => t + buchungsBetrag(b), 0);
 const anzahlText = (n: number) => n === 1 ? "1 Beleg" : `${n} Belege`;
 const freigabenText = (n: number) => n === 1 ? "1 Freigabe offen" : `${n} Freigaben offen`;
 
-// Suchfeld für die Belegliste
-const Suche = () => (
-  <input type="search" placeholder="Suchen" aria-label="Belege durchsuchen" defaultValue={S.bSuche}
-         key={"s" + S.bSucheNeu} data-feld="bsuche" style={{ width: 200, minHeight: 36 }} />);
+// Handy: Suchfeld mit Filterknopf, darunter die aufgeklappten Filter und die gesetzten als Chips
+const HandyFilter = ({ b }: { b: "u" | "m" }) => <>
+  <Suchzeile b={b} />
+  <FilterFelder b={b} />
+  <div className="chips"><FilterChips b={b} /></div>
+</>;
 
-// Gesetzte Filter als Chips — nur wenn es welche gibt
-function Chips({ b }: { b?: "u" | "m" }) {
-  const n = [S[(b || "u") + "Zahlart"], S[(b || "u") + "Status"], S[(b || "u") + "Konto"], S[(b || "u") + "Auftrag"],
-             S.bSuche.trim(), ...(b === "m" ? [] : [S.uGeraet, S.uZahlgeraet])].filter(Boolean).length;
-  if (!n) return null;
-  return <div className="chips"><FilterChips b={b} /></div>;
-}
+// Leere laufende Periode: am 16. beginnt eine neue — die Belege liegen in der letzten
+const LeerePeriode = ({ leer }: { leer: boolean }) => leer && istLaufendePeriode()
+  ? <Hinweiszeile farbe="blau"
+      knopf={<button className="k2 klein" data-akt="periode" data-v="-1">‹ Letzte Periode</button>}>
+      <b>Noch keine Belege in dieser Periode</b> ({zeitraumText()}). Die Abrechnungsperiode läuft vom 16. bis zum 15.
+    </Hinweiszeile>
+  : null;
 
 /* ==========================================================
    Meine Belege
@@ -46,13 +48,10 @@ function Chips({ b }: { b?: "u" | "m" }) {
 const abgelehnte = () => S.offeneEigene.filter((b) => statusVon(b) === "abgelehnt");
 const unfreigegeben = () => eigeneErfasste(S.offeneEigene);
 
-// Was etwas braucht: abgelehnt, noch nicht freigegeben, Freigaben offen
+// Was etwas braucht: abgelehnt, noch nicht freigegeben. Offene Freigaben
+// stehen nicht hier, sondern im jeweiligen Abschnitt (Projektleitung usw.).
 function Aufgaben() {
   const abg = abgelehnte(), unf = unfreigegeben();
-  // Am Rechner je Abschnitt eine Zeile, am Handy eine für alles
-  const fg = istBreit()
-    ? bereiche().map((b) => ({ b, n: freigabeIm(b).length })).filter((x) => x.n)
-    : (S.istPruefer && S.freigabe.length ? [{ b: "", n: S.freigabe.length }] : []);
   return <>
     {abg.slice(0, 3).map((b) => (
       <Hinweiszeile farbe="rot" key={b.id}
@@ -70,11 +69,6 @@ function Aufgaben() {
             {unf.length === 1 ? "Freigeben" : "Alle freigeben"}</Knopf></>}>
         <b>{anzahlText(unf.length)}</b> noch nicht zur Prüfung freigegeben
       </Hinweiszeile>}
-    {fg.map(({ b, n }) => (
-      <Hinweiszeile farbe="blau" key={b || "alle"}
-        knopf={<button className="k1 klein" data-akt="tabFreigabe" data-b={b || undefined}>Prüfen</button>}>
-        <b>{freigabenText(n)}</b>{b ? " · " + BEREICH_NAME[b] : ""}
-      </Hinweiszeile>))}
   </>;
 }
 
@@ -143,18 +137,16 @@ export function MeineBelege() {
 
   if (istBreit()) return (
     <Seite titel="Meine Belege" pfad={eigenerName()} tab
-           rechts={<><PeriodeKlein /><FilterKnopf b="m" />
-             <button className="k1 klein" data-akt="neu"><Ico n="plus" s={16} /> Beleg erfassen</button></>}>
-      <ZeitraumRechner />
-      <FilterFelder b="m" />
-      <Chips b="m" />
+           rechts={<button className="k1 klein" data-akt="neu"><Ico n="plus" s={16} /> Beleg erfassen</button>}>
+      <Werkzeugleiste b="m" />
       <MeineReiter />
+      <LeerePeriode leer={!S.belege.length} />
       <SchnellErfassen />
       <Aufgaben />
       <section className="karte" id="belegliste">
         <div className="kartenkopf">
-          <span><h2>{listenTitel()}</h2><span className="sub">{zeitraumText()} · {anzahlText(liste.length)}</span></span>
-          <span style={{ display: "flex", gap: 8 }}><Suche /><KnopfFreigeben liste={liste} woher="liste" /></span>
+          <span><h2>{listenTitel()}</h2><span className="sub">{zeitraumLabel()} · {zeitraumText()} · {anzahlText(liste.length)}</span></span>
+          <KnopfFreigeben liste={liste} woher="liste" />
         </div>
         <BelegTabelle liste={liste} woher="liste" />
       </section>
@@ -163,9 +155,9 @@ export function MeineBelege() {
   return (
     <Seite titel="Meine Belege" sub={eigenerName()} tab>
       <PeriodeWahl />
-      <div className="filterleiste"><FilterKnopf b="m" /><FilterChips b="m" /></div>
-      <FilterFelder b="m" />
+      <HandyFilter b="m" />
       <MeineReiter />
+      <LeerePeriode leer={!S.belege.length} />
       <Aufgaben />
       <SchnellErfassen />
       <section className="karte huelle" id="belegliste">
@@ -280,6 +272,12 @@ function Gruppen() {
     </section>);
 }
 
+// "Projektleiter-Übersicht" usw. — am Handy oben im Kopf, am Rechner in der Kopfleiste
+const BEREICH_TITEL: Record<string, string> = { pl: "Projektleiter-Übersicht", sup: "Supervisor-Übersicht",
+                                                admin: "Admin-Übersicht" };
+const BEREICH_KURZ: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Admin" };
+const bereichTitel = () => BEREICH_TITEL[S.bereich] || "Übersicht";
+
 export function Uebersicht() {
   const gefiltert = uGefiltert();
   const ohneStatus = uGefiltert(true);
@@ -288,7 +286,7 @@ export function Uebersicht() {
   const brutto = gruppen.reduce((s, g) => s + g.brutto, 0);
   const erledigt = ohneStatus.filter(istErledigt).length;
   const fg = freigabeIm();
-  const reiter = S.uReiter || "belege";
+  const reiter = S.uReiter || "kontierung";
   const breit = istBreit();
 
   const statusReiter = [
@@ -298,8 +296,8 @@ export function Uebersicht() {
   ];
   const summeText = <><b>CHF {chfLang(brutto)}</b><span className="kn mu">{anzahlText(gefiltert.length)}, wie gebucht</span></>;
   const inhaltReiter = [
-    { v: "belege", lab: "Belege", n: liste.length },
     { v: "kontierung", lab: "Kontierung", n: gruppen.length },
+    { v: "belege", lab: "Belege", n: liste.length },
     { v: "verlauf", lab: "Verlauf", n: null }
   ];
   const ReiterInhalt = () => (
@@ -315,15 +313,14 @@ export function Uebersicht() {
       <b>{freigabenText(fg.length)}</b> — warten auf deinen Entscheid</Hinweiszeile>;
 
   const laedt = S.uLaedt && <div className="karte leer">Lade …</div>;
-  const titel = "Übersicht" + (breit && S.bereich ? " · " + BEREICH_NAME[S.bereich] : "");
+  const leer = !S.uLaedt && !S.uBelege.some((b) => imBereich(b));
 
   if (breit) return (
-    <Seite titel={titel} pfad={zeitraumText()} tab
-           rechts={<><PeriodeKlein /><FilterKnopf />{gefiltert.length > 0 && <ExportKnoepfe />}</>}>
-      <ZeitraumRechner />
-      <FilterFelder />
-      <Chips />
+    <Seite titel={bereichTitel()} pfad={zeitraumLabel() + " · " + zeitraumText()} tab
+           rechts={gefiltert.length > 0 && <ExportKnoepfe />}>
+      <Werkzeugleiste b="u" ohneGruppen />
       <Reiterleiste f="uStatus" reiter={statusReiter} rechts={summeText} />
+      <LeerePeriode leer={leer} />
       {freigabeHinweis}
       {laedt || (
         <div className="spalten gruppen">
@@ -331,8 +328,7 @@ export function Uebersicht() {
           <section className="karte huelle">
             <div className="kartenkopf">
               <ReiterInhalt />
-              {reiter === "belege" &&
-                <span style={{ display: "flex", gap: 8 }}><Suche /><KnopfFreigeben liste={gefiltert} woher="uebersicht" /></span>}
+              {reiter === "belege" && <KnopfFreigeben liste={gefiltert} woher="uebersicht" />}
               {reiter === "kontierung" && <span className="sub">{uTitel()}</span>}
             </div>
             {reiter === "belege" && <BelegTabelle liste={liste} woher="uebersicht" person />}
@@ -342,14 +338,21 @@ export function Uebersicht() {
         </div>)}
     </Seite>);
 
-  // Handy: Reiter mit Zahlen, Summe, Export, dann Belege / Kontierung / Verlauf
+  // Handy: oben der Abschnitt (bei mehreren umschaltbar), Reiter mit Zahlen,
+  // Summe, Export, dann Kontierung / Belege / Verlauf
+  const abschnitte = bereiche();
   return (
-    <Seite titel="Übersicht" sub={zeitraumText()} tab>
+    <Seite titel={bereichTitel()} sub="Übersicht" tab>
+      {abschnitte.length > 1 &&
+        <div className="seg">
+          {abschnitte.map((b) => <button key={b} className={S.bereich === b ? "an" : ""} data-akt="tabUebersicht"
+                                          data-b={b} aria-pressed={S.bereich === b}>{BEREICH_KURZ[b]}</button>)}
+        </div>}
       <PeriodeWahl />
-      <div className="filterleiste"><FilterKnopf /><FilterChips /></div>
-      <FilterFelder />
+      <HandyFilter b="u" />
       <Reiterleiste f="uStatus" reiter={statusReiter} />
       <div className="summenzeile">{summeText}</div>
+      <LeerePeriode leer={leer} />
       {freigabeHinweis}
       {gefiltert.length > 0 &&
         <div className="schnell"><span className="kl">Export</span><ExportKnoepfe /></div>}

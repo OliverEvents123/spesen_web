@@ -315,6 +315,17 @@ export function imBereich(b: any, bereich: string = S.bereich) {
 
 export const freigabeIm = (bereich: string = S.bereich) => S.freigabe.filter((b) => imBereich(b, bereich));
 
+// Freigabe mit den Filtern Person, KST, Konto (Supervisor und Admin)
+export const freigabeGefiltert = (bereich: string = S.bereich) => freigabeIm(bereich).filter((b) =>
+  (!S.fPerson || b.geraet === S.fPerson) &&
+  (!S.fKst    || belegZeilen(b).some((p) => p.auftrag_nr === S.fKst)) &&
+  (!S.fKonto  || belegZeilen(b).some((p) => p.konto_nummer === S.fKonto)));
+
+// Dürfen in der Freigabe filtern: Supervisor und Admin
+export const darfFreigabeFiltern = (bereich: string = S.bereich) =>
+  istBreit() ? (bereich === "sup" || bereich === "admin")
+             : (S.istAdmin || bereiche().includes("sup"));
+
 // Bin ich für diesen (eigenen) Beleg selbst zuständig? Dann gibt es
 // "Speichern und genehmigen" — sonst würde ich ihn zweimal anfassen.
 // Gleiche Regel wie darf_entscheiden in der Datenbank.
@@ -620,7 +631,7 @@ export function dateiGewaehlt(file: File) {
   render();
   // PDF: erste Seite als Bild zeigen
   if (file.type === "application/pdf") {
-    file.arrayBuffer().then(SpesenExport.ersteSeite).then((bild) => {
+    file.arrayBuffer().then((p) => SpesenExport.ersteSeite(p, 1600)).then((bild) => {
       if (S.neu === n && n.datei === file) { n.vorschau = bild; render(); }
     }).catch(() => { /* bleibt bei "PDF: Name" */ });
   }
@@ -630,7 +641,7 @@ export function dateiGewaehlt(file: File) {
 async function pdfVorschauLaden(n: any, url: string) {
   try {
     const puffer = await (await fetch(url)).arrayBuffer();
-    const bild = await SpesenExport.ersteSeite(puffer);
+    const bild = await SpesenExport.ersteSeite(puffer, 1600);
     if (S.neu === n) { n.altUrl = bild; render(); }
   } catch { /* bleibt bei "PDF-Beleg hinterlegt" */ }
 }
@@ -730,8 +741,8 @@ export async function zurueckNachSpeichern(text) {
   await ladeAlles();
   if (woher === "uebersicht" || istBreit()) await ladeUebersicht(true);
   // Am Rechner gleich den nächsten Beleg zum Prüfen zeigen
-  if (woher === "freigabe" && istBreit() && freigabeIm().length) {
-    await belegBearbeiten(freigabeIm()[0].id, "freigabe");
+  if (woher === "freigabe" && istBreit() && freigabeGefiltert().length) {
+    await belegBearbeiten(freigabeGefiltert()[0].id, "freigabe");
     S.meldung = text;
   }
   render();

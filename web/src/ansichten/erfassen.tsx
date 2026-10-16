@@ -6,17 +6,17 @@ import { S, schluessel } from "../zustand";
 import {
   istBreit, chf, chfLang, langDatum, zeitCH, betragVon, statusName, zahlartName, istGesperrt,
   istEntschieden, positionenSumme, positionenFertig, ZAHLART, SAETZE,
-  kurzDatum, statusVon, statusKlasse, OHNE_KST
+  kurzDatum, statusVon, statusKlasse, belegZeilen, OHNE_KST
 } from "../grundlagen";
 import {
   personName, kannSelbstEntscheiden, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName,
-  freigabeIm, imBereich, BEREICH_NAME
+  freigabeIm, freigabeGefiltert, darfFreigabeFiltern, imBereich, kontoName, BEREICH_NAME
 } from "../daten";
 import { apListe } from "../aktionen";
 import { Seite } from "./rahmen";
 import {
   Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, Meldung, stempelText, kontoWahlText, auftragWahlText, kstTitel,
-  belegKopf
+  belegKopf, kstName
 } from "./bausteine";
 
 const herkunft = () => ({ uebersicht: "Übersicht", freigabe: "Freigabe" } as any)[S.zurueckZu] || "Meine Belege";
@@ -474,6 +474,7 @@ function ApListe({ woher }: { woher: string }) {
         <div className="ap-listekopf">
           <span className="kn">{fertig.length} von {gesamt} erledigt</span>
           <div className="fortschritt"><div style={{ width: (gesamt ? fertig.length / gesamt * 100 : 0) + "%" }} /></div>
+          {darfFreigabeFiltern() && <FreigabeFilter />}
         </div>
         <div className="ap-eintraege">
           {vk.length > 0 && <div className="ap-gruppe">User-Zahlungen</div>}
@@ -488,7 +489,8 @@ function ApListe({ woher }: { woher: string }) {
                 <span className="kn mu">{personName(b.geraet)} · {statusName(b.status)}</span></span>
               <span className="betragz kn">{chfLang(b.betrag)}</span>
             </div>))}
-          {!liste.length && !fertig.length && <div className="leer">Nichts zu prüfen.</div>}
+          {!liste.length && !fertig.length &&
+            <div className="leer">{freigabeIm().length ? "Nichts für diesen Filter." : "Nichts zu prüfen."}</div>}
         </div>
       </div>);
   }
@@ -522,13 +524,25 @@ function ApBeleg({ n }: { n: any }) {
             <span className="mu">Ziehe ein PDF oder Bild hierher oder wähle eine Datei aus.</span>
             <button className="k1 klein" data-akt="waehlen">Beleg auswählen …</button>
           </div>
-        : bild ? <img className="papier" src={bild} alt="Beleg" />
+        : bild ? <img className="papier" src={bild} alt="Beleg"
+                      style={{ width: `calc(min(820px, 100%) * ${S.zoom / 100})` }} />
         : <div className="pdfmarke papierleer">{n.datei ? "PDF: " + n.datei.name
             : n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>}
-      {hat && <div className="ap-belegknoepfe">
-        {n.altPfad && !n.datei && <button className="k2 klein" data-akt="belegAuf" data-p={n.altPfad}>Beleg gross öffnen</button>}
-        {aenderbar && <button className="k2 klein" data-akt="belegNeu">Anderen Beleg</button>}
-      </div>}
+      {/* Leiste unten: Zoom mit Regler, öffnen, ersetzen */}
+      {hat &&
+        <div className="ap-zoom" role="group" aria-label="Beleg">
+          {bild && <>
+            <button className="pf" data-akt="zoom" data-v="-" aria-label="Verkleinern" disabled={S.zoom <= 50}>−</button>
+            <input type="range" min={50} max={400} step={10} value={S.zoom} data-feld="zoom" aria-label="Zoom"
+                   onChange={() => { /* läuft über data-feld */ }} />
+            <button className="pf" data-akt="zoom" data-v="+" aria-label="Vergrössern" disabled={S.zoom >= 400}>+</button>
+            <span className="mono kn">{S.zoom} %</span>
+            <button className="link" data-akt="zoom" data-v="fit" disabled={S.zoom === 100}>Einpassen</button>
+          </>}
+          {n.altPfad && !n.datei && <>
+            <button className="link" data-akt="belegAuf" data-p={n.altPfad} title="In neuem Fenster öffnen">Öffnen</button></>}
+          {aenderbar && <><button className="link" data-akt="belegNeu">Ersetzen</button></>}
+        </div>}
       <div className="ziehhinweis">Datei hier ablegen</div>
     </div>);
 }
@@ -555,10 +569,10 @@ export function Arbeitsplatz({ woher, n, fuss, children }: { woher: string | nul
 // Unten: zurück, überspringen und der Hauptentscheid.
 export function FreigabePlatz() {
   const n = S.neu && S.neu.id && S.neu.pruefen ? S.neu : null;
-  const liste = freigabeIm();
+  const liste = freigabeGefiltert();
   const titel = "Freigabe" + (S.bereich ? " · " + BEREICH_NAME[S.bereich] : "");
   const sub = liste.length === 1 ? "1 Freigabe offen" : `${liste.length} Freigaben offen`;
-  if (!liste.length && !n) {
+  if (!freigabeIm().length && !n) {
     const fertig = S.erledigtJetzt.filter((b) => imBereich(b)).length;
     return (
       <Seite titel={titel} pfad={sub} tab>
@@ -611,4 +625,28 @@ function Ablage({ n }: { n: any }) {
         </div>
       </div>
     </Seite>);
+}
+
+// Freigabe filtern nach Person, KST, Konto (Supervisor und Admin).
+// Die Auswahl zeigt nur, was in der offenen Freigabe vorkommt.
+export function FreigabeFilter() {
+  const alle = istBreit() ? freigabeIm() : freigabeIm("");
+  const werte = (f: (b: any) => string[]) =>
+    ([...new Set(alle.flatMap(f))] as string[]).sort((a, c) => String(a).localeCompare(String(c), "de", { numeric: true }));
+  const personen = werte((b) => [b.geraet]);
+  const kst = werte((b) => belegZeilen(b).map((p) => p.auftrag_nr));
+  const konten = werte((b) => belegZeilen(b).map((p) => p.konto_nummer));
+  const feld = (f: string, wert: string, alleText: string, liste: string[], name: (x: string) => string) => (
+    <select data-feld={f} defaultValue={wert} key={f + wert} aria-label={alleText}>
+      <option value="">{alleText}</option>
+      {liste.map((x) => <option key={x} value={x}>{name(x)}</option>)}
+    </select>);
+  const aktiv = S.fPerson || S.fKst || S.fKonto;
+  return (
+    <div className="freigabefilter">
+      {feld("fperson", S.fPerson, "Alle Personen", personen, personName)}
+      {feld("fkst", S.fKst, "Alle KST", kst, kstName)}
+      {feld("fkonto", S.fKonto, "Alle Konten", konten, (k) => `${k} ${kontoName(k)}`.trim())}
+      {aktiv && <button className="link" data-akt="freigabeFilterWeg">Filter zurücksetzen</button>}
+    </div>);
 }

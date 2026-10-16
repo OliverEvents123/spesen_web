@@ -171,10 +171,6 @@ button.zl:hover { background:var(--flaeche); }
 .periode { display:flex; align-items:center; gap:8px; padding:6px; }
 .periode .mitte { flex:1; text-align:center; display:flex; flex-direction:column; background:none; border:0; padding:2px; }
 .periode .mitte b { font-family:var(--mono); }
-.periodeklein { display:inline-flex; align-items:center; background:#fff; border-radius:8px; padding:1px;
-                border:1px solid var(--rand); }
-.periodeklein .pf { width:32px; height:32px; background:transparent; }
-.periodeklein b { font-family:var(--mono); padding:0 8px; white-space:nowrap; }
 .zeitraumfelder { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; padding:4px 6px 8px; }
 
 /* Filter */
@@ -307,9 +303,23 @@ button.ap-eintrag:hover { background:var(--flaeche); }
 .ap-eintrag .mitte b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ap-eintrag.fertig { opacity:.6; }
 .ap-eintrag .haken { color:var(--gruen); display:flex; }
-.ap-beleg { background:#e7eaf0; overflow:auto; padding:24px; display:flex; flex-direction:column; align-items:center;
-            gap:12px; min-height:0; }
-.ap-beleg .papier { width:100%; max-width:820px; height:auto; background:#fff; box-shadow:0 2px 12px rgba(16,24,40,.18); }
+.ap-beleg { background:#e7eaf0; overflow:auto; padding:24px 24px 0; display:flex; flex-direction:column; align-items:stretch;
+            gap:12px; min-height:0; position:relative; }
+/* Vergrössert: breiter als die Spalte — dann lässt es sich seitlich scrollen (darum margin statt zentrieren) */
+.ap-beleg .papier { max-width:none; height:auto; background:#fff; box-shadow:0 2px 12px rgba(16,24,40,.18);
+                    margin:0 auto; flex-shrink:0; }
+.ap-beleg .papierleer { margin:0 auto; }
+.ap-beleg .ablagegross { flex-shrink:0; }
+.ap-belegknoepfe { justify-content:center; }
+.ap-zoom { position:sticky; bottom:0; align-self:center; display:flex; flex-wrap:wrap; justify-content:center;
+           align-items:center; gap:6px 8px; background:#fff; border:1px solid #e5e7eb; border-radius:16px;
+           padding:5px 12px 5px 6px; margin:4px 0 14px; max-width:100%; box-shadow:0 4px 14px rgba(16,24,40,.12); z-index:2; }
+.ap-zoom .pf { width:30px; height:30px; border-radius:999px; font-size:18px; }
+.ap-zoom input[type="range"] { width:96px; min-height:0; padding:0; border:0; background:none; accent-color:var(--akzent); }
+.ap-zoom input[type="range"]:focus { outline:none; }
+.ap-zoom .mono { width:44px; text-align:right; }
+.ap-zoom .link { padding:4px 0; white-space:nowrap; font-size:13px; }
+.ap-zoom .trenner { width:1px; height:20px; background:#e5e7eb; }
 .ap-beleg .papierleer { width:100%; max-width:620px; height:320px; background:#fff; }
 .ap-belegknoepfe { display:flex; gap:8px; }
 .ap-panel { background:#fff; border-left:1px solid #e5e7eb; display:flex; flex-direction:column; min-height:0; }
@@ -432,3 +442,29 @@ button.vzeile:hover { background:var(--flaeche); }
   .vzeile .v-was span { white-space:normal; }
   .vzeile .v-wer { flex-direction:column; align-items:flex-end; gap:0; font-size:13px; }
 }
+
+/* ---------- Werkzeugleiste am Rechner: Zeitraum, Suche, Filter — immer sichtbar ---------- */
+.werkzeugleiste { padding:10px 14px; display:flex; flex-direction:column; gap:8px; }
+.wz-zeile { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; }
+.wz-feld { display:flex; flex-direction:column; gap:4px; margin:0; font-weight:400; color:var(--text); min-width:0; }
+.wz-feld > span { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--grau); }
+.wz-feld select, .wz-feld input { min-height:36px; font-size:14px; padding:0 10px; width:auto; max-width:170px; }
+.wz-suche { flex:1; min-width:160px; }
+.wz-suche input { width:100%; max-width:none; }
+.wz-zeitraum { display:flex; align-items:center; gap:4px; }
+.wz-zeitraum .pf { width:34px; height:36px; background:#fff; border:1px solid var(--rand); font-size:18px; }
+.wz-zeitraum select { max-width:300px; font-weight:700; }
+.wz-weg { padding-bottom:8px; }
+.werkzeugleiste .wz-zeile + .wz-zeile { border-top:1px solid var(--linie); padding-top:8px; align-items:center; }
+.werkzeugleiste .wz-zeile + .wz-zeile .wz-feld { flex-direction:row; align-items:center; gap:8px; }
+
+/* Handy: Suchfeld immer da, daneben der Filterknopf */
+.suchzeile { display:flex; gap:8px; align-items:center; }
+.suchzeile input { flex:1; min-height:42px; font-size:15px; }
+.suchzeile .k2 { flex-shrink:0; min-height:42px; }
+.chips:empty { display:none; }
+
+/* Freigabe filtern */
+.freigabefilter { display:flex; flex-direction:column; gap:6px; }
+.freigabefilter select { min-height:34px; font-size:14px; padding:0 8px; }
+.freigabefilter .link { align-self:flex-start; padding:2px 0; }

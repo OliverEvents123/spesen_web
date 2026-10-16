@@ -18,7 +18,7 @@ import {
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
-  standardBereich, freigabeIm, meineGefiltert
+  standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -55,7 +55,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   // Übersicht und Freigabe gibt es je Abschnitt (data-b: pl, sup, admin).
   // Am Handy ohne Abschnitt: alles, was ich sehen darf.
   if (a === "tabUebersicht") {
-    const neu = istBreit() ? (d.b || S.bereich || standardBereich()) : "";
+    const neu = d.b || S.bereich || standardBereich();
     if (neu !== S.bereich) { S.uAuftrag = ""; S.uKonto = ""; S.uGeraet = ""; S.uGruppe = ""; }
     S.bereich = neu;
     wechsel("uebersicht"); render();
@@ -614,12 +614,17 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   if (a === "tabFreigabe") {
-    S.bereich = istBreit() ? (d.b || S.bereich || standardBereich()) : "";
+    // Am Handy gibt es eine Freigabe für alles; der Abschnitt bleibt für die Übersicht
+    if (istBreit()) {
+      const neu = d.b || S.bereich || standardBereich();
+      if (neu !== S.bereich) { S.fPerson = ""; S.fKst = ""; S.fKonto = ""; }
+      S.bereich = neu;
+    }
     wechsel("freigabe"); S.zurueckZu = "freigabe"; S.erledigtJetzt = [];
     render();
     await ladeFreigabe();
     // Am Rechner gleich den ersten Beleg rechts daneben öffnen
-    const liste = freigabeIm();
+    const liste = freigabeGefiltert();
     if (istBreit() && liste.length) return belegBearbeiten(liste[0].id, "freigabe");
     return render();
   }
@@ -633,6 +638,23 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     const ziel = liste[i + Number(d.v)] || (Number(d.v) > 0 ? liste[0] : null);
     if (!ziel || (S.neu && String(ziel.id) === String(S.neu.id))) return;
     return belegBearbeiten(ziel.id, woher);
+  }
+
+  if (a === "freigabeFilterWeg") { S.fPerson = ""; S.fKst = ""; S.fKonto = ""; return render(); }
+
+  // Beleg vergrössern: + / − / einpassen
+  if (a === "zoom") {
+    S.zoom = d.v === "fit" ? 100 : Math.min(400, Math.max(50, S.zoom + (d.v === "+" ? 25 : -25)));
+    return render();
+  }
+
+  // Alle Filter eines Bereichs auf einmal weg (m = Meine Belege, u = Übersicht)
+  if (a === "filterAlleWeg") {
+    const felder = d.b === "m" ? ["mZahlart", "mStatus", "mKonto", "mAuftrag"]
+      : ["uZahlart", "uStatus", "uKonto", "uAuftrag", "uGeraet", "uZahlgeraet"];
+    for (const f of felder) S[f] = "";
+    S.bSuche = ""; S.bSucheNeu++;
+    return render();
   }
 
   // Einen Filter direkt setzen (Reiter mit Zahlen) — anders als die
@@ -742,7 +764,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
 // Die Liste links im Arbeitsplatz — je nachdem, woher der Beleg geöffnet wurde
 export function apListe(woher: string) {
-  if (woher === "freigabe") return freigabeIm();
+  if (woher === "freigabe") return freigabeGefiltert();
   if (woher === "uebersicht") return uGefiltert();
   return meineGefiltert();
 }
@@ -940,6 +962,25 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "uzahlart") { S.uZahlart = ziel.value; render(); return; }
   if (f === "ustatus")  { S.uStatus  = ziel.value; render(); return; }
   if (f === "uzahlgeraet") { S.uZahlgeraet = ziel.value; render(); return; }
+  // Freigabe filtern
+  if (f === "fperson") { S.fPerson = ziel.value; render(); return; }
+  if (f === "fkst")    { S.fKst    = ziel.value; render(); return; }
+  if (f === "fkonto")  { S.fKonto  = ziel.value; render(); return; }
+  // Zeitraum aus der Auswahl: p:-1 = Periode, g:id = gespeichert, eigen = Von/Bis
+  if (f === "zeitraum") {
+    const w = ziel.value;
+    if (w === "eigen") { S.eigenerZeitraum = true; render(); return; }
+    if (w.startsWith("p:")) {
+      const p = periode(Number(w.slice(2)));
+      S.uVon = p.von; S.uBis = p.bis;
+    } else if (w.startsWith("g:")) {
+      const p = S.perioden.find((x) => String(x.id) === w.slice(2));
+      if (!p) return;
+      S.uVon = p.von; S.uBis = p.bis;
+    }
+    S.eigenerZeitraum = false;
+    zeitraumLaden(); return;
+  }
   if (f === "mzahlart") { S.mZahlart = ziel.value; render(); return; }
   if (f === "mstatus")  { S.mStatus  = ziel.value; render(); return; }
   if (f === "mkonto")   { S.mKonto   = ziel.value; render(); return; }
@@ -964,6 +1005,7 @@ export function eingabe(ziel: HTMLInputElement) {
 
   if (f === "suche")   { S.suche = ziel.value; return render(); }
   if (f === "bsuche")  { S.bSuche = ziel.value; return render(); }
+  if (f === "zoom")    { S.zoom = Number(ziel.value) || 100; return render(); }
   if (f === "kommentar" && S.neu)  { S.neu.kommentar = ziel.value; return; }
   if (f === "korrBetrag" && S.neu) { S.neu.korrBetrag = ziel.value; return render(); }
   if (f === "favname" && S.favEdit) { S.favEdit.name = ziel.value; return; }

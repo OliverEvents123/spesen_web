@@ -4,8 +4,8 @@
 
 import { S, schluessel } from "../zustand";
 import { istBreit, chf, chfLang, auftragAnzeige, kurzZeit, initialen } from "../grundlagen";
-import { personName } from "../daten";
-import { FreigabePlatz } from "./erfassen";
+import { personName, freigabeGefiltert, darfFreigabeFiltern } from "../daten";
+import { FreigabePlatz, FreigabeFilter } from "./erfassen";
 import { Seite } from "./rahmen";
 import {
   Ico, Knopf, Hinweis, Wahl, belegKopf, eigenerName, eigeneRolle, kontoWahlText, auftragWahlText
@@ -124,7 +124,8 @@ function FreigabeZeile({ b, an }: { b: any; an?: boolean }) {
 }
 
 export function Freigabe() {
-  const liste = S.freigabe;
+  // Am Handy: alles, was auf mich wartet (ohne Abschnitt), gefiltert
+  const liste = freigabeGefiltert("");
   const vk = liste.filter((b) => b.zahlart === "vorkasse");
   const kb = liste.filter((b) => b.zahlart !== "vorkasse");
   const offenId = S.neu && S.neu.id;
@@ -132,9 +133,12 @@ export function Freigabe() {
     <span className="kl" style={{ marginBottom: -6 }}>{titel}</span>
     <section className="karte huelle">{l.map((b) => <FreigabeZeile b={b} key={b.id} an={istBreit() && b.id === offenId} />)}</section>
   </>;
+  const filter = darfFreigabeFiltern() && S.freigabe.length > 1 &&
+    <div className="karte innen"><FreigabeFilter /></div>;
   const listeTeil = liste.length === 0
-    ? <div className="karte leer">Nichts zu prüfen.</div>
+    ? <>{filter}<div className="karte leer">{S.freigabe.length ? "Nichts für diesen Filter." : "Nichts zu prüfen."}</div></>
     : <>
+        {filter}
         {gruppe("User-Zahlungen · Rückerstattung", vk)}
         {gruppe("Kreditkarte / Bar · nur prüfen", kb)}
         <Hinweis>Du siehst hier die Belege deiner Kostenstellen und Konten.</Hinweis>
