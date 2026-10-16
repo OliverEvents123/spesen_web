@@ -2,7 +2,8 @@
 // Feste Werte und kleine Helfer ohne Zugriff auf den Zustand.
 
 // ---------- Feste Werte ----------
-export const ZAHLART: Record<string, string> = { karte: "Kreditkarte", bar: "Bar", vorkasse: "Vorauskasse" };
+// "vorkasse" heisst in der Oberfläche "User-Zahlung": die Person hat selbst bezahlt.
+export const ZAHLART: Record<string, string> = { karte: "Kreditkarte", bar: "Bar", vorkasse: "User-Zahlung" };
 export const zahlartName = (z?: string) => ZAHLART[z || "karte"] || z;
 
 // Status eines Belegs. In der Datenbank heisst "erfasst" noch "offen".
@@ -14,6 +15,18 @@ export const STATUS: Record<string, string> = {
   genehmigt: "genehmigt", teilweise: "teilweise genehmigt", abgelehnt: "abgelehnt",
   abgeschlossen: "abgeschlossen"
 };
+// Für den Filter: zwei Gruppen zusätzlich zu den einzelnen Status
+export const STATUS_FILTER: Record<string, string> = {
+  unerledigt: "offen (erfasst oder eingereicht)", erledigt: "erledigt (entschieden)", ...STATUS
+};
+// Für "Meine Belege": was noch etwas braucht (auch abgelehnte) und was erledigt ist
+export const STATUS_FILTER_MEINE: Record<string, string> = {
+  offenePunkte: "offene Punkte (erfasst, eingereicht, abgelehnt)", erledigt: "erledigt", ...STATUS
+};
+// Farbe der Statusmarke
+export const statusKlasse = (s?: string) => ({
+  offen: "erf", eingereicht: "ein", geprueft: "gep", besprechung: "bes",
+  genehmigt: "gen", teilweise: "gen", abgelehnt: "abl", abgeschlossen: "erf" } as any)[s || "offen"] || "erf";
 export const statusVon  = (b: any) => (b && b.status) || "offen";
 export const statusName = (s?: string) => STATUS[s || "offen"] || s;
 // Ändern und löschen geht nur, solange erfasst oder abgelehnt.
@@ -34,7 +47,7 @@ export const NETZTEXT = "Kein Netz. Bitte das Foto lokal speichern und im Nachhi
 export const GESPERRT_TEXT = "Dieser Beleg lässt sich nicht mehr ändern oder löschen — "
                            + "er ist zur Prüfung freigegeben oder gehört einem anderen Gerät.";
 export const MAX_KACHELN = 6;          // mehr Favoriten nur in der Verwaltung
-export const MAX_PERIODEN = 3;         // je Benutzer; die Datenbank hält dieselbe Grenze
+export const MAX_PERIODEN = 3;         // gespeicherte Zeiträume je Benutzer; die Datenbank hält dieselbe Grenze
 export const BREIT_AB = 900;           // ab dieser Breite das Rechner-Layout
 export const SAETZE = ["8.1", "2.6", "3.8", "0"];
 
@@ -52,10 +65,10 @@ export const istGeschuetzt = (mail: string) =>
 // Rollen der Benutzer: Anzeigename und Erklärung
 export const ROLLEN: Record<string, [string, string]> = {
   user:          ["User",          "Sieht und erfasst nur die eigenen Belege."],
-  projektleiter: ["Projektleiter", "Prüft und genehmigt die Belege seiner Kostenstellen (unter Zuweisungen)."],
-  supervisor:    ["Supervisor",    "Prüft und genehmigt die Belege seiner Konten (unter Zuweisungen) und "
-                                 + "die Belege von Benutzern mit eingerichteter Prüfung."],
-  admin:         ["Admin",         "Sieht alles, darf alles entscheiden und Benutzer, Konten und Zuweisungen verwalten."]
+  projektleiter: ["Projektleiter", "Prüft und genehmigt die Belege seiner Kostenstellen (unten zuweisen)."],
+  supervisor:    ["Supervisor",    "Prüft die Belege seiner Konten und genehmigt die User-Zahlungen seiner "
+                                 + "Personen (unten zuweisen), dazu Belege von Benutzern mit eingerichteter Prüfung."],
+  admin:         ["Admin",         "Sieht alles, darf alles entscheiden und Benutzer und Konten verwalten."]
 };
 export const rolleName = (r: string) => (ROLLEN[r] || [r])[0];
 
@@ -81,6 +94,24 @@ export const chf = (z: any) => Number(z).toFixed(2);
 export const datumCH = (d: any) => new Date(d).toLocaleDateString("de-CH");
 export const zeitCH = (t: any) => t ? new Date(t).toLocaleString("de-CH", {
   day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+// Kurz, für Listen: "11.10. 18:42"
+export const kurzZeit = (t: any) => {
+  if (!t) return "";
+  const d = new Date(t);
+  return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" }) + " "
+       + d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
+};
+// Zwei Buchstaben für die Kachel: "Hans Muster" → HM, "handy3@…" → HA
+export const initialen = (text: string) => {
+  const t = String(text || "").split("@")[0].trim();
+  const w = t.split(/[\s._-]+/).filter(Boolean);
+  return (w.length > 1 ? w[0][0] + w[1][0] : t.slice(0, 2)).toUpperCase() || "?";
+};
+// Beträge mit Tausender-Apostroph: 3'307.20
+export const chfLang = (z: any) => {
+  const [g, n] = Number(z || 0).toFixed(2).split(".");
+  return g.replace(/\B(?=(\d{3})+(?!\d))/g, "'") + "." + n;
+};
 export const ordnerName = (mail: string) => mail.replace(/@/g, "_").replace(/\./g, "_");
 export const kurzName = (mail: string) => String(mail || "").split("@")[0];
 
@@ -108,6 +139,21 @@ export function periode(versatz?: number) {
   const bis = new Date(h.getFullYear(), m + 1, PERIODE_START - 1);
   return { von: isoDatum(von), bis: isoDatum(bis) };
 }
+
+// Die Periode, in der ein Datum liegt, um schritt Perioden verschoben
+export function periodeUm(datum: string, schritt: number) {
+  const d = new Date(datum + "T12:00:00");
+  let m = d.getMonth();
+  if (d.getDate() < PERIODE_START) m -= 1;
+  m += schritt;
+  return { von: isoDatum(new Date(d.getFullYear(), m, PERIODE_START)),
+           bis: isoDatum(new Date(d.getFullYear(), m + 1, PERIODE_START - 1)) };
+}
+// Ist von–bis genau eine Abrechnungsperiode?
+export const istPeriode = (von: string, bis: string) => {
+  const p = periodeUm(von, 0);
+  return p.von === von && p.bis === bis;
+};
 
 export function istNetzfehler(err: any) {
   if (!navigator.onLine) return true;

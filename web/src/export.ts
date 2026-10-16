@@ -14,7 +14,7 @@
 export const SpesenExport = (function () {
 
   const BREITE = 595.28, HOEHE = 841.89, RAND = 40;   // A4 hoch, in Punkt
-  const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"Vorauskasse" };
+  const ZAHLART = { karte:"Kreditkarte", bar:"Bar", vorkasse:"User-Zahlung" };
   const zahlartName = (z) => ZAHLART[z || "karte"] || z;
   const chf = (z) => Number(z).toFixed(2);
   const datumCH = (d) => new Date(d).toLocaleDateString("de-CH");
@@ -80,6 +80,21 @@ export const SpesenExport = (function () {
     return bilder;
   }
 
+  // Erste Seite eines PDFs als Bild (für die Vorschau in der App)
+  async function ersteSeite(puffer, breite = 900) {
+    const lib = await pdfJsLaden();
+    const dok = await lib.getDocument({ data: puffer.slice(0) }).promise;
+    const seite = await dok.getPage(1);
+    const v1 = seite.getViewport({ scale: 1 });
+    const sicht = seite.getViewport({ scale: breite / v1.width });
+    const c = document.createElement("canvas");
+    c.width = Math.round(sicht.width); c.height = Math.round(sicht.height);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height);
+    await seite.render({ canvasContext: ctx, viewport: sicht }).promise;
+    return c.toDataURL("image/jpeg", 0.85);
+  }
+
   function speichern(blob, name) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -119,7 +134,8 @@ export const SpesenExport = (function () {
     function kopfzeile(seite, b, zusatz) {
       const gekuerzt = Math.abs(gebucht(b) - parseFloat(b.betrag)) > 0.004;
       let t = `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
-              `KST ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)} · ` +
+              `KST ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)}` +
+              (b.geraetName ? ` (${b.geraetName})` : "") + " · " +
               `CHF ${chf(gebucht(b))}` +
               (gekuerzt ? ` (von ${chf(b.betrag)})` : "") +
               (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "") +
@@ -127,6 +143,17 @@ export const SpesenExport = (function () {
       t = pdfText(t);
       while (font.widthOfTextAtSize(t, 9) > BREITE - 2*RAND) t = t.slice(0, -1);
       seite.drawText(t, { x:RAND, y:HOEHE-RAND+4, size:9, font, color:grau });
+
+      // Kurzer Stempel rechts oben: "genehmigt: Anna Keller / 07.10.2026"
+      if (b.entscheid_von) {
+        const wer = b.entscheid_von === "automatisch" ? "automatisch" : (b.entscheidName || b.entscheid_von);
+        let k = pdfText(`${b.statusText || b.status}: ${wer} / ${datumCH(b.entscheid_am)}`);
+        while (fett.widthOfTextAtSize(k, 9) > BREITE / 2) k = k.slice(0, -1);
+        const kb = fett.widthOfTextAtSize(k, 9);
+        seite.drawRectangle({ x:BREITE-RAND-kb-10, y:HOEHE-RAND-24, width:kb+10, height:14,
+                              borderColor:blau, borderWidth:0.8, color:rgb(1, 1, 1) });
+        seite.drawText(k, { x:BREITE-RAND-kb-5, y:HOEHE-RAND-20, size:9, font:fett, color:blau });
+      }
 
       // Stempel unten auf der Seite
       let st = pdfText(stempelText(b));
@@ -157,7 +184,7 @@ export const SpesenExport = (function () {
         ["Konto",     `${b.konto_nummer} ${b.bezeichnung || ""}`.trim()],
         ["Auftrag",   String(b.auftrag_nr)],
         ["MwSt",      `${b.mwst} %`],
-        ["Bezahlt",   zahlartName(b.zahlart)],
+        ["Bezahlt",   zahlartName(b.zahlart) + (b.geraetName ? " · " + b.geraetName : "")],
         ["Betrag",    `CHF ${chf(b.betrag)}`],
         ...(gekuerzt ? [["Gebucht", `CHF ${chf(gebucht(b))}`]] : [])
       ];
@@ -342,16 +369,18 @@ export const SpesenExport = (function () {
     r("");
     r("EINZELNE BELEGE");
     r("Nr","Datum","Konto","Bezeichnung","Auftrag","MwSt-Satz","Bezahlt mit","Betrag","Beleg","Gerät",
-      "Status","Gebucht","Entschieden von","Entschieden am","Kommentar");
+      "Status","Gebucht","Entschieden von","Entschieden am","Kommentar Entscheid","Kommentar Beleg",
+      "Gerät Kreditkarte");
     belege.forEach((b, i) => r(i+1, datumCH(b.beleg_datum), b.konto_nummer, b.bezeichnung || "",
                                b.auftrag_nr, b.mwst, zahlartName(b.zahlart), chf(b.betrag),
                                b.datei_pfad ? "ja" : "fehlt", b.geraet,
                                b.statusText || "", chf(gebucht(b)), b.entscheid_von || "",
-                               b.entscheid_am ? zeitCH(b.entscheid_am) : "", b.entscheid_grund || ""));
+                               b.entscheid_am ? zeitCH(b.entscheid_am) : "", b.entscheid_grund || "",
+                               b.kommentar || "", b.geraetName || ""));
 
     speichern(new Blob(["\uFEFF" + z.join("\r\n")], { type:"text/csv;charset=utf-8" }),
               dateiname || `Spesen_${monat}.csv`);
   }
 
-  return { pdf, csv };
+  return { pdf, csv, ersteSeite };
 })();

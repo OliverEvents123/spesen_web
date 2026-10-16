@@ -42,7 +42,19 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
 - `src/aktionen.ts` — alle Klicks/Eingaben über `data-akt` / `data-feld`
   (Port von `app.js`). Knöpfe, die arbeiten: `laeuft(akt, text)` und
   `<Knopf akt="…">`.
-- `src/ansichten/*.tsx` — die Bildschirme (Port von `ansichten.js`).
+- `src/ansichten/rahmen.tsx` — Rahmen jeder Seite (`<Seite>`): Handy mit
+  dunklem Kopf und Leiste unten, Rechner (ab 900 px) mit Seitenleiste links
+  (Abschnitte Meine Spesen / Projektleitung / Supervisor / Alle Belege /
+  Administration)
+  und weisser Kopfleiste. `voll` = Arbeitsplatz ohne Rand.
+- `src/ansichten/bausteine.tsx` — Symbole, Kacheln, Zeitraum, Filter,
+  Belegzeilen, Auswahl Konto/KST (am Rechner klappt sie unter dem Feld auf).
+- `src/ansichten/*.tsx` — die Bildschirme: `uebersicht` (Meine Belege,
+  Übersicht), `erfassen` (Erfassen, Ansehen/Prüfen, am Rechner der
+  Arbeitsplatz Liste | Beleg | Angaben inkl. Freigabe), `profil` (Profil,
+  Passwort, Favoriten, Freigabe), `verwaltung` (Benutzer inkl. Zuweisungen,
+  Konten, Geräte, Kostenstellen-Auswahl), `login`.
+- `src/stil.css` — Aussehen nach Vorbild „PDF Master" (16.10.2026), Basis Variante D.
 - `public/sw.js` — Service Worker, nur in der echten App angemeldet.
 - `src/export.ts` — PDF/CSV, unverändert aus `export.js`.
 - Eingabefelder sind ungesteuert (`defaultValue`) und werden über

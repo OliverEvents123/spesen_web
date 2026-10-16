@@ -1,330 +1,369 @@
 // uebersicht.tsx
-// Startseiten: am Handy "Meine Belege" und "Übersicht", am Rechner alles auf
-// einer Seite. Dazu die Bausteine Filter, Kontierung, Export, Belegliste.
+// Die zwei Hauptseiten: "Meine Belege" (eigene Belege der Periode, offene
+// Punkte, Schnell erfassen) und "Übersicht" (je Abschnitt Projektleitung,
+// Supervisor, Administration: Kostenstellen links, rechts Belege,
+// Kontierung und Verlauf als Reiter, Export oben). Für Handy und Rechner.
+//
+// Statt Kacheln und farbiger Karten: Reiter mit Zahlen, eine Summe,
+// schmale Hinweiszeilen nur für das, was etwas braucht.
 
 import { S } from "../zustand";
 import {
-  st, istBreit, chf, datumCH, kurzName, kurzDatum, monatName, zahlartName, auftragAnzeige,
-  ZAHLART, STATUS, MAX_PERIODEN, MAX_KACHELN
+  istBreit, chfLang, buchungsBetrag, statusVon, auftragAnzeige, MAX_KACHELN, OHNE_KST
 } from "../grundlagen";
 import {
-  kontoName, kontenImZeitraum, auftraegeImZeitraum, uGefiltert, gruppiere, uTitel, uZeitraumText
+  uGefiltert, gruppiere, uTitel, eigeneErfasste, istErledigt, personName, kontoName,
+  meineGefiltert, istMeinOffen, istMeinErledigt, freigabeIm, bereiche, imBereich
 } from "../daten";
+import { Seite } from "./rahmen";
 import {
-  Kopf, Reiter, Meldung, Knopf, Stift, Hoch, StatusMarke, BetragZelle, KnopfFreigeben,
-  belegKopf, belegDetail, belegText
+  Ico, Knopf, PeriodeWahl, FilterChips, FilterFelder, Suchzeile, Werkzeugleiste,
+  BelegZeile, BelegTabelle, KnopfFreigeben, VerlaufListe, Reiterleiste, Hinweiszeile,
+  belegKopf, belegeSuchen, eigenerName, kstName, zeitraumText, zeitraumLabel, istLaufendePeriode
 } from "./bausteine";
 
-// Eine gespeicherte Periode als Kachel. Das ✕ muss ein eigener Knopf sein —
-// ein Knopf innerhalb eines Knopfes ist in HTML nicht erlaubt.
-function PeriodeKachel({ p }: { p: any }) {
-  const an = S.uVon === p.von && S.uBis === p.bis;
-  return (
-    <span style={st("position:relative;flex:1 1 150px;display:flex")}>
-      <button data-akt="periodeWahl" data-id={p.id}
-        style={{ ...st(`flex:1 1 auto;min-width:0;min-height:54px;border-radius:9px;cursor:pointer;
-                 font-family:inherit;font-size:14px;line-height:1.3;text-align:left;
-                 padding:6px 30px 6px 12px`),
-                 border: `1px solid ${an ? "var(--blau)" : "var(--rand)"}`,
-                 background: an ? "var(--blau)" : "#fff", color: an ? "#fff" : "var(--blau)",
-                 fontWeight: an ? 700 : 400 }}>
-        {p.name}<br />
-        <span style={st("font-size:12px;opacity:.85")}>{kurzDatum(p.von)}–{kurzDatum(p.bis)}</span>
-      </button>
-      <button data-akt="periodeWeg" data-id={p.id} aria-label={`Periode ${p.name} löschen`}
-        style={{ ...st(`position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;
-                 border-radius:6px;font-size:13px;line-height:1;font-family:inherit;cursor:pointer`),
-                 border: `1px solid ${an ? "rgba(255,255,255,.55)" : "var(--rand)"}`,
-                 background: an ? "transparent" : "#fff", color: an ? "#fff" : "var(--grau)" }}>✕</button>
-    </span>);
-}
+const summe = (liste: any[]) => liste.reduce((t, b) => t + buchungsBetrag(b), 0);
+const anzahlText = (n: number) => n === 1 ? "1 Beleg" : `${n} Belege`;
+const freigabenText = (n: number) => n === 1 ? "1 Freigabe offen" : `${n} Freigaben offen`;
 
-// Auswahlfeld, das sich neu aufbaut, wenn sich der Wert von aussen ändert
-function Auswahl({ id, feld, wert, children }: { id: string; feld: string; wert: string; children: any }) {
-  return <select id={id} data-feld={feld} defaultValue={wert} key={wert}>{children}</select>;
-}
+// Handy: Suchfeld mit Filterknopf, darunter die aufgeklappten Filter und die gesetzten als Chips
+const HandyFilter = ({ b }: { b: "u" | "m" }) => <>
+  <Suchzeile b={b} />
+  <FilterFelder b={b} />
+  <div className="chips"><FilterChips b={b} /></div>
+</>;
 
-function Filter() {
-  const geraete   = [...new Set(S.uBelege.map((b) => b.geraet))].sort() as string[];
-  const konten    = kontenImZeitraum();
-  const auftraege = auftraegeImZeitraum();
-  const voll = S.perioden.length >= MAX_PERIODEN;
+// Leere laufende Periode: am 16. beginnt eine neue — die Belege liegen in der letzten
+const LeerePeriode = ({ leer }: { leer: boolean }) => leer && istLaufendePeriode()
+  ? <Hinweiszeile farbe="blau"
+      knopf={<button className="k2 klein" data-akt="periode" data-v="-1">‹ Letzte Periode</button>}>
+      <b>Noch keine Belege in dieser Periode</b> ({zeitraumText()}). Die Abrechnungsperiode läuft vom 16. bis zum 15.
+    </Hinweiszeile>
+  : null;
 
-  return (
-    <div className="karte">
-      <div className="paar">
-        <div style={st("flex:1 1 130px")}>
-          <label htmlFor="uvon">Von</label>
-          <input id="uvon" type="date" defaultValue={S.uVon} key={"v" + S.uVon} data-feld="uvon" />
-        </div>
-        <div style={st("flex:1 1 130px")}>
-          <label htmlFor="ubis">Bis</label>
-          <input id="ubis" type="date" defaultValue={S.uBis} key={"b" + S.uBis} data-feld="ubis" />
-        </div>
-        <div style={st("flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end")}>
-          <button data-akt="periodeNeu" title="Diesen Zeitraum als Periode merken"
-            aria-label="Diesen Zeitraum als Periode merken" disabled={voll}
-            style={{ ...st(`min-height:46px;min-width:46px;border:1px solid var(--blau);
-                     border-radius:10px;background:#fff;color:var(--blau);
-                     font-size:20px;line-height:1;font-family:inherit;cursor:pointer`),
-                     opacity: voll ? .4 : 1 }}>+</button>
-        </div>
-      </div>
+/* ==========================================================
+   Meine Belege
+   ========================================================== */
 
-      {S.perioden.length ? <>
-        <div style={st("display:flex;gap:8px;flex-wrap:wrap;margin-top:10px")}>
-          {S.perioden.map((p) => <PeriodeKachel key={p.id} p={p} />)}
-        </div>
-        {voll &&
-          <div style={st("font-size:12px;color:var(--grau);line-height:1.45;margin-top:6px")}>
-            {MAX_PERIODEN} von {MAX_PERIODEN} belegt — zum Merken zuerst eine über das ✕ löschen.</div>}
-      </> :
-        <div style={st("font-size:13px;color:var(--grau);line-height:1.45;margin-top:8px")}>
-          Noch keine Perioden gemerkt — Zeitraum eintragen und auf + tippen.
-          Höchstens {MAX_PERIODEN}, und nur du siehst sie.</div>}
+const abgelehnte = () => S.offeneEigene.filter((b) => statusVon(b) === "abgelehnt");
+const unfreigegeben = () => eigeneErfasste(S.offeneEigene);
 
-      <div className="paar" style={st("margin-top:10px")}>
-        <div>
-          <label htmlFor="uzahlart">Zahlungsart</label>
-          <Auswahl id="uzahlart" feld="uzahlart" wert={S.uZahlart}>
-            <option value="">Alle</option>
-            {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
-          </Auswahl>
-        </div>
-        <div>
-          <label htmlFor="ustatus">Status</label>
-          <Auswahl id="ustatus" feld="ustatus" wert={S.uStatus}>
-            <option value="">Alle</option>
-            {Object.entries(STATUS).map(([w, n]) => <option key={w} value={w}>{n}</option>)}
-          </Auswahl>
-        </div>
-        <div>
-          <label htmlFor="ukonto">Konto</label>
-          <Auswahl id="ukonto" feld="ukonto" wert={S.uKonto}>
-            <option value="">Alle Konten</option>
-            {konten.map((k) => <option key={k} value={k}>{k}{kontoName(k) ? " " + kontoName(k) : ""}</option>)}
-          </Auswahl>
-        </div>
-        <div>
-          <label htmlFor="uauftrag">Auftrag</label>
-          <Auswahl id="uauftrag" feld="uauftrag" wert={S.uAuftrag}>
-            <option value="">Alle Aufträge</option>
-            {auftraege.map((a) => <option key={a} value={a}>{auftragAnzeige(a)}</option>)}
-          </Auswahl>
-        </div>
-        {(S.istAdmin || S.istPruefer) &&
-          <div>
-            <label htmlFor="ugeraet">Gerät / Karte</label>
-            <Auswahl id="ugeraet" feld="ugeraet" wert={S.uGeraet}>
-              <option value="">Alle Geräte</option>
-              {geraete.map((g) => <option key={g} value={g}>{g}</option>)}
-            </Auswahl>
-          </div>}
-      </div>
-    </div>);
-}
-
-function Kontierung({ gruppen }: { gruppen: any[] }) {
-  const tB = gruppen.reduce((t, g) => t + g.brutto, 0);
-  const tS = gruppen.reduce((t, g) => t + g.steuer, 0);
-  const tN = gruppen.reduce((t, g) => t + g.netto, 0);
-  const tA = gruppen.reduce((t, g) => t + g.anzahl, 0);
-
-  return (
-    <div className="karte">
-      <div style={st("font-size:17px;font-weight:700;margin-bottom:3px")}>Kontierung</div>
-      <div style={st("font-size:13px;color:var(--grau);margin-bottom:12px")}>{uTitel()}</div>
-      <div className="rollen"><table>
-        <thead><tr>
-          <th>Konto</th><th>Bezeichnung</th><th>Auftrag</th><th>MwSt</th><th>Bezahlt</th>
-          <th className="re">Posten</th><th className="re">Brutto</th>
-          <th className="re">MwSt-Betrag</th><th className="re">Netto</th>
-        </tr></thead>
-        <tbody>
-          {gruppen.map((g, i) => (
-            <tr key={i}>
-              <td className="gross">{g.konto}</td>
-              <td>{g.bezeichnung}</td>
-              <td>{auftragAnzeige(g.auftrag)}</td>
-              <td>{g.satz} %</td>
-              <td>{zahlartName(g.zahlart)}</td>
-              <td className="re">{g.anzahl}</td>
-              <td className="re gross">{chf(g.brutto)}</td>
-              <td className="re">{chf(g.steuer)}</td>
-              <td className="re">{chf(g.netto)}</td>
-            </tr>))}
-          <tr className="summe">
-            <td colSpan={5}>Total</td>
-            <td className="re">{tA}</td>
-            <td className="re">{chf(tB)}</td>
-            <td className="re">{chf(tS)}</td>
-            <td className="re">{chf(tN)}</td>
-          </tr>
-        </tbody>
-      </table></div>
-    </div>);
-}
-
-function ExportBlock({ anzahl }: { anzahl: number }) {
-  return (
-    <div className="karte">
-      <div style={st("font-size:16px;font-weight:700;margin-bottom:3px")}>Export für DocuWare</div>
-      <div style={st("font-size:13px;color:var(--grau);margin-bottom:12px")}>
-        Im PDF steht die Übersicht vorn, danach folgen alle {anzahl} Belege.</div>
-      <Knopf akt="expPdf" className="knopf" style={st("margin-bottom:8px")}>PDF erzeugen</Knopf>
-      <button className="zweit" data-akt="expCsv">Buchungsliste als CSV</button>
-    </div>);
-}
-
-// Belegliste. woher steuert, wohin das Bearbeiten zurückkehrt.
-function Belege({ liste, woher, titel }: { liste: any[]; woher: string; titel: string }) {
-  const breit = istBreit();
-  return (
-    <div className="karte">
-      <div style={st("font-size:17px;font-weight:700;margin-bottom:12px")}>{titel}</div>
-      <KnopfFreigeben liste={liste} woher={woher} />
-      {liste.length === 0
-        ? <div className="leer">Keine Belege für diese Auswahl.</div>
-        : liste.map((b, i) => breit ? (
-          <div className="belegzeile" key={b.id}>
-            <span className="datum">{datumCH(b.beleg_datum)}<br /><StatusMarke b={b} /></span>
-            <span className="haupt">{belegText(b)}</span>
-            <span className="neben">{b.geraet}</span>
-            <span className="neben" style={st("width:100px")}>{zahlartName(b.zahlart)}</span>
-            <span className="zahl"><BetragZelle b={b} /></span>
-            {b.datei_pfad
-              ? <button className="beleglink" data-akt="belegAuf" data-p={b.datei_pfad}>Beleg</button>
-              : <span style={st("width:62px")} />}
-            <button className="stift" data-akt="bearbeiten" data-id={b.id} data-w={woher}
-                    aria-label="Beleg bearbeiten"><Stift /></button>
-          </div>) : (
-          <div className="zeile" key={b.id} style={st("padding:9px 0;border-bottom:1px solid #EDEFF5;gap:10px")}>
-            <div style={st("flex:1 1 auto;min-width:0;overflow-wrap:anywhere")}>
-              <div style={st("font-weight:600")}>{i + 1} · {belegKopf(b)} <StatusMarke b={b} /></div>
-              <div style={st("font-size:13px;color:var(--grau)")}>
-                {belegDetail(b, (S.istAdmin || S.istPruefer) && !S.uGeraet)}</div>
-            </div>
-            <div style={st("display:flex;align-items:center;gap:8px;flex-shrink:0")}>
-              {b.datei_pfad &&
-                <button className="beleglink" data-akt="belegAuf" data-p={b.datei_pfad}>Beleg</button>}
-              <button className="stift" data-akt="bearbeiten" data-id={b.id} data-w={woher}
-                      aria-label="Beleg bearbeiten"><Stift /></button>
-              <div style={st("font-weight:700;text-align:right")}><BetragZelle b={b} /></div>
-            </div>
-          </div>))}
-    </div>);
-}
-
-function FavoritenBlock() {
-  if (S.favoriten.length === 0)
-    return <button className="favlink" data-akt="zuFavoriten">Favoriten einrichten</button>;
+// Was etwas braucht: abgelehnt, noch nicht freigegeben. Offene Freigaben
+// stehen nicht hier, sondern im jeweiligen Abschnitt (Projektleitung usw.).
+function Aufgaben() {
+  const abg = abgelehnte(), unf = unfreigegeben();
   return <>
-    <span className="abschnitt">FAVORITEN</span>
-    <div className="favgitter" style={st("margin-top:8px")}>
+    {abg.slice(0, 3).map((b) => (
+      <Hinweiszeile farbe="rot" key={b.id}
+        knopf={<button className="k2 klein" data-akt="bearbeiten" data-id={b.id} data-w="liste">Ansehen</button>}>
+        <b>Abgelehnt:</b> {belegKopf(b)} · CHF {chfLang(b.betrag)}
+        {b.entscheid_grund && <span className="mu"> — „{b.entscheid_grund}“</span>}
+      </Hinweiszeile>))}
+    {abg.length > 3 && <Hinweiszeile farbe="rot">… und {abg.length - 3} weitere abgelehnte Belege.</Hinweiszeile>}
+    {unf.length > 0 &&
+      <Hinweiszeile knopf={<>
+          {unf.length === 1
+            ? <button className="k2 klein" data-akt="bearbeiten" data-id={unf[0].id} data-w="liste">Ansehen</button>
+            : <button className="k2 klein" data-akt="setze" data-f="mStatus" data-v="offen">Anzeigen</button>}
+          <Knopf akt="freigebenAlle" data-w="offene" className="k1 klein">
+            {unf.length === 1 ? "Freigeben" : "Alle freigeben"}</Knopf></>}>
+        <b>{anzahlText(unf.length)}</b> noch nicht zur Prüfung freigegeben
+      </Hinweiszeile>}
+  </>;
+}
+
+// Favoriten als kleine Zeile: ein Klick öffnet das Erfassen mit Konto und KST
+function SchnellErfassen() {
+  if (!S.favoriten.length)
+    return <div className="schnell"><span className="kl">Schnell erfassen</span>
+      <button className="link" data-akt="zuFavoriten">Favoriten einrichten</button></div>;
+  if (!istBreit()) return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span className="kl">Schnell erfassen</span><button className="link" data-akt="zuFavoriten">Verwalten</button></div>
+      <div className="favleiste">
+        {S.favoriten.slice(0, MAX_KACHELN).map((f) => (
+          <button className="fav" data-akt="favAnwenden" data-id={f.id} key={f.id}>
+            <b>{f.name}</b><span>{f.konto_nummer} · {auftragAnzeige(f.auftrag_nr)}</span></button>))}
+      </div>
+    </div>);
+  return (
+    <div className="schnell">
+      <span className="kl">Schnell erfassen</span>
       {S.favoriten.slice(0, MAX_KACHELN).map((f) => (
-        <button className="favkachel" data-akt="favAnwenden" data-id={f.id} key={f.id}>
-          <span className="nam">{f.name}</span>
-          <span className="nrn">{f.konto_nummer} · {f.auftrag_nr}</span>
-        </button>))}
-    </div>
-    <button className="favlink" data-akt="zuFavoriten">Favoriten verwalten</button>
-  </>;
+        <button key={f.id} className="k2 klein rund" data-akt="favAnwenden" data-id={f.id}
+                title={`Konto ${f.konto_nummer} · KST ${auftragAnzeige(f.auftrag_nr)}`}>
+          <Ico n="stern" s={14} /> {f.name}</button>))}
+      <button className="link" data-akt="zuFavoriten">Verwalten</button>
+    </div>);
 }
 
-const Ablage = () => (
-  <div className="ablagefeld ablage">
-    <Hoch />
-    <span style={st("font-size:14px;font-weight:700")}>Beleg hierher ziehen</span>
-    <span style={st("font-size:12px;color:var(--grau);text-align:center;line-height:1.45")}>
-      PDF-Rechnungen von Online-Käufen direkt ablegen</span>
-  </div>);
-
-// ---------- Rechner: alles auf einer Seite ----------
-export function Desktop() {
-  const gefiltert = uGefiltert();
-  const gruppen   = gruppiere(gefiltert);
+// Reiter Alle / Offene Punkte / Erledigt mit Zahlen, rechts die Summe
+function MeineReiter() {
+  const basis = meineGefiltert("status");
+  const liste = meineGefiltert();
+  const uz = basis.filter((b) => b.zahlart === "vorkasse");
+  const uzGesamt = uz.reduce((t, b) => t + parseFloat(b.betrag), 0);
+  const uzGenehmigt = uz.filter((b) => ["genehmigt", "teilweise"].includes(statusVon(b)))
+                        .reduce((t, b) => t + buchungsBetrag(b), 0);
+  const reiter = [
+    { v: "", lab: "Alle", n: basis.length },
+    { v: "offenePunkte", lab: "Offene Punkte", n: basis.filter(istMeinOffen).length },
+    { v: "erledigt", lab: "Erledigt", n: basis.filter(istMeinErledigt).length }
+  ];
+  const summeText = <>
+    <b>CHF {chfLang(summe(liste))}</b>
+    <span className="kn mu">{anzahlText(liste.length)}
+      {uz.length > 0 && <> · User-Zahlungen {chfLang(uzGesamt)}, genehmigt {chfLang(uzGenehmigt)}</>}</span>
+  </>;
+  if (istBreit()) return <Reiterleiste f="mStatus" reiter={reiter} rechts={summeText} />;
   return <>
-    <Kopf titel="Spesen" sub={`${kurzName(S.session.user.email)} · ${uZeitraumText()}`} />
-    <div className="inhalt">
-      <Meldung />
-      <div className="zweispalt">
-        <div className="breit">
-          <Filter />
-          {S.uLaedt ? <div className="karte leer">Lade …</div>
-            : gefiltert.length === 0 ? <div className="karte leer">Keine Belege für diese Auswahl.</div>
-            : <><Kontierung gruppen={gruppen} /><Belege liste={gefiltert} woher="desktop" titel="Belege" /></>}
-        </div>
-        <div className="schmal">
-          <button className="knopf" data-akt="neu" style={st("margin-bottom:14px")}>Spesen erfassen</button>
-          <Ablage />
-          <div className="karte"><FavoritenBlock /></div>
-          {gefiltert.length > 0 && <ExportBlock anzahl={gefiltert.length} />}
-        </div>
-      </div>
-    </div>
+    <Reiterleiste f="mStatus" reiter={reiter} />
+    <div className="summenzeile">{summeText}</div>
   </>;
 }
 
-// ---------- Handy: meine Belege ----------
-export function Liste() {
-  const summe = S.belege.reduce((t, b) => t + parseFloat(b.betrag), 0);
+// Überschrift der Liste — sagt, was gerade gefiltert ist
+function listenTitel() {
+  if (S.mStatus === "offenePunkte") return "Offene Punkte";
+  if (S.mStatus === "erledigt") return "Erledigte Belege";
+  if (S.mStatus === "offen") return "Erfasst, nicht freigegeben";
+  if (S.mZahlart === "vorkasse") return "User-Zahlungen";
+  return "Belege der Periode";
+}
+
+export function MeineBelege() {
+  const liste = belegeSuchen(meineGefiltert());
+
+  if (istBreit()) return (
+    <Seite titel="Meine Belege" pfad={eigenerName()} tab
+           rechts={<button className="k1 klein" data-akt="neu"><Ico n="plus" s={16} /> Beleg erfassen</button>}>
+      <Werkzeugleiste b="m" />
+      <MeineReiter />
+      <LeerePeriode leer={!S.belege.length} />
+      <SchnellErfassen />
+      <Aufgaben />
+      <section className="karte" id="belegliste">
+        <div className="kartenkopf">
+          <span><h2>{listenTitel()}</h2><span className="sub">{zeitraumLabel()} · {zeitraumText()} · {anzahlText(liste.length)}</span></span>
+          <KnopfFreigeben liste={liste} woher="liste" />
+        </div>
+        <BelegTabelle liste={liste} woher="liste" />
+      </section>
+    </Seite>);
+
+  return (
+    <Seite titel="Meine Belege" sub={eigenerName()} tab>
+      <PeriodeWahl />
+      <HandyFilter b="m" />
+      <MeineReiter />
+      <LeerePeriode leer={!S.belege.length} />
+      <Aufgaben />
+      <SchnellErfassen />
+      <section className="karte huelle" id="belegliste">
+        <div className="kartenkopf"><h2 style={{ fontSize: 16 }}>{listenTitel()}</h2>
+          <span className="sub">{anzahlText(liste.length)}</span></div>
+        {liste.length === 0 ? <div className="leer">Keine Belege für diese Auswahl.</div>
+          : liste.map((b) => <BelegZeile b={b} woher="liste" key={b.id} />)}
+      </section>
+    </Seite>);
+}
+
+/* ==========================================================
+   Übersicht (je Abschnitt)
+   ========================================================== */
+
+const ZAHLART_KURZ: Record<string, string> = { karte: "Kreditkarte", bar: "Bar", vorkasse: "User-Zahlung" };
+// Bezeichnung einer Kontierungszeile: Name der KST, dazu die Kommentare der Belege
+const kstNurName = (nr: string) => nr === OHNE_KST.id ? OHNE_KST.name
+  : ((S.auftraege.find((x) => x.id === nr) || {}).name || "");
+const bezeichnung = (g: any) =>
+  [kstNurName(g.auftrag), g.kommentare.length ? g.kommentare.join("; ") : ""].filter(Boolean).join(" · ");
+
+function KontierungTabelle({ gruppen }: { gruppen: any[] }) {
+  if (!gruppen.length) return <div className="leer">Keine Beträge für diese Auswahl.</div>;
+  const t = (f: string) => gruppen.reduce((s, g) => s + g[f], 0);
+  return (
+    <div className="tabelle"><table>
+      <thead><tr>
+        <th>Konto</th><th>Bezeichnung</th><th>KST</th><th>MwSt</th><th>Bezahlt</th>
+        <th className="re">Posten</th><th className="re">Brutto</th><th className="re">MwSt</th><th className="re">Netto</th>
+      </tr></thead>
+      <tbody>
+        {gruppen.map((g, i) => (
+          <tr key={i}>
+            <td className="mono fett">{g.konto}</td><td>{bezeichnung(g)}</td>
+            <td className="mono nw">{auftragAnzeige(g.auftrag)}</td><td className="mono nw">{g.satz} %</td>
+            <td className="nw">{ZAHLART_KURZ[g.zahlart] || g.zahlart}</td>
+            <td className="re mono">{g.anzahl}</td><td className="re mono fett">{chfLang(g.brutto)}</td>
+            <td className="re mono">{chfLang(g.steuer)}</td><td className="re mono">{chfLang(g.netto)}</td>
+          </tr>))}
+        <tr className="summe">
+          <td colSpan={5}>Total</td><td className="re mono">{t("anzahl")}</td><td className="re mono">{chfLang(t("brutto"))}</td>
+          <td className="re mono">{chfLang(t("steuer"))}</td><td className="re mono">{chfLang(t("netto"))}</td>
+        </tr>
+      </tbody>
+    </table></div>);
+}
+
+// Am Handy: Zeilen statt einer Tabelle mit neun Spalten
+function KontierungKarten({ gruppen }: { gruppen: any[] }) {
+  if (!gruppen.length) return <div className="leer">Keine Beträge für diese Auswahl.</div>;
+  const t = (f: string) => gruppen.reduce((s, g) => s + g[f], 0);
   return <>
-    <Kopf titel="Meine Spesen" sub={`${kurzName(S.session.user.email)} · ${monatName(S.monat)}`} />
-    <Reiter />
-    <div className="inhalt">
-      <Meldung />
-      <div className="karte zeile">
-        <div><div style={st("font-size:13px;color:var(--grau)")}>Erfasst diesen Monat</div>
-             <div style={st("font-size:22px;font-weight:700")}>
-               {S.belege.length} {S.belege.length === 1 ? "Beleg" : "Belege"}</div></div>
-        <div style={st("text-align:right")}><div style={st("font-size:13px;color:var(--grau)")}>Total</div>
-             <div style={st("font-size:22px;font-weight:700")}>CHF {chf(summe)}</div></div>
-      </div>
-
-      <button className="knopf" data-akt="neu">Spesen erfassen</button>
-      <FavoritenBlock />
-
-      <span className="abschnitt" style={st("padding-top:10px")}>ZULETZT ERFASST</span>
-      <div style={st("height:8px")} />
-      <KnopfFreigeben liste={S.belege} woher="liste" />
-
-      {S.belege.length === 0
-        ? <div className="karte leer">Noch keine Belege in diesem Monat.</div>
-        : S.belege.map((b) => (
-          <div className="karte zeile" style={st("gap:10px")} key={b.id}>
-            <div style={st("flex:1 1 auto;min-width:0;overflow-wrap:anywhere")}>
-              <div style={st("font-weight:600")}>{belegKopf(b)} <StatusMarke b={b} /></div>
-              <div style={st("font-size:13px;color:var(--grau)")}>{belegDetail(b)}</div>
-            </div>
-            <div style={st("display:flex;align-items:center;gap:8px;flex-shrink:0")}>
-              {b.datei_pfad &&
-                <button className="beleglink" data-akt="belegAuf" data-p={b.datei_pfad}>Beleg</button>}
-              <button className="stift" data-akt="bearbeiten" data-id={b.id} data-w="liste"
-                      aria-label="Beleg bearbeiten"><Stift /></button>
-              <div style={st("font-size:17px;font-weight:700;text-align:right")}><BetragZelle b={b} /></div>
-            </div>
-          </div>))}
+    {gruppen.map((g, i) => (
+      <div className="zl" key={i} style={{ alignItems: "flex-start" }}>
+        <span className="mitte"><b><span className="mono">{g.konto}</span> · {kstNurName(g.auftrag) || "KST " + g.auftrag}</b>
+          <span className="kn mu">KST {auftragAnzeige(g.auftrag)} · {g.satz} % · {ZAHLART_KURZ[g.zahlart] || g.zahlart} · {g.anzahl} Posten</span>
+          {g.kommentare.length > 0 && <span className="kn kommentar">{g.kommentare.join("; ")}</span>}</span>
+        <span className="seite"><span className="betragz">{chfLang(g.brutto)}</span>
+          <span className="mono kn mu">MwSt {chfLang(g.steuer)}</span></span>
+      </div>))}
+    <div className="zl" style={{ background: "var(--flaeche)" }}>
+      <b style={{ flex: 1 }}>Total · {t("anzahl")} Posten</b>
+      <span className="seite"><span className="betragz">{chfLang(t("brutto"))}</span>
+        <span className="mono kn mu">MwSt {chfLang(t("steuer"))} · netto {chfLang(t("netto"))}</span></span>
     </div>
   </>;
 }
 
-// ---------- Handy: Übersicht ----------
+const ExportKnoepfe = () => <>
+  <Knopf akt="expPdf" className="k2 klein fett"><Ico n="runter" s={16} /> PDF für DocuWare</Knopf>
+  <button className="k2 klein" data-akt="expCsv">CSV</button>
+</>;
+
+// Links: Kostenstellen (oder Konten, Personen) mit ihren Summen.
+// Ein Klick filtert die Übersicht darauf, nochmals hebt es auf.
+const GRUPPEN = { kst: ["KST", "uAuftrag"], konto: ["Konto", "uKonto"], person: ["Person", "uGeraet"] };
+function Gruppen() {
+  const art = S.uGruppe || (S.bereich === "sup" ? "konto" : "kst");
+  const feld = GRUPPEN[art][1];
+  // Summen ohne den eigenen Gruppenfilter — sonst bliebe nur die gewählte Zeile
+  const merk = S[feld]; S[feld] = "";
+  const belege = uGefiltert();
+  S[feld] = merk;
+  const m = new Map<string, number>();
+  if (art === "person") {
+    for (const b of belege) if (statusVon(b) !== "abgelehnt")
+      m.set(b.geraet, (m.get(b.geraet) || 0) + buchungsBetrag(b));
+  } else {
+    for (const g of gruppiere(belege)) {
+      const k = art === "kst" ? g.auftrag : g.konto;
+      m.set(k, (m.get(k) || 0) + g.brutto);
+    }
+  }
+  const zeilen = [...m.entries()].sort((a, b) => b[1] - a[1]);
+  const total = zeilen.reduce((t, [, w]) => t + w, 0);
+  const name = (k: string) => art === "kst" ? kstName(k)
+    : art === "konto" ? `${k} ${kontoName(k)}`.trim() : personName(k);
+  return (
+    <section className="karte huelle gruppenliste">
+      <div className="reiterleiste flach">
+        {Object.entries(GRUPPEN).map(([k, [lab]]) => (
+          <button key={k} className={"reiter" + (art === k ? " an" : "")} data-akt="setze" data-f="uGruppe" data-v={k}>{lab}</button>))}
+      </div>
+      <button className={"zeile" + (!S[feld] ? " an" : "")} data-akt="gruppeWahl" data-g={art} data-v="">
+        <span className="nm">Alle</span><span className="betr">{chfLang(total)}</span></button>
+      {zeilen.map(([k, w]) => (
+        <button key={k} className={"zeile" + (S[feld] === k ? " an" : "")} data-akt="gruppeWahl" data-g={art} data-v={k}
+                title={name(k)}>
+          <span className="nm">{name(k)}</span><span className="betr">{chfLang(w)}</span></button>))}
+      {!zeilen.length && <div className="leer">Keine Beträge.</div>}
+    </section>);
+}
+
+// "Projektleiter-Übersicht" usw. — am Handy oben im Kopf, am Rechner in der Kopfleiste
+const BEREICH_TITEL: Record<string, string> = { pl: "Projektleiter-Übersicht", sup: "Supervisor-Übersicht",
+                                                admin: "Admin-Übersicht" };
+const BEREICH_KURZ: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Admin" };
+const bereichTitel = () => BEREICH_TITEL[S.bereich] || "Übersicht";
+
 export function Uebersicht() {
   const gefiltert = uGefiltert();
-  const gruppen   = gruppiere(gefiltert);
-  return <>
-    <Kopf titel="Übersicht" sub={S.istAdmin ? "Alle Geräte" : kurzName(S.session.user.email)} />
-    <Reiter />
-    <div className="inhalt">
-      <Meldung />
-      <Filter />
-      {S.uLaedt ? <div className="karte leer">Lade …</div>
-        : gefiltert.length === 0 ? <div className="karte leer">Keine Belege für diese Auswahl.</div>
-        : <>
-            <Kontierung gruppen={gruppen} />
-            <ExportBlock anzahl={gefiltert.length} />
-            <Belege liste={gefiltert} woher="uebersicht" titel="Einzelne Belege" />
-          </>}
-    </div>
-  </>;
+  const ohneStatus = uGefiltert(true);
+  const gruppen = gruppiere(gefiltert);
+  const liste = belegeSuchen(gefiltert);
+  const brutto = gruppen.reduce((s, g) => s + g.brutto, 0);
+  const erledigt = ohneStatus.filter(istErledigt).length;
+  const fg = freigabeIm();
+  const reiter = S.uReiter || "belege";
+  const breit = istBreit();
+
+  const statusReiter = [
+    { v: "", lab: "Alle", n: ohneStatus.length },
+    { v: "unerledigt", lab: "Offen", n: ohneStatus.length - erledigt },
+    { v: "erledigt", lab: "Erledigt", n: erledigt }
+  ];
+  const summeText = <><b>CHF {chfLang(brutto)}</b><span className="kn mu">{anzahlText(gefiltert.length)}, wie gebucht</span></>;
+  const inhaltReiter = [
+    { v: "belege", lab: "Belege", n: liste.length },
+    { v: "kontierung", lab: "Kontierung", n: gruppen.length },
+    { v: "verlauf", lab: "Verlauf", n: null }
+  ];
+  const ReiterInhalt = () => (
+    <div className="reiterleiste flach">
+      {inhaltReiter.map((r) => (
+        <button key={r.v} className={"reiter" + (reiter === r.v ? " an" : "")} data-akt="setze" data-f="uReiter" data-v={r.v}>
+          {r.lab}{r.n != null && <b>{r.n}</b>}</button>))}
+    </div>);
+
+  const freigabeHinweis = fg.length > 0 &&
+    <Hinweiszeile farbe="blau"
+      knopf={<button className="k1 klein" data-akt="tabFreigabe" data-b={S.bereich || undefined}>Prüfen</button>}>
+      <b>{freigabenText(fg.length)}</b> — warten auf deinen Entscheid</Hinweiszeile>;
+
+  const laedt = S.uLaedt && <div className="karte leer">Lade …</div>;
+  const leer = !S.uLaedt && !S.uBelege.some((b) => imBereich(b));
+
+  if (breit) return (
+    <Seite titel={bereichTitel()} pfad={zeitraumLabel() + " · " + zeitraumText()} tab
+           rechts={gefiltert.length > 0 && <ExportKnoepfe />}>
+      <Werkzeugleiste b="u" ohneGruppen />
+      <Reiterleiste f="uStatus" reiter={statusReiter} rechts={summeText} />
+      <LeerePeriode leer={leer} />
+      {freigabeHinweis}
+      {laedt || (
+        <div className="spalten gruppen">
+          <Gruppen />
+          <section className="karte huelle">
+            <div className="kartenkopf">
+              <ReiterInhalt />
+              {reiter === "belege" && <KnopfFreigeben liste={gefiltert} woher="uebersicht" />}
+              {reiter === "kontierung" && <span className="sub">{uTitel()}</span>}
+            </div>
+            {reiter === "belege" && <BelegTabelle liste={liste} woher="uebersicht" person />}
+            {reiter === "kontierung" && <KontierungTabelle gruppen={gruppen} />}
+            {reiter === "verlauf" && <VerlaufListe anzahl={60} />}
+          </section>
+        </div>)}
+    </Seite>);
+
+  // Handy: oben der Abschnitt (bei mehreren umschaltbar), Reiter mit Zahlen,
+  // Summe, Export, dann Belege / Kontierung / Verlauf
+  const abschnitte = bereiche();
+  return (
+    <Seite titel={bereichTitel()} sub="Übersicht" tab>
+      {abschnitte.length > 1 &&
+        <div className="seg">
+          {abschnitte.map((b) => <button key={b} className={S.bereich === b ? "an" : ""} data-akt="tabUebersicht"
+                                          data-b={b} aria-pressed={S.bereich === b}>{BEREICH_KURZ[b]}</button>)}
+        </div>}
+      <PeriodeWahl />
+      <HandyFilter b="u" />
+      <Reiterleiste f="uStatus" reiter={statusReiter} />
+      <div className="summenzeile">{summeText}</div>
+      <LeerePeriode leer={leer} />
+      {freigabeHinweis}
+      {gefiltert.length > 0 &&
+        <div className="schnell"><span className="kl">Export</span><ExportKnoepfe /></div>}
+      {laedt || (
+        <section className="karte huelle" id="belegliste">
+          <div className="kartenkopf"><ReiterInhalt /></div>
+          {reiter === "belege" && (liste.length === 0 ? <div className="leer">Keine Belege für diese Auswahl.</div>
+            : <>{liste.map((b) => <BelegZeile b={b} woher="uebersicht" person key={b.id} />)}
+                <div style={{ padding: "8px 14px 12px" }}><KnopfFreigeben liste={gefiltert} woher="uebersicht" /></div></>)}
+          {reiter === "kontierung" && <KontierungKarten gruppen={gruppen} />}
+          {reiter === "verlauf" && <VerlaufListe anzahl={30} />}
+        </section>)}
+    </Seite>);
 }

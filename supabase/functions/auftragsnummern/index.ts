@@ -1,13 +1,19 @@
 // Vermittler zwischen Web-App und FileMaker
 // Liefert die Auftragsnummern eines Jahres plus die übergreifenden Nummern.
 // Aufruf:  .../auftragsnummern?jahr=2026
+//
+// Neu (Admin stellt in der App ein, welche KST erscheinen):
+//          .../auftragsnummern?jahre=2025,2026&nummern=97,98,2501
+// liefert alle Aufträge dieser Jahre plus genau diese Nummern (egal aus
+// welchem Jahr). Ohne jahre/nummern gilt der alte Aufruf mit IMMER_DABEI.
 
 const TIMEOUT_MS = 8000;
 const SEITENGROESSE = 500;
 const MAX_SEITEN = 40;
 
 // Jahresübergreifende Nummern — erscheinen unabhängig vom gewählten Jahr.
-// Kommt eine neue dazu: hier ergänzen und die Function neu deployen.
+// Nur noch für den alten Aufruf ?jahr=…; die App schickt die Liste selbst mit
+// (Verwaltung → Kostenstellen → "Immer anzeigen").
 const IMMER_DABEI = [
   "97", "98", "99",                   // Ausbildung / Lehrlingsarbeiten
   "200", "201",                       // Tit-Pit allgemein
@@ -105,13 +111,30 @@ Deno.serve(async (req) => {
     return json({ ok: false, schritt: "anmeldung", fehler: "Nicht angemeldet." }, 401);
   }
 
-  // ---- Gewünschtes Jahr aus der Adresse lesen, sonst das laufende ----
+  // ---- Was ist gewünscht? Neu: jahre + nummern; alt: ein Jahr + IMMER_DABEI ----
   const aktuellesJahr = new Date().getFullYear();
-  const wunsch = new URL(req.url).searchParams.get("jahr");
-  const jahr = /^\d{4}$/.test(wunsch ?? "") ? Number(wunsch) : aktuellesJahr;
+  const param = new URL(req.url).searchParams;
+  const neu = param.has("jahre") || param.has("nummern");
+  const liste = (n: string) => (param.get(n) ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 
-  if (jahr < 2000 || jahr > aktuellesJahr + 5) {
-    return json({ ok: false, schritt: "anfrage", fehler: `Jahr ${jahr} liegt ausserhalb des zulässigen Bereichs.` }, 400);
+  let jahre: number[];
+  let nummern: string[];
+  if (neu) {
+    jahre = [...new Set(liste("jahre").filter((x) => /^\d{4}$/.test(x)).map(Number))]
+      .filter((j) => j >= 2000 && j <= aktuellesJahr + 5).slice(0, 10);
+    // Nur Ziffern, Buchstaben, Punkt, Bindestrich — sonst wären FileMaker-Suchzeichen (*, =, …) möglich
+    nummern = [...new Set(liste("nummern").filter((x) => /^[0-9A-Za-z.\-]{1,20}$/.test(x)))].slice(0, 300);
+    if (!jahre.length && !nummern.length) {
+      return json({ ok: true, jahre, nummern, anzahl: 0, auftragsnummern: [] });
+    }
+  } else {
+    const wunsch = param.get("jahr");
+    const jahr = /^\d{4}$/.test(wunsch ?? "") ? Number(wunsch) : aktuellesJahr;
+    if (jahr < 2000 || jahr > aktuellesJahr + 5) {
+      return json({ ok: false, schritt: "anfrage", fehler: `Jahr ${jahr} liegt ausserhalb des zulässigen Bereichs.` }, 400);
+    }
+    jahre = [jahr];
+    nummern = IMMER_DABEI;
   }
 
   const HOST = Deno.env.get("FM_HOST");
@@ -153,8 +176,8 @@ Deno.serve(async (req) => {
 
     // ---- 2. Suchanfrage bauen ----
     const suche = [
-      { ANr_Jahr: `==${jahr}` },
-      ...IMMER_DABEI.map((nr) => ({ ANr_ID: `==${nr}` })),
+      ...jahre.map((j) => ({ ANr_Jahr: `==${j}` })),
+      ...nummern.map((nr) => ({ ANr_ID: `==${nr}` })),
     ];
 
     const rohdaten: any[] = [];
@@ -204,7 +227,7 @@ Deno.serve(async (req) => {
         id,
         name: String(f.ANr_Name ?? "").trim(),
         jahr: String(f.ANr_Jahr ?? "").trim(),
-        immer: IMMER_DABEI.includes(id),
+        immer: nummern.includes(id),
         kategorien: kategorienAus(f.d_VorgabeKategorie_t),
         veranstaltungen: zeilenListe(f.Veranstaltungen),
       });
@@ -216,11 +239,12 @@ Deno.serve(async (req) => {
       return a.id.localeCompare(b.id, "de", { numeric: true });
     });
 
-    const fehlendeUebergreifend = IMMER_DABEI.filter((nr) => !gesehen.has(nr));
+    const fehlendeUebergreifend = nummern.filter((nr) => !gesehen.has(nr));
 
     return json({
       ok: true,
-      jahr,
+      // "jahre" zeigt der App, dass diese Fassung den neuen Aufruf kennt
+      ...(neu ? { jahre, nummern } : { jahr: jahre[0] }),
       anzahl: auftragsnummern.length,
       uebergreifend: auftragsnummern.filter((a) => a.immer).length,
       fehlendeUebergreifend,

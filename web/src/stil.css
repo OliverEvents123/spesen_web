@@ -1,198 +1,488 @@
 /* stil.css
-   Gestaltung der Spesen-App. Hausfarbe #215aa8 wie in der Zeiterfassung.
-   Ab 900 px Breite schaltet die App auf das zweispaltige Rechner-Layout. */
+   Gestaltung der Spesen-App — Dashboard-Stil (Entwurf „Variante D“, 12.10.2026).
+   Handy: dunkler Kopf, unten eine Leiste mit Kamera-Knopf.
+   Ab 900 px Breite: dunkle Seitenleiste links, Inhalt rechts. */
 
-:root { --blau:#215aa8; --hell:#2f6cbd; --dunkel:#1b3d6b; --grau:#5A6478;
-        --rand:#E1E4EC; --bg:#F4F5F8; --warn:#A08040; --rot:#A3241F; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--dunkel);
-       font-family: Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
-
-/* Kopfbereich und Reiter */
-.kopf { background:var(--blau); color:#fff; padding:calc(env(safe-area-inset-top) + 22px) 20px 16px;
-        display:flex; align-items:center; gap:12px; }
-.kopf h1 { margin:0 0 2px; font-size:22px; }
-.kopf .sub { font-size:13px; color:#BDD1EA; }
-.kopf .wachs { flex-grow:1; min-width:0; }
-.kopfknoepfe { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0; }
-.kopfknoepfe button { border:0; border-radius:9px; background:var(--hell); color:#fff;
-                      font-size:13px; padding:0 12px; min-height:36px; }
-.kopfknoepfe button.an { background:#fff; color:var(--blau); font-weight:700; }
-.reiter { background:var(--blau); padding:0 20px 12px; display:flex; gap:8px; }
-.reiter button { flex-grow:1; min-height:40px; border:0; border-radius:9px;
-                 background:#2f6cbd; color:#BDD1EA; font-size:15px; }
-.reiter button.an { background:#fff; color:var(--blau); font-weight:700; }
-
-/* Grundbausteine */
-.inhalt { padding:14px 20px 40px; max-width:980px; margin:0 auto; }
-.karte { background:#fff; border:1px solid var(--rand); border-radius:12px;
-         padding:14px 16px; margin-bottom:10px; }
-button { font-family:inherit; cursor:pointer; }
-.knopf { width:100%; min-height:54px; border:0; border-radius:12px; background:var(--blau);
-         color:#fff; font-size:17px; font-weight:600; }
-.knopf[disabled] { background:#AEB6C6; font-size:15px; }
-.zweit { width:100%; min-height:48px; border:1px solid #C9D6E8; border-radius:11px;
-         background:#fff; color:var(--blau); font-size:15px; font-weight:600; }
-.loeschen { width:100%; min-height:48px; border:1px solid #E9C3C0; border-radius:11px;
-            background:#fff; color:var(--rot); font-size:15px; font-weight:600; margin-top:10px; }
-.rund { width:40px; height:40px; border:0; border-radius:10px; background:var(--hell);
-        color:#fff; font-size:19px; line-height:1; flex-shrink:0; }
-.zeile { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.leer { text-align:center; color:var(--grau); font-size:15px; padding:26px 10px; }
-.abschnitt { font-size:12px; font-weight:600; color:var(--grau); letter-spacing:0.4px;
-             padding-top:4px; display:block; }
-
-/* Meldungen */
-.fehler { background:#FCEEED; border:1px solid #E9C3C0; color:#8E201B;
-          border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:10px; }
-.ok { background:#E9F3ED; border:1px solid #BCDAC8; color:#124F32;
-      border-radius:10px; padding:11px 14px; font-size:14px; margin-bottom:10px; }
-
-/* Anmeldung */
-.mitte { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
-.mitte .karte { width:100%; max-width:380px; }
-
-/* Eingabefelder */
-label { display:block; font-size:13px; color:var(--grau); margin-bottom:6px; }
-input, select { width:100%; min-height:48px; padding:0 14px; font-size:17px; font-family:inherit;
-        border:1px solid #D5D9E3; border-radius:10px; background:#fff; color:var(--dunkel); }
-/* iOS gibt Datums- und Monatsfeldern eine eigene Mindestbreite — die brechen wir */
-input[type="date"], input[type="month"] {
-  min-width:0; max-width:100%; text-align:left;
-  -webkit-appearance:none; appearance:none; }
-.paar { display:flex; gap:10px; flex-wrap:wrap; }
-.paar > div { flex:1 1 180px; min-width:0; }
-@media (max-width:520px) { .paar > div { flex:1 1 100%; } }
-
-/* Betragsfeld */
-.betrag { font-size:30px; font-weight:700; min-height:62px; text-align:right;
-          letter-spacing:0.5px; }
-
-/* Auswahlzeilen für Konto und Auftrag */
-.wahl { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
-        border-radius:11px; min-height:58px; padding:8px 15px; display:flex;
-        align-items:center; gap:12px; margin-bottom:10px; }
-.wahl.offen { border-color:#E8CFAE; }
-.wahl .titel { font-size:13px; color:var(--grau); width:60px; flex-shrink:0; }
-.wahl .wert { flex-grow:1; font-size:17px; font-weight:700; min-width:0;
-              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.wahl .pfeil { color:#7D89A0; font-size:18px; }
-
-/* MwSt */
-.mwst { display:flex; gap:8px; margin-bottom:10px; }
-.mwst button { flex-grow:1; min-height:46px; border-radius:9px; border:1px solid #D5D9E3;
-               background:#fff; color:#3f5a80; font-size:15px; }
-.mwst button.an { background:var(--blau); border-color:var(--blau); color:#fff; font-weight:700; }
-
-/* Listeneinträge in den Auswahlbildschirmen */
-.eintrag { width:100%; text-align:left; background:#fff; border:1px solid var(--rand);
-           border-radius:11px; min-height:54px; padding:8px 15px; display:flex;
-           align-items:center; gap:14px; margin-bottom:8px; }
-.eintrag.an { border:2px solid var(--blau); background:#EAF1FA; }
-.eintrag .nr { font-size:18px; font-weight:700; width:70px; flex-shrink:0; }
-.eintrag .nm { flex-grow:1; font-size:15px; color:#3f5a80; }
-.marke { font-size:11px; background:#EDEFF5; color:#3f5a80; border-radius:4px; padding:2px 6px; }
-
-/* Beleg: Vorschau, Knöpfe, Ablagefläche */
-.vorschau { width:100%; max-height:260px; object-fit:contain; border-radius:8px;
-            background:#EDEFF5; display:block; }
-.pdfmarke { height:110px; border-radius:8px; background:#EDEFF5; display:flex;
-            align-items:center; justify-content:center; font-size:15px; color:var(--grau); }
-.beleglink { border:1px solid #C9D6E8; background:#fff; color:var(--blau);
-             border-radius:8px; min-height:36px; padding:0 12px; font-size:13px; flex-shrink:0; }
-.stift { border:1px solid #C9D6E8; background:#fff; border-radius:8px; width:36px; height:36px;
-         display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.ablage { transition:border-color .12s, background .12s; }
-body.ziehen .ablage { border:2px dashed var(--blau); background:#EAF1FA; }
-.ziehhinweis { display:none; font-size:13px; color:var(--blau); text-align:center; padding:6px 0 0; }
-body.ziehen .ziehhinweis { display:block; }
-.ablagefeld { border:2px dashed #B6C2D6; border-radius:12px; background:#fff; padding:20px;
-              display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:10px; }
-
-/* Tabellen */
-.rollen { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-table { border-collapse:collapse; width:100%; min-width:560px; }
-th, td { text-align:left; padding:10px 10px 10px 0; font-size:14px; white-space:nowrap; }
-th { font-size:12px; color:var(--grau); font-weight:600; border-bottom:2px solid #D5D9E3; }
-td { border-bottom:1px solid #EDEFF5; }
-.re { text-align:right; }
-.summe td { background:#EDEFF5; font-weight:700; border-bottom:0; }
-.gross { font-size:16px; font-weight:700; }
-
-/* Favoriten */
-.favgitter { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.favkachel { min-height:74px; border:1px solid #C9D6E8; border-radius:12px; background:#fff;
-             padding:11px 13px; display:flex; flex-direction:column; align-items:flex-start;
-             gap:5px; text-align:left; }
-.favkachel .nam { font-size:16px; font-weight:700; color:var(--dunkel); }
-.favkachel .nrn { font-size:12px; color:var(--grau); }
-.favlink { display:block; width:100%; background:none; border:0; color:var(--blau);
-           font-size:14px; text-align:center; padding:6px 0 2px; }
-.favzeile { background:#fff; border:1px solid var(--rand); border-radius:12px; padding:12px 15px;
-            display:flex; align-items:center; gap:10px; min-height:64px; margin-bottom:9px; }
-.pfeil { width:36px; height:36px; border:1px solid #C9D6E8; border-radius:8px; background:#fff;
-         color:var(--blau); font-size:17px; flex-shrink:0; }
-.pfeil[disabled] { color:#C9D6E8; }
-/* In den Auswahlfeldern ist der Pfeil nur ein Zeichen, kein Knopf */
-.wahl .pfeil { width:auto; height:auto; border:0; background:none; }
-
-/* Benutzerverwaltung */
-.rolle { font-size:11px; border-radius:4px; padding:3px 8px; font-weight:600; }
-.rolle.admin { background:#E8F0FA; color:#215aa8; }
-.rolle.user  { background:#EDEFF5; color:#5A6478; }
-.rolle.aus   { background:#FCEEED; color:#8E201B; }
-/* Status eines Belegs */
-.rolle.st-offen         { background:#FFF4DC; color:#7A5A12; }
-.rolle.st-eingereicht   { background:#E8F0FA; color:#215aa8; }
-.rolle.st-geprueft,
-.rolle.st-genehmigt     { background:#E9F3ED; color:#124F32; }
-.rolle.st-teilweise     { background:#E6F2F2; color:#145A5A; }
-.rolle.st-besprechung   { background:#FDEBD9; color:#8A4B0F; }
-.rolle.st-abgelehnt     { background:#FCEEED; color:#8E201B; }
-.rolle.st-abgeschlossen { background:#EDEFF5; color:#5A6478; }
-.rolle.projektleiter    { background:#E6F2F2; color:#145A5A; }
-.rolle.supervisor       { background:#F1EAF8; color:#5B2E8A; }
-.stempel { font-size:12px; color:var(--grau); margin-top:4px; }
-.freigabezeile { width:100%; font:inherit; color:inherit; cursor:pointer; gap:12px;
-                 border:1px solid var(--rand); }
-.chip { display:inline-flex; align-items:center; gap:6px; background:#EEF3FA; color:var(--dunkel);
-        border-radius:16px; padding:4px 6px 4px 12px; font-size:13px; }
-.chip button { border:0; background:#fff; color:var(--grau); border-radius:50%;
-               width:22px; height:22px; cursor:pointer; font-size:11px; }
-.rollenwahl { flex-wrap:wrap; }
-.rollenwahl button { flex:1 1 40%; }
-
-/* ---------- Rechner-Layout ab 900 px ---------- */
-.zweispalt { display:flex; gap:22px; align-items:flex-start; }
-.breit  { flex-grow:1; min-width:0; }
-.schmal { width:340px; flex-shrink:0; }
-
-@media (max-width:899px) {
-  .zweispalt { display:block; }
-  .schmal { width:auto; }
+:root {
+  --bg:#eef0f5; --karte:#fff; --dunkel:#1c1f2e; --dunkel2:#343850; --text:#262b40;
+  --grau:#6b7187; --grau2:#9ba1bb; --linie:#eef0f4; --rand:#c9cde0; --flaeche:#f6f7fa;
+  --akzent:#4c5fd5; --akzent-hell:#e3e7fb; --akzent-text:#3a49b0; --akzent-flaeche:#f0f2fd;
+  --gruen:#2e9d4a; --gruen-text:#1a7a35; --orange:#e8590c; --orange-text:#a3400a;
+  --rot:#d64545; --rot-text:#b3261e;
+  --schatten:0 2px 6px rgba(20,24,45,.08), 0 1px 2px rgba(20,24,45,.06);
+  --mono:Consolas, "Cascadia Mono", "Liberation Mono", monospace;
 }
+* { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
+body { margin:0; background:var(--bg); color:var(--text); font-size:15px; line-height:1.35;
+       font-family:Calibri, Carlito, "Segoe UI", system-ui, sans-serif; }
+button { font-family:inherit; cursor:pointer; color:inherit; }
+button[disabled] { cursor:default; }
+a, .link { color:var(--akzent); text-decoration:none; font-weight:700; }
+.link { background:none; border:0; padding:6px 0; font-size:14px; text-align:left; }
+h1, h2, h3 { margin:0; }
 
+/* ---------- Text ---------- */
+.mono { font-family:var(--mono); }
+.mu { color:var(--grau); }
+.kn { font-size:13px; }
+.kl { font-size:12px; font-weight:700; letter-spacing:.04em; color:var(--grau); text-transform:uppercase; }
+.fett { font-weight:700; }
+.rechts { text-align:right; }
+.durch { color:#8a90a6; text-decoration:line-through; font-weight:400; font-size:12px; }
+
+/* ---------- Karten ---------- */
+.karte { background:var(--karte); border-radius:12px; border:1px solid #e6e8ee; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+.karte.innen { padding:16px; display:flex; flex-direction:column; gap:14px; }
+.karte.huelle { overflow:hidden; }
+.kartenkopf { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px 8px; }
+.kartenkopf h2 { font-size:17px; }
+.kartenkopf .sub { font-size:13px; color:var(--grau); }
+.leer { text-align:center; color:var(--grau); padding:24px 12px; }
+.hinweis { display:flex; gap:12px; align-items:flex-start; padding:12px 14px; font-size:14px;
+           color:var(--grau); line-height:1.45; }
+.hinweis svg { width:20px; height:20px; flex-shrink:0; color:var(--grau2); }
+
+/* ---------- Knöpfe ---------- */
+.k1, .k2, .kd, .kr { min-height:46px; border-radius:10px; font-size:15px; padding:0 16px;
+                     display:inline-flex; align-items:center; justify-content:center; gap:8px; text-align:center; }
+.k1 { border:0; background:var(--akzent); color:#fff; font-weight:700; font-size:16px;
+      box-shadow:0 4px 10px rgba(76,95,213,.35); }
+.k1.gruen { background:var(--gruen); box-shadow:0 4px 10px rgba(46,157,74,.35); }
+.k1[disabled] { background:#aeb4c8; box-shadow:none; font-size:15px; font-weight:400; }
+.k2 { border:1px solid var(--rand); background:#fff; color:var(--text); }
+.k2.fett { font-weight:700; }
+.kd { border:0; background:var(--dunkel); color:#fff; font-weight:700; }
+.kr { border:1px solid #e3a5a1; background:#fff; color:var(--rot-text); font-weight:700; }
+.k2[disabled], .kd[disabled], .kr[disabled] { opacity:.5; }
+.klein { min-height:36px; font-size:14px; padding:0 12px; border-radius:8px; }
+.k1.klein { box-shadow:none; font-size:14px; }
+.rund { border-radius:999px; }
+.voll { width:100%; }
+.pf { width:40px; height:40px; border:0; border-radius:8px; background:var(--bg); color:var(--text);
+      font-size:20px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; padding:0; }
+.pf svg { width:18px; height:18px; }
+.pf.blau { color:var(--akzent); }
+.pf[disabled] { opacity:.35; }
+
+/* ---------- Eingaben ---------- */
+input, select, textarea { width:100%; min-height:46px; padding:0 12px; font:16px Calibri, Carlito, "Segoe UI", sans-serif;
+  border:1px solid var(--rand); border-radius:8px; background:#fff; color:var(--text); }
+textarea { padding:10px 12px; resize:vertical; min-height:64px; }
+input:focus, select:focus, textarea:focus { outline:2px solid var(--akzent); outline-offset:0; border-color:var(--akzent); }
+input[type="date"] { min-width:0; max-width:100%; text-align:left; -webkit-appearance:none; appearance:none; }
+input[type="checkbox"] { width:auto; min-height:0; }
+label, .lab { display:block; font-size:13px; font-weight:700; color:var(--grau); margin-bottom:6px; }
+.feld { display:flex; flex-direction:column; }
+.betragfeld { min-height:62px; font:700 30px var(--mono); text-align:right; }
+.zwei { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
+.zwei.eng { gap:8px; }
+
+/* Segment-Wahl (MwSt, Zahlungsart, Rolle) */
+.seg { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); background:#e4e7ef;
+       border-radius:10px; padding:3px; gap:3px; }
+.seg.gitter { grid-auto-flow:row; grid-template-columns:1fr 1fr; }
+.seg button { min-height:40px; border:0; border-radius:8px; background:transparent; font-size:15px; padding:0 6px; }
+.seg button.an { background:#fff; font-weight:700; color:var(--akzent-text); box-shadow:0 1px 3px rgba(20,24,45,.15); }
+.seg button[disabled] { opacity:.5; }
+
+/* Schalter (Checkbox) */
+input.schalter { -webkit-appearance:none; appearance:none; width:46px; height:28px; min-height:0; padding:0;
+            border:0; border-radius:999px; background:var(--rand); position:relative; flex-shrink:0; cursor:pointer; }
+input.schalter::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:999px;
+                   background:#fff; transition:left .15s; }
+input.schalter:checked { background:var(--akzent); }
+input.schalter:checked::after { left:21px; }
+input.schalter:focus { outline:2px solid var(--akzent); outline-offset:2px; }
+.schalterzeile { display:flex; gap:12px; align-items:flex-start; }
+.schalterzeile label { margin:0; flex:1; font-size:14px; color:var(--text); font-weight:400; line-height:1.45; }
+.schalterzeile label b { display:block; }
+
+/* ---------- Marken ---------- */
+.pill { display:inline-flex; align-items:center; border-radius:999px; font-size:12px; font-weight:700;
+        padding:1px 9px; white-space:nowrap; line-height:18px; }
+.p-erf { background:#e9ebf2; color:#4a5068; }
+.p-ein { background:#fdecd8; color:var(--orange-text); }
+.p-gep { background:var(--akzent-hell); color:var(--akzent-text); }
+.p-bes { background:#f1e6fa; color:#7a3aa8; }
+.p-gen { background:#dcf3e2; color:var(--gruen-text); }
+.p-abl { background:#fbe3e1; color:var(--rot-text); }
+.p-rol { background:var(--bg); color:#4a5068; }
+.zahl { background:var(--orange); color:#fff; border-radius:999px; font-size:11px; font-weight:700;
+        padding:0 6px; line-height:17px; }
+.chip { display:inline-flex; align-items:center; gap:6px; border-radius:999px; background:var(--akzent-hell);
+        color:var(--akzent-text); font-size:13px; font-weight:700; padding:4px 5px 4px 11px; }
+.chip button { border:0; width:22px; height:22px; border-radius:999px; background:rgba(58,73,176,.15);
+               color:var(--akzent-text); font-size:11px; padding:0; }
+.chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+
+/* ---------- Meldungen ---------- */
+.ok { background:#e5f4ea; color:#14532d; border-radius:10px; padding:11px 14px; font-size:14px; }
+.fehler { background:#fbe3e1; color:#8e201b; border-radius:10px; padding:11px 14px; font-size:14px; line-height:1.5; }
+
+/* ---------- Listen ---------- */
+.zl { display:flex; align-items:center; gap:12px; padding:11px 14px; border-top:1px solid var(--linie);
+      width:100%; background:transparent; border-left:0; border-right:0; border-bottom:0; text-align:left;
+      font-size:15px; }
+.zl:first-child { border-top:0; }
+.kartenkopf + .zl { border-top:0; }
+button.zl:hover { background:var(--flaeche); }
+.zl.an { background:var(--akzent-flaeche); box-shadow:inset 3px 0 0 var(--akzent); }
+.zl .mitte { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; overflow-wrap:anywhere; }
+.zl .seite { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; }
+.ini { width:38px; height:38px; flex-shrink:0; border-radius:10px; background:var(--akzent-hell);
+       color:var(--akzent-text); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+.ini.aus { opacity:.5; }
+.betragz { font:700 15px var(--mono); white-space:nowrap; }
+.zeilewert { display:flex; justify-content:space-between; gap:12px; padding:10px 14px; border-top:1px solid var(--linie); }
+.zeilewert:first-child { border-top:0; }
+.zeilewert > span:first-child { color:var(--grau); font-size:14px; }
+.zeilewert > span:last-child { text-align:right; overflow-wrap:anywhere; }
+
+/* Auswahl Konto/KST */
+.wahl { display:flex; align-items:center; gap:12px; min-height:60px; padding:8px 14px; width:100%;
+        border:0; border-top:1px solid var(--linie); background:transparent; text-align:left; font-size:15px; }
+.wahl:first-child { border-top:0; }
+.wahl .titel { width:58px; flex-shrink:0; }
+.wahl .wert { flex:1; min-width:0; display:flex; flex-direction:column; }
+.wahl .wert b { font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wahl.offen .wert b { color:var(--orange-text); }
+.wahl .pfeil { color:var(--grau2); font-size:22px; }
+.wahl.auf { background:var(--akzent-flaeche); }
+.wahlliste { border-top:1px solid var(--linie); background:var(--flaeche); padding:10px; display:flex;
+             flex-direction:column; gap:8px; }
+.wahlliste .liste { max-height:300px; overflow:auto; background:#fff; border-radius:8px; border:1px solid var(--linie); }
+.eintrag { display:flex; align-items:center; gap:12px; width:100%; min-height:50px; padding:8px 14px;
+           border:0; border-top:1px solid var(--linie); background:transparent; text-align:left; font-size:15px; }
+.eintrag:first-child { border-top:0; }
+.eintrag:hover { background:var(--flaeche); }
+.eintrag.an { background:var(--akzent-flaeche); box-shadow:inset 3px 0 0 var(--akzent); }
+.eintrag .nr { font:700 15px var(--mono); width:64px; flex-shrink:0; }
+.eintrag .nm { flex:1; min-width:0; }
+
+/* Favoriten-Leiste */
+.favleiste { display:flex; gap:8px; overflow-x:auto; padding:2px 2px 6px; margin:0 -2px; scrollbar-width:none; }
+.favleiste::-webkit-scrollbar { display:none; }
+.fav { flex:0 0 auto; border:0; text-align:left; padding:9px 12px; display:flex; flex-direction:column; gap:1px;
+       background:#fff; border-radius:12px; box-shadow:var(--schatten); font-size:15px; }
+.fav span { font:13px var(--mono); color:var(--grau); }
+
+/* Zeitraum */
+.periode { display:flex; align-items:center; gap:8px; padding:6px; }
+.periode .mitte { flex:1; text-align:center; display:flex; flex-direction:column; background:none; border:0; padding:2px; }
+.periode .mitte b { font-family:var(--mono); }
+.zeitraumfelder { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; padding:4px 6px 8px; }
+
+/* Filter */
+.filterleiste { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.filterfeld { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:12px; }
+
+/* Beleg-Vorschau */
+.papierbild { width:100%; max-height:300px; object-fit:contain; border-radius:8px; background:var(--bg); display:block; }
+.pdfmarke { height:110px; border-radius:8px; background:var(--bg); display:flex; align-items:center;
+            justify-content:center; font-size:15px; color:var(--grau); text-align:center; padding:10px; }
+.daumen { width:56px; height:74px; object-fit:cover; border-radius:6px; background:var(--bg); flex-shrink:0;
+          display:flex; align-items:center; justify-content:center; font:700 12px var(--mono); color:var(--grau);
+          border:1px solid var(--linie); }
+.belegkarte { display:flex; gap:12px; align-items:center; padding:12px; }
+.belegkarte .daumen { width:84px; height:112px; }
+.ablage { transition:box-shadow .12s, background .12s; }
+body.ziehen .ablage { box-shadow:0 0 0 3px var(--akzent); background:var(--akzent-flaeche); }
+.ziehhinweis { display:none; font-size:13px; color:var(--akzent); text-align:center; padding:6px 0 0; font-weight:700; }
+body.ziehen .ziehhinweis { display:block; }
+.stempel { background:var(--flaeche); border-radius:8px; padding:10px 12px; font-size:14px; line-height:1.45; }
+.entscheid { box-shadow:0 0 0 2px var(--akzent), 0 6px 14px rgba(76,95,213,.2); }
+.teilbox { background:var(--flaeche); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+
+
+
+/* ---------- Tabellen ---------- */
+.tabelle { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+table { border-collapse:collapse; width:100%; }
+th { font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--grau); text-align:left; padding:10px 14px;
+     border-bottom:1px solid #e6e8ef; white-space:nowrap; text-transform:uppercase; }
+td { font-size:14px; padding:11px 14px; border-bottom:1px solid var(--linie); vertical-align:middle; }
+tr:last-child td { border-bottom:0; }
+th.re, td.re { text-align:right; }
+tr.summe td { font-weight:700; background:var(--flaeche); }
+tr.an td { background:var(--akzent-flaeche); }
+td .neben { color:var(--grau); }
+td.nw, th.nw { white-space:nowrap; }
+td .tknopf { border:0; background:none; color:var(--akzent); font-weight:700; font-size:14px; padding:4px 0 4px 10px; }
+tr.klickbar { cursor:pointer; }
+td.buchung { min-width:240px; }
+tr.klickbar:hover td { background:var(--flaeche); }
+td .pfeilchen { color:var(--grau2); font-size:20px; }
+
+/* ---------- Handy-Rahmen ---------- */
+.kopf { margin:12px 12px 0; margin-top:calc(env(safe-area-inset-top) + 12px); background:var(--dunkel); color:#fff;
+        border-radius:14px; padding:12px 14px; display:flex; align-items:center; gap:12px;
+        box-shadow:0 6px 16px rgba(20,24,45,.25); }
+.kopf .mitte { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.kopf h1 { font-size:21px; line-height:27px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kopf .sub { font-size:13px; color:var(--grau2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kopf .zurueck { width:44px; height:44px; border-radius:8px; border:0; background:var(--dunkel2); color:#fff;
+                 font-size:22px; font-weight:700; flex-shrink:0; }
+.avatar { width:44px; height:44px; border-radius:999px; border:0; background:var(--akzent); color:#fff;
+          font-weight:700; font-size:15px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.seite { padding:14px 12px 24px; display:flex; flex-direction:column; gap:14px; max-width:640px; margin:0 auto; }
+.seite.mit-leiste { padding-bottom:calc(env(safe-area-inset-bottom) + 104px); }
+.tabbar { position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 10px); z-index:20;
+          display:flex; align-items:flex-start; background:var(--dunkel); border-radius:14px; padding:2px 6px;
+          box-shadow:0 6px 18px rgba(20,24,45,.3); max-width:616px; margin:0 auto; }
+.tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:12px; color:var(--grau2);
+       background:none; border:0; padding:8px 0; position:relative; min-height:56px; }
+.tab svg { width:22px; height:22px; }
+.tab.an { color:#fff; font-weight:700; }
+.tab .zahl { position:absolute; top:4px; left:56%; }
+.tabmitte { flex:1; display:flex; justify-content:center; }
+.tabmitte button { width:58px; height:58px; margin-top:-24px; border-radius:999px; border:4px solid var(--bg);
+                   background:var(--akzent); color:#fff; display:flex; align-items:center; justify-content:center;
+                   box-shadow:0 6px 14px rgba(76,95,213,.45); }
+.tabmitte svg { width:26px; height:26px; }
+.fussleiste { position:sticky; bottom:0; background:#fff; padding:12px 16px calc(env(safe-area-inset-bottom) + 14px);
+              display:flex; flex-direction:column; gap:8px; box-shadow:0 -2px 8px rgba(20,24,45,.08); z-index:5; }
+.fussleiste > * { width:100%; }
+
+/* ---------- Rechner-Rahmen ----------
+   Wie im PDF-Master: dunkle Seitenleiste bis ganz oben und unten, rechts eine
+   weisse Kopfleiste mit Titel und Knöpfen, darunter der Inhalt (scrollt allein). */
+.app { --band:0px; }
+.rahmen { display:flex; min-height:calc(100vh - var(--band)); }
+.leiste { width:248px; flex-shrink:0; background:#111827; padding:22px 12px 16px;
+          display:flex; flex-direction:column; gap:14px; position:sticky; top:0; height:calc(100vh - var(--band)); overflow-y:auto; }
+.marke { display:flex; flex-direction:column; padding:0 10px 6px; }
+.marke b { color:#fff; font-size:21px; letter-spacing:.01em; }
+.marke span { color:#9aa3b8; font-size:15px; }
+.leiste > .k1 { box-shadow:none; margin:0 2px; }
+.nav { display:flex; flex-direction:column; gap:0; }
+.abschnitt { display:flex; flex-direction:column; gap:2px; padding:14px 0; }
+.abschnitt:first-child { padding-top:4px; }
+.abschnitt + .abschnitt { border-top:1px solid rgba(255,255,255,.08); }
+.nav .gr { font-size:11px; font-weight:700; letter-spacing:.09em; color:#7c8599; padding:4px 12px 6px; }
+.nav button { display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:8px; color:#d6dae4;
+              font-size:15px; background:none; border:0; text-align:left; width:100%; }
+.nav button:hover { background:rgba(255,255,255,.05); }
+.nav button.an { background:rgba(255,255,255,.1); color:#fff; font-weight:700; }
+.nav svg { width:18px; height:18px; flex-shrink:0; opacity:.9; }
+.nav .zahl { margin-left:auto; line-height:19px; padding:0 7px; font-size:12px; background:#f59e0b; color:#1f2937; }
+.ich { display:flex; flex-direction:column; gap:10px; padding:14px 6px 0; border-top:1px solid rgba(255,255,255,.08); }
+.ich .wer { display:flex; align-items:center; gap:10px; min-width:0; }
+.ich .wer .avatar { width:36px; height:36px; font-size:13px; }
+.ich .wer span { display:flex; flex-direction:column; min-width:0; }
+.ich .wer b { color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ich .wer small { color:var(--grau2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ich .links { display:flex; gap:16px; }
+.ich .links button { background:none; border:0; padding:0; color:#c9cde0; font-size:14px; }
+.haupt { flex:1; min-width:0; display:flex; flex-direction:column; }
+.kopfleiste { display:flex; align-items:center; gap:12px; background:#fff; border-bottom:1px solid #e5e7eb;
+              padding:10px 24px; min-height:60px; flex-shrink:0; flex-wrap:wrap; position:sticky; top:0; z-index:10; }
+.kopfleiste h1 { font-size:18px; line-height:24px; white-space:nowrap; }
+.kopfleiste .sub { font-size:13px; color:var(--grau); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kopfleiste .rechts { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.kopfleiste > .pf { width:34px; height:34px; background:#fff; border:1px solid var(--rand); }
+.inhalt { flex:1; padding:20px 24px 32px; display:flex; flex-direction:column; gap:14px; min-width:0; }
+.inhalt.voll { padding:0; gap:0; }
+.spalten { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:20px; align-items:start; }
+.spalten.gruppen { grid-template-columns:270px minmax(0,1fr); gap:16px; }
+.spalte { display:flex; flex-direction:column; gap:16px; min-width:0; }
+
+/* ---------- Arbeitsplatz: Liste | Beleg | Angaben ---------- */
+.arbeitsplatz { display:grid; grid-template-columns:270px minmax(0,1fr) 430px; height:calc(100vh - 60px - var(--band)); }
+.arbeitsplatz.ohneliste { grid-template-columns:minmax(0,1fr) 450px; }
+.ap-liste { background:#fff; border-right:1px solid #e5e7eb; display:flex; flex-direction:column; min-height:0; }
+.ap-listekopf { padding:14px 16px 12px; border-bottom:1px solid var(--linie); display:flex; flex-direction:column; gap:8px; }
+.fortschritt { height:6px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
+.fortschritt div { height:100%; background:var(--gruen); transition:width .2s; }
+.ap-eintraege { overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:4px; flex:1; }
+.ap-gruppe { font-size:11px; font-weight:700; letter-spacing:.07em; color:var(--grau); padding:10px 8px 2px; text-transform:uppercase; }
+.ap-eintrag { display:flex; gap:10px; align-items:center; padding:9px 10px; border:1px solid transparent; border-radius:10px;
+              background:none; text-align:left; width:100%; font-size:14px; }
+button.ap-eintrag:hover { background:var(--flaeche); }
+.ap-eintrag.an { border-color:var(--akzent); background:#fff; box-shadow:0 0 0 1px var(--akzent); }
+.ap-eintrag .punkt { width:8px; height:8px; border-radius:99px; flex-shrink:0; }
+.ap-eintrag .mitte { flex:1; min-width:0; display:flex; flex-direction:column; }
+.ap-eintrag .mitte b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ap-eintrag.fertig { opacity:.6; }
+.ap-eintrag .haken { color:var(--gruen); display:flex; }
+.ap-beleg { background:#e7eaf0; overflow:auto; padding:24px 24px 0; display:flex; flex-direction:column; align-items:stretch;
+            gap:12px; min-height:0; position:relative; }
+/* Vergrössert: breiter als die Spalte — dann lässt es sich seitlich scrollen (darum margin statt zentrieren) */
+.ap-beleg .papier { max-width:none; height:auto; background:#fff; box-shadow:0 2px 12px rgba(16,24,40,.18);
+                    margin:0 auto; flex-shrink:0; }
+.ap-beleg .papierleer { margin:0 auto; }
+.ap-beleg .ablagegross { flex-shrink:0; }
+.ap-belegknoepfe { justify-content:center; }
+.ap-zoom { position:sticky; bottom:0; align-self:center; display:flex; flex-wrap:wrap; justify-content:center;
+           align-items:center; gap:6px 8px; background:#fff; border:1px solid #e5e7eb; border-radius:16px;
+           padding:5px 12px 5px 6px; margin:4px 0 14px; max-width:100%; box-shadow:0 4px 14px rgba(16,24,40,.12); z-index:2; }
+.ap-zoom .pf { width:30px; height:30px; border-radius:999px; font-size:18px; }
+.ap-zoom input[type="range"] { width:96px; min-height:0; padding:0; border:0; background:none; accent-color:var(--akzent); }
+.ap-zoom input[type="range"]:focus { outline:none; }
+.ap-zoom .mono { width:44px; text-align:right; }
+.ap-zoom .link { padding:4px 0; white-space:nowrap; font-size:13px; }
+.ap-zoom .trenner { width:1px; height:20px; background:#e5e7eb; }
+.ap-beleg .papierleer { width:100%; max-width:620px; height:320px; background:#fff; }
+.ap-belegknoepfe { display:flex; gap:8px; }
+.ap-panel { background:#fff; border-left:1px solid #e5e7eb; display:flex; flex-direction:column; min-height:0; }
+.ap-panelinhalt { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px; }
+.ap-panelinhalt > * { flex-shrink:0; }
+.ap-panel .karte { box-shadow:none; border:1px solid #e6e8ee; }
+.ap-panel .entscheid { box-shadow:0 0 0 2px var(--akzent); border-color:transparent; }
+.ap-fuss { border-top:1px solid #e5e7eb; padding:12px 20px; display:flex; gap:8px; align-items:center; justify-content:flex-end;
+           flex-wrap:wrap; }
+.ap-fuss .k1, .ap-fuss .k2 { min-height:42px; font-size:15px; box-shadow:none; }
+.ap-nav { margin-right:auto; display:flex; gap:6px; }
+.ap-nav .pf { width:38px; height:38px; background:#fff; border:1px solid var(--rand); }
+
+/* Grosse Ablage: neuer Beleg am Rechner, leere Freigabe */
+.ablageflaeche { flex:1; display:flex; align-items:center; justify-content:center; min-height:calc(100vh - 180px); }
+.ablagegross { width:min(560px, 100%); border:2px dashed #cfd5e1; border-radius:16px; background:#f8fafc;
+               padding:48px 32px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
+.ablagegross.klein { margin:auto; padding:36px 24px; width:min(440px, 100%); }
+.ablagegross.ruhig { border-style:solid; border-color:#e6e8ee; background:#fff; }
+.ablagegross h2 { font-size:20px; }
+.ablagegross .symbol { width:56px; height:56px; border-radius:12px; background:var(--akzent-hell); color:var(--akzent);
+                       display:flex; align-items:center; justify-content:center; margin-bottom:6px; }
+.ablagegross .symbol.gruen { background:#dcf3e2; color:var(--gruen-text); }
+.ablagegross .k1 { margin-top:8px; }
+body.ziehen .ablagegross { border-color:var(--akzent); background:var(--akzent-flaeche); }
+
+/* ---------- Anmeldung ---------- */
+.anmeldung { min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+.anmeldung .oben { width:100%; background:var(--dunkel); color:#fff; padding:calc(env(safe-area-inset-top) + 56px) 24px 72px;
+                   display:flex; flex-direction:column; align-items:center; border-radius:0 0 24px 24px; }
+.anmeldung .oben > div { width:100%; max-width:400px; display:flex; flex-direction:column; gap:14px; }
+.anmeldung .zeichen { width:52px; height:52px; border-radius:12px; background:var(--akzent); display:flex;
+                      align-items:center; justify-content:center; font-weight:700; font-size:20px; }
+.anmeldung h1 { font-size:28px; line-height:34px; }
+.anmeldung form { width:calc(100% - 32px); max-width:400px; margin-top:-44px; padding:20px; display:flex;
+                  flex-direction:column; gap:14px; }
+
+/* ---------- Rechner ab 900 px ---------- */
 @media (min-width:900px) {
-  .inhalt { max-width:1460px; padding:22px 32px 40px; }
-  .kopf { padding:20px 32px; }
-  .kopf h1 { font-size:23px; }
-  table { min-width:0; }
-  .breit .karte, .schmal .karte { margin-bottom:14px; }
-  .favgitter { gap:9px; }
-  .favkachel { min-height:66px; padding:10px 12px; }
-  .favkachel .nam { font-size:15px; }
-  /* In der Belegzeile ist am Rechner Platz für alle Angaben */
-  .belegzeile { display:flex; align-items:center; gap:16px; padding:10px 0;
-                border-bottom:1px solid #EDEFF5; }
-  .belegzeile .datum  { width:92px; color:var(--grau); font-size:14px; flex-shrink:0; }
-  .belegzeile .haupt  { flex-grow:1; min-width:0; font-size:15px;
-                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .belegzeile .neben  { width:180px; color:var(--grau); font-size:13px; flex-shrink:0;
-                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .belegzeile .zahl   { width:86px; text-align:right; font-weight:700; flex-shrink:0; }
+  .seite { max-width:none; padding:0; }
+}
+@media (max-width:1180px) {
+  .spalten { grid-template-columns:minmax(0,1fr); }
+  .spalten.gruppen { grid-template-columns:230px minmax(0,1fr); }
+  .arbeitsplatz { grid-template-columns:230px minmax(0,1fr) 380px; }
+  .arbeitsplatz.ohneliste { grid-template-columns:minmax(0,1fr) 400px; }
+}
+@media (max-width:420px) {
+  .zwei.handy-eins { grid-template-columns:minmax(0,1fr); }
 }
 
 /* Rotes Band oben in der Testfassung */
-.testband { background:#A3241F; color:#fff; text-align:center; letter-spacing:.05em;
-            font-family:Calibri,Carlito,'Segoe UI',system-ui,sans-serif;
-            font-size:13px; font-weight:700; padding:7px 12px; }
+.testband { background:#a3241f; color:#fff; text-align:center; letter-spacing:.05em; font-size:13px;
+            font-weight:700; padding:7px 12px; }
+@media (min-width:900px) {
+  .app.mit-band { --band:31px; }
+  .testband { height:31px; line-height:17px; overflow:hidden; white-space:nowrap; }
+}
+
+/* ---------- Ergänzungen (Anpassungen nach dem ersten Test) ---------- */
+.ini.nr { font:700 11px var(--mono); letter-spacing:-.02em; }
+.kommentar { color:var(--grau); font-style:italic; overflow-wrap:anywhere; }
+.chip.an { background:var(--akzent); color:#fff; }
+.chip.an button { background:rgba(255,255,255,.25); color:#fff; }
+.chip .chipwahl { width:auto; height:auto; border-radius:0; background:none; color:inherit; font:inherit;
+                  font-weight:700; padding:0; display:inline-flex; gap:6px; align-items:baseline; }
+.link[disabled] { color:var(--grau2); cursor:default; }
+
+
+/* ---------- Reiter mit Zahlen, Summe, Hinweiszeilen ---------- */
+.reiterleiste { display:flex; align-items:center; gap:4px; background:#fff; border:1px solid #e6e8ee; border-radius:12px;
+                padding:6px; overflow-x:auto; scrollbar-width:none; }
+.reiterleiste::-webkit-scrollbar { display:none; }
+.reiterleiste.flach { border:0; padding:0; background:none; border-radius:0; }
+.reiter { border:0; background:none; padding:8px 14px; border-radius:8px; font-size:15px; color:var(--grau);
+          display:inline-flex; gap:8px; align-items:center; white-space:nowrap; flex-shrink:0; }
+.reiter:hover { background:var(--flaeche); }
+.reiter b { font:700 14px var(--mono); color:var(--text); }
+.reiter.an { background:var(--akzent-flaeche); color:var(--akzent-text); font-weight:700; }
+.reiter.an b { color:var(--akzent-text); }
+.reiterleiste .summe { margin-left:auto; padding:0 10px; display:flex; flex-direction:column; align-items:flex-end;
+                       white-space:nowrap; }
+.reiterleiste .summe b, .summenzeile b { font:700 18px var(--mono); }
+.summenzeile { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:0 4px; flex-wrap:wrap; }
+.hinweiszeile { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid #e6e8ee;
+                border-left:4px solid var(--orange); border-radius:10px; padding:9px 12px 9px 14px; font-size:14px; }
+.hinweiszeile.rot { border-left-color:var(--rot); }
+.hinweiszeile.blau { border-left-color:var(--akzent); }
+.hinweiszeile .txt { flex:1; min-width:0; overflow-wrap:anywhere; }
+.hinweiszeile .k1, .hinweiszeile .k2 { flex-shrink:0; }
+.schnell { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.schnell .kl { margin-right:4px; }
+
+/* Übersicht links: Gruppen mit Summen */
+.gruppenliste .reiterleiste { padding:8px; border-bottom:1px solid var(--linie); }
+.gruppenliste .reiter { padding:6px 10px; font-size:14px; }
+.gruppenliste .zeile { display:flex; justify-content:space-between; gap:10px; width:100%; padding:9px 14px; border:0;
+                       border-top:1px solid var(--linie); background:none; text-align:left; font-size:14px; }
+.gruppenliste .reiterleiste + .zeile { border-top:0; }
+.gruppenliste .zeile:hover { background:var(--flaeche); }
+.gruppenliste .zeile.an { background:var(--akzent-flaeche); box-shadow:inset 3px 0 0 var(--akzent); font-weight:700; }
+.gruppenliste .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.gruppenliste .betr { font:700 14px var(--mono); white-space:nowrap; }
+
+/* Verlauf: eine Liste untereinander */
+.verlauf { display:flex; flex-direction:column; }
+.vzeile { display:grid; grid-template-columns:10px minmax(0,1fr) auto; gap:14px; align-items:center; padding:10px 16px;
+          border:0; border-top:1px solid var(--linie); background:none; text-align:left; width:100%; font-size:14px; }
+.vzeile:first-child { border-top:0; }
+button.vzeile:hover { background:var(--flaeche); }
+.vzeile .punkt { width:10px; height:10px; border-radius:99px; }
+.vzeile .v-was { display:flex; gap:10px; min-width:0; align-items:baseline; }
+.vzeile .v-was b { white-space:nowrap; min-width:120px; }
+.vzeile .v-was span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.vzeile .v-wer { display:flex; gap:12px; align-items:baseline; white-space:nowrap; color:var(--grau); }
+@media (max-width:899px) {
+  .vzeile { align-items:start; }
+  .vzeile .punkt { margin-top:4px; }
+  .vzeile .v-was { flex-direction:column; gap:1px; }
+  .vzeile .v-was span { white-space:normal; }
+  .vzeile .v-wer { flex-direction:column; align-items:flex-end; gap:0; font-size:13px; }
+}
+
+/* ---------- Werkzeugleiste am Rechner: Zeitraum, Suche, Filter — immer sichtbar ---------- */
+.werkzeugleiste { padding:10px 14px; display:flex; flex-direction:column; gap:8px; }
+.wz-zeile { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; }
+.wz-feld { display:flex; flex-direction:column; gap:4px; margin:0; font-weight:400; color:var(--text); min-width:0; }
+.wz-feld > span { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--grau); }
+.wz-feld select, .wz-feld input { min-height:36px; font-size:14px; padding:0 10px; width:auto; max-width:170px; }
+.wz-suche { flex:1; min-width:160px; }
+.wz-suche input { width:100%; max-width:none; }
+.wz-zeitraum { display:flex; align-items:center; gap:4px; }
+.wz-zeitraum .pf { width:34px; height:36px; background:#fff; border:1px solid var(--rand); font-size:18px; }
+.wz-zeitraum select { max-width:300px; font-weight:700; }
+.wz-weg { padding-bottom:8px; }
+.werkzeugleiste .wz-zeile + .wz-zeile { border-top:1px solid var(--linie); padding-top:8px; align-items:center; }
+.werkzeugleiste .wz-zeile + .wz-zeile .wz-feld { flex-direction:row; align-items:center; gap:8px; }
+
+/* Handy: Suchfeld immer da, daneben der Filterknopf */
+.suchzeile { display:flex; gap:8px; align-items:center; }
+.suchzeile input { flex:1; min-height:42px; font-size:15px; }
+.suchzeile .k2 { flex-shrink:0; min-height:42px; }
+.chips:empty { display:none; }
+
+/* Freigabe filtern */
+.freigabefilter { display:flex; flex-direction:column; gap:6px; }
+.freigabefilter select { min-height:34px; font-size:14px; padding:0 8px; }
+.freigabefilter .link { align-self:flex-start; padding:2px 0; }
+
+/* ---------- Verwaltung Kostenstellen ---------- */
+.spalten.drei { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); align-items:start; }
+.kartentitel { display:flex; align-items:center; gap:8px; }
+.kartentitel b { font-size:17px; }
+.zahlmarke { background:#dcf3e2; color:var(--gruen-text); border-radius:999px; font-size:12px; font-weight:700;
+             padding:0 8px; line-height:20px; }
+.zahlmarke.rot { background:#fbe3e1; color:var(--rot-text); }
+.chip.aus { background:#fbe3e1; color:var(--rot-text); }
+.chip.aus button { background:rgba(179,38,30,.12); color:var(--rot-text); }
+.chip .chipname { font-weight:400; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jahrliste { display:flex; flex-direction:column; border:1px solid var(--linie); border-radius:10px; overflow:hidden; }
+.jahrzeile { display:flex; align-items:center; gap:12px; padding:8px 10px 8px 12px; border-top:1px solid var(--linie); }
+.jahrzeile:first-child { border-top:0; }
+.jahrhaken { display:flex; align-items:center; gap:10px; margin:0; color:var(--text); font-size:16px; }
+.jahrzeile .pf { width:32px; height:32px; font-size:14px; background:none; }

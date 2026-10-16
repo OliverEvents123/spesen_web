@@ -29,18 +29,21 @@ export function Login() {
   }
 
   return (
-    <div className="mitte"><div className="karte">
-      <h1 style={st("margin:0 0 4px;font-size:24px")}>Spesen</h1>
-      <p style={st("margin:0 0 18px;color:var(--grau);font-size:14px")}>Bitte anmelden</p>
-      {S.loginMeldung && <div className="fehler">{S.loginMeldung}</div>}
-      <form onSubmit={anmelden}>
-        <label htmlFor="mail">E-Mail</label>
-        <input id="mail" name="mail" type="email" inputMode="email" autoComplete="username" required
-               style={st("margin-bottom:12px")} />
-        <label htmlFor="pw">Passwort</label>
-        <input id="pw" name="pw" type="password" autoComplete="current-password" required
-               style={st("margin-bottom:18px")} />
-        <button className="knopf" type="submit" disabled={laeuft}>{laeuft ? "Moment …" : "Anmelden"}</button>
+    <div className="anmeldung">
+      <div className="oben"><div>
+        <span className="zeichen">TP</span>
+        <h1>TIT-PIT Spesen</h1>
+        <span style={st("color:#9ba1bb")}>Belege fotografieren, kontieren, abrechnen.</span>
+      </div></div>
+      <form className="karte" onSubmit={anmelden}>
+        {S.loginMeldung && <div className="fehler">{S.loginMeldung}</div>}
+        <div className="feld"><label htmlFor="mail">E-Mail</label>
+          <input id="mail" name="mail" type="email" inputMode="email" autoComplete="username" required /></div>
+        <div className="feld"><label htmlFor="pw">Passwort</label>
+          <input id="pw" name="pw" type="password" autoComplete="current-password" required /></div>
+        <button className="k1" type="submit" disabled={laeuft}>{laeuft ? "Moment …" : "Anmelden"}</button>
       </form>
-    </div></div>);
+      <p className="kn mu" style={st("margin:18px 28px;text-align:center;line-height:1.45")}>
+        Passwort vergessen? Der Admin setzt dir ein neues.</p>
+    </div>);
 }
