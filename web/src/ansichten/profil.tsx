@@ -37,6 +37,7 @@ export function Profil() {
           <Eintrag akt="tabBenutzer" ic="leute" titel="Benutzer" sub="Rollen, Prüfung, Kostenstellen" />
           <Eintrag akt="tabKonten" ic="liste" titel="Konten" sub={`${S.konten.length} Konten`} />
           <Eintrag akt="tabGeraete" ic="karte" titel="Geräte" sub={`${S.zahlgeraete.length} Geräte · je KST`} />
+          <Eintrag akt="tabKst" ic="raute" titel="Kostenstellen" sub="Welche Jahre und KST in der Auswahl erscheinen" />
         </section>
       </>}
       <span className="kl" style={{ marginBottom: -6 }}>Persönlich</span>

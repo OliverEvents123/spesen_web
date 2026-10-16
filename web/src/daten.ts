@@ -81,23 +81,73 @@ export async function ladeAlles() {
   if (!S.auftraege.length) S.auftraege = await ladeAuftraege();
 }
 
-// Laufendes Jahr und das ganze Vorjahr — ein Dezember-Beleg wird oft erst im
-// Januar erfasst. Die übergreifenden Nummern liefern beide Jahre; doppelte
-// fallen weg. Reihenfolge: erst das laufende Jahr, dann das Vorjahr.
-async function ladeAuftraege() {
-  const jahr = new Date().getFullYear();
-  const holen = async (j: number) => {
-    try {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?jahr=${j}`,
-        { headers: { Authorization: `Bearer ${S.session.access_token}`, apikey: SUPABASE_KEY } });
-      const d = await r.json();
-      return d.ok ? d.auftragsnummern : [];
-    } catch { return []; }
-  };
-  const [jetzt, vorher] = await Promise.all([holen(jahr), holen(jahr - 1)]);
-  const gesehen = new Set();
-  return [...jetzt, ...vorher].filter((a) => !gesehen.has(a.id) && gesehen.add(a.id));
+// ---------- Kostenstellen: was erscheint in der Auswahl? ----------
+// Der Admin stellt ein: welche Jahre (Haken), welche KST immer erscheinen
+// (auch aus ausgeblendeten Jahren) und welche ausgeblendet sind.
+export async function ladeKstEinstellungen() {
+  const [j, r] = await Promise.all([
+    sb.from("spesen_kst_jahr").select("jahr,sichtbar").order("jahr", { ascending: false }),
+    sb.from("spesen_kst_regel").select("auftrag_nr,sichtbar").order("auftrag_nr")
+  ]);
+  S.kstDa     = !j.error && !r.error;
+  S.kstJahre  = j.data || [];
+  S.kstRegeln = r.data || [];
 }
+
+async function auftragsnummernHolen(abfrage: string) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/auftragsnummern?${abfrage}`,
+      { headers: { Authorization: `Bearer ${S.session.access_token}`, apikey: SUPABASE_KEY } });
+    return await r.json();
+  } catch { return { ok: false }; }
+}
+
+const nachNummer = (a, b) => String(a.id).localeCompare(String(b.id), "de", { numeric: true });
+
+// Die Auswahl laden. Ohne Einstellungen (Datenbank ohne kst-auswahl.sql):
+// wie bisher laufendes Jahr und Vorjahr. Reihenfolge: "immer anzeigen" zuerst,
+// dann das neuere Jahr vor dem älteren, je nach Nummer.
+export async function ladeAuftraege() {
+  await ladeKstEinstellungen();
+  let liste: any[] = [];
+  if (!S.kstDa) {
+    const jahr = new Date().getFullYear();
+    const teile = await Promise.all([auftragsnummernHolen("jahr=" + jahr), auftragsnummernHolen("jahr=" + (jahr - 1))]);
+    liste = teile.flatMap((t) => t.ok ? t.auftragsnummern : []);
+  } else {
+    const jahre = S.kstJahre.filter((x) => x.sichtbar).map((x) => x.jahr);
+    const immer = S.kstRegeln.filter((x) => x.sichtbar).map((x) => x.auftrag_nr);
+    const d = (jahre.length || immer.length)
+      ? await auftragsnummernHolen(`jahre=${jahre.join(",")}&nummern=${immer.map(encodeURIComponent).join(",")}`)
+      : { ok: true, jahre: [], auftragsnummern: [] };
+    if (d.ok && Array.isArray(d.jahre)) {
+      S.kstFunktionNeu = true;
+      liste = d.auftragsnummern || [];
+    } else {
+      // Ältere Edge Function: Jahr für Jahr holen. Die festen Nummern liefert
+      // sie dann selbst; "immer anzeigen" aus anderen Jahren geht erst nach dem Deploy.
+      S.kstFunktionNeu = false;
+      const teile = await Promise.all(jahre.map((j) => auftragsnummernHolen("jahr=" + j)));
+      liste = teile.flatMap((t) => t.ok ? t.auftragsnummern : []);
+    }
+    const aus = new Set(S.kstRegeln.filter((x) => !x.sichtbar).map((x) => x.auftrag_nr));
+    const immerSet = new Set(immer);
+    liste = liste.filter((a) => !aus.has(a.id)).map((a) => ({ ...a, immer: immerSet.has(a.id) || (!S.kstFunktionNeu && a.immer) }));
+  }
+  const gesehen = new Set();
+  liste = liste.filter((a) => !gesehen.has(a.id) && gesehen.add(a.id));
+  liste.sort((a, b) => (a.immer === b.immer ? 0 : a.immer ? -1 : 1)
+                    || String(b.jahr || "").localeCompare(String(a.jahr || "")) || nachNummer(a, b));
+  return liste;
+}
+
+// Einstellungen ändern (nur Admin)
+export const kstJahrSetzen = (jahr: number, sichtbar: boolean) =>
+  sb.from("spesen_kst_jahr").upsert({ jahr, sichtbar });
+export const kstJahrLoeschen = (jahr: number) => sb.from("spesen_kst_jahr").delete().eq("jahr", jahr);
+export const kstRegelSetzen = (nr: string, sichtbar: boolean) =>
+  sb.from("spesen_kst_regel").upsert({ auftrag_nr: nr, sichtbar });
+export const kstRegelLoeschen = (nr: string) => sb.from("spesen_kst_regel").delete().eq("auftrag_nr", nr);
 
 // Eigene Belege der gewählten Periode — und alle eigenen, die noch etwas
 // brauchen (erfasst oder abgelehnt), egal aus welcher Periode.

@@ -286,7 +286,7 @@ export function Uebersicht() {
   const brutto = gruppen.reduce((s, g) => s + g.brutto, 0);
   const erledigt = ohneStatus.filter(istErledigt).length;
   const fg = freigabeIm();
-  const reiter = S.uReiter || "kontierung";
+  const reiter = S.uReiter || "belege";
   const breit = istBreit();
 
   const statusReiter = [
@@ -296,8 +296,8 @@ export function Uebersicht() {
   ];
   const summeText = <><b>CHF {chfLang(brutto)}</b><span className="kn mu">{anzahlText(gefiltert.length)}, wie gebucht</span></>;
   const inhaltReiter = [
-    { v: "kontierung", lab: "Kontierung", n: gruppen.length },
     { v: "belege", lab: "Belege", n: liste.length },
+    { v: "kontierung", lab: "Kontierung", n: gruppen.length },
     { v: "verlauf", lab: "Verlauf", n: null }
   ];
   const ReiterInhalt = () => (
@@ -339,7 +339,7 @@ export function Uebersicht() {
     </Seite>);
 
   // Handy: oben der Abschnitt (bei mehreren umschaltbar), Reiter mit Zahlen,
-  // Summe, Export, dann Kontierung / Belege / Verlauf
+  // Summe, Export, dann Belege / Kontierung / Verlauf
   const abschnitte = bereiche();
   return (
     <Seite titel={bereichTitel()} sub="Übersicht" tab>

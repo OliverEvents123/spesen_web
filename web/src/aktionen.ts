@@ -18,7 +18,8 @@ import {
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
-  standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert
+  standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
+  ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -298,6 +299,48 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     return render();
   }
 
+  // ---------- Admin: Kostenstellen (welche erscheinen in der Auswahl) ----------
+  if (a === "tabKst") {
+    wechsel("kst"); render();
+    S.auftraege = await ladeAuftraege();
+    return render();
+  }
+
+  if (a === "kstJahrNeu" || a === "kstJahrSchalten" || a === "kstJahrWeg" || a === "kstRegelNeu" || a === "kstRegelWeg") {
+    let fehler: any = null;
+    if (a === "kstJahrNeu") {
+      const j = Number(wert("kstjahr").trim());
+      if (!(j >= 2000 && j <= new Date().getFullYear() + 5)) { alert("Bitte ein Jahr wie 2027 eingeben."); return; }
+      if (S.kstJahre.some((x) => x.jahr === j)) { alert(`${j} ist schon in der Liste.`); return; }
+      ({ error: fehler } = await kstJahrSetzen(j, true));
+    } else if (a === "kstJahrSchalten") {
+      const j = S.kstJahre.find((x) => String(x.jahr) === d.v);
+      if (!j) return;
+      ({ error: fehler } = await kstJahrSetzen(j.jahr, !j.sichtbar));
+    } else if (a === "kstJahrWeg") {
+      if (!confirm(`Jahr ${d.v} aus der Liste nehmen? Die Belege bleiben unberührt.`)) return;
+      ({ error: fehler } = await kstJahrLoeschen(Number(d.v)));
+    } else if (a === "kstRegelNeu") {
+      // d.v: "1" = immer anzeigen, "0" = ausblenden; d.f: Eingabefeld
+      const nr = wert(d.f).trim();
+      if (!/^[0-9A-Za-z.\-]{1,20}$/.test(nr)) { alert("Bitte eine KST-Nummer eingeben (nur Ziffern und Buchstaben)."); return; }
+      const sichtbar = d.v === "1";
+      const schon = S.kstRegeln.find((x) => x.auftrag_nr === nr);
+      if (schon && schon.sichtbar !== sichtbar &&
+          !confirm(`KST ${nr} steht schon unter „${schon.sichtbar ? "Immer anzeigen" : "Ausblenden"}“. Verschieben?`)) return;
+      ({ error: fehler } = await kstRegelSetzen(nr, sichtbar));
+      const feld = document.getElementById(d.f) as HTMLInputElement;
+      if (feld && !fehler) feld.value = "";
+    } else {
+      ({ error: fehler } = await kstRegelLoeschen(d.v));
+    }
+    if (fehler) { alert(istNetzfehler(fehler) ? NETZTEXT : "Nicht gespeichert:\n" + fehler.message); return; }
+    laeuft("kstLaden", "Lade Auswahl …");
+    S.auftraege = await ladeAuftraege();
+    S.laeuft = null;
+    return render();
+  }
+
   // ---------- Admin: Geräte ----------
   if (a === "tabGeraete") {
     wechsel("geraete");
@@ -495,7 +538,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     if (S.ansicht === "kontoForm") { S.kontEdit = null; S.ansicht = "konten"; return render(); }
     if (S.ansicht === "geraetForm") { S.geraetEdit = null; S.ansicht = "geraete"; return render(); }
     if (S.ansicht === "freigabe" || S.ansicht === "profil") { S.neu = null; S.ansicht = "liste"; return render(); }
-    if (S.ansicht === "benutzer" || S.ansicht === "konten" || S.ansicht === "geraete") {
+    if (S.ansicht === "benutzer" || S.ansicht === "konten" || S.ansicht === "geraete" || S.ansicht === "kst") {
       S.benEdit = null; S.kontEdit = null; S.geraetEdit = null; S.ansicht = heim; return render();
     }
     // bleibt: die Auswahlbildschirme für Konto und Auftrag

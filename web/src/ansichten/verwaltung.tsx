@@ -1,6 +1,7 @@
 // verwaltung.tsx
 // Nur Admin: Benutzer (mit Rolle, Prüfung und den zugewiesenen KST bzw.
-// Konten — früher eine eigene Seite "Zuweisungen"), Konten und Geräte.
+// Konten — früher eine eigene Seite "Zuweisungen"), Konten, Geräte und
+// Kostenstellen (welche Jahre und KST in der Auswahl erscheinen).
 
 import { S, schluessel } from "../zustand";
 import { istBreit, kurzZeit, kurzName, rolleName, istGeschuetzt, initialen, ROLLEN, SAETZE, OHNE_KST } from "../grundlagen";
@@ -16,6 +17,7 @@ const Umschalter = () => istBreit() ? null : (
     <button className={S.ansicht === "benutzer" ? "an" : ""} data-akt="tabBenutzer">Benutzer</button>
     <button className={S.ansicht === "konten" ? "an" : ""} data-akt="tabKonten">Konten</button>
     <button className={S.ansicht === "geraete" ? "an" : ""} data-akt="tabGeraete">Geräte</button>
+    <button className={S.ansicht === "kst" ? "an" : ""} data-akt="tabKst">KST</button>
   </div>);
 
 /* ==========================================================
@@ -416,5 +418,112 @@ export function Geraete() {
       <button className="k1" data-akt="geraetNeu">+ Neues Gerät</button>
       <GeraeteListe />
       <GeraetHinweis />
+    </Seite>);
+}
+
+/* ==========================================================
+   Kostenstellen: welche erscheinen in der Auswahl?
+   Jahre mit Haken, dazu einzelne KST immer anzeigen oder ausblenden.
+   ========================================================== */
+
+// Name einer KST aus der geladenen Auswahl — fehlt er, steht nur die Nummer
+const kstNameKurz = (nr: string) => (S.auftraege.find((a) => a.id === nr) || {}).name || "";
+
+function RegelKarte({ sichtbar }: { sichtbar: boolean }) {
+  const regeln = S.kstRegeln.filter((r) => r.sichtbar === sichtbar);
+  const feld = sichtbar ? "kstimmer" : "kstaus";
+  return (
+    <section className="karte innen">
+      <div className="kartentitel">
+        <b>{sichtbar ? "Immer anzeigen" : "Ausblenden"}</b>
+        <span className={"zahlmarke" + (sichtbar ? "" : " rot")}>{regeln.length}</span>
+      </div>
+      <span className="kn mu" style={{ marginTop: -8 }}>
+        {sichtbar ? "Erscheinen immer in der Auswahl — auch wenn ihr Jahr ausgeblendet ist (z. B. 200 Tit-Pit allgemein)."
+                  : "Erscheinen nicht in der Auswahl, auch wenn ihr Jahr angezeigt wird."}</span>
+      <div className="chips">
+        {regeln.length === 0 && <span className="kn mu">Noch keine.</span>}
+        {regeln.map((r) => {
+          const name = kstNameKurz(r.auftrag_nr);
+          return (
+            <span className={"chip" + (sichtbar ? "" : " aus")} key={r.auftrag_nr} title={name || undefined}>
+              <span className="mono">{r.auftrag_nr}</span>{name && <span className="chipname">{name}</span>}
+              <button data-akt="kstRegelWeg" data-v={r.auftrag_nr} aria-label={`KST ${r.auftrag_nr} entfernen`}>✕</button>
+            </span>);
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input id={feld} list="kstliste" placeholder="KST-Nummer" aria-label="KST-Nummer" style={{ flex: 1, minHeight: 42 }} />
+        <Knopf akt="kstRegelNeu" className="k2 klein" data-f={feld} data-v={sichtbar ? "1" : "0"}>Hinzufügen</Knopf>
+      </div>
+    </section>);
+}
+
+function JahreKarte() {
+  const jetzt = new Date().getFullYear();
+  const anzahl = (j: number) => S.auftraege.filter((a) => String(a.jahr) === String(j) && !a.immer).length;
+  return (
+    <section className="karte innen">
+      <div className="kartentitel">
+        <b>Jahre</b><span className="zahlmarke">{S.kstJahre.filter((j) => j.sichtbar).length}</span>
+      </div>
+      <span className="kn mu" style={{ marginTop: -8 }}>Mit Haken erscheinen alle Aufträge dieses Jahres aus FileMaker
+        in der Auswahl. Ein neues Jahr hier hinzufügen, sobald es losgeht.</span>
+      {S.kstJahre.length === 0 && <span className="kn mu">Noch keine Jahre — dann erscheinen nur die KST unter „Immer anzeigen“.</span>}
+      <div className="jahrliste">
+        {S.kstJahre.map((j) => (
+          <div className="jahrzeile" key={j.jahr}>
+            <label className="jahrhaken">
+              <input type="checkbox" className="schalter" checked={!!j.sichtbar} data-akt="kstJahrSchalten" data-v={j.jahr}
+                     onChange={() => { /* läuft über data-akt */ }} aria-label={`Jahr ${j.jahr} anzeigen`} />
+              <b className="mono">{j.jahr}</b>
+            </label>
+            <span className="kn mu" style={{ flex: 1 }}>
+              {!j.sichtbar ? "ausgeblendet" : anzahl(j.jahr) === 1 ? "1 Auftrag in der Auswahl"
+                : `${anzahl(j.jahr)} Aufträge in der Auswahl`}</span>
+            <button className="pf" data-akt="kstJahrWeg" data-v={j.jahr} aria-label={`Jahr ${j.jahr} entfernen`}
+                    style={{ color: "var(--rot-text)" }}>✕</button>
+          </div>))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input id="kstjahr" type="text" inputMode="numeric" placeholder={String(jetzt + 1)} aria-label="Jahr"
+               style={{ flex: 1, minHeight: 42 }} />
+        <Knopf akt="kstJahrNeu" className="k2 klein">Jahr hinzufügen</Knopf>
+      </div>
+    </section>);
+}
+
+export function Kostenstellen() {
+  const sub = `${S.auftraege.length} KST in der Auswahl`;
+  const inhalt = !S.kstDa
+    ? <div className="karte"><Hinweis>Die Datenbank kennt diese Einstellung noch nicht — zuerst
+        <b> kst-auswahl.sql</b> im Supabase SQL Editor ausführen. Bis dahin gilt wie bisher: laufendes Jahr
+        und Vorjahr, dazu die fest eingebauten Nummern.</Hinweis></div>
+    : <>
+        {!S.kstFunktionNeu &&
+          <div className="fehler">Die Edge Function <b>auftragsnummern</b> ist noch die alte Fassung: Jahre funktionieren,
+            „Immer anzeigen“ für KST aus ausgeblendeten Jahren erst nach dem Deploy der neuen Fassung
+            (supabase/functions/auftragsnummern).</div>}
+        {S.laeuft && S.laeuft.akt === "kstLaden" && <div className="kn mu">{S.laeuft.text}</div>}
+        <div className="spalten drei">
+          <JahreKarte />
+          <RegelKarte sichtbar />
+          <RegelKarte sichtbar={false} />
+        </div>
+        <div className="karte"><Hinweis>Belege mit einer KST, die nicht mehr in der Auswahl steht, bleiben
+          unverändert — sie zeigen dann nur die Nummer ohne Namen. „ohne KST“ steht immer zuoberst.</Hinweis></div>
+      </>;
+
+  if (istBreit()) return (
+    <Seite titel="Kostenstellen" pfad={sub} tab>
+      <KstListe />
+      {inhalt}
+    </Seite>);
+
+  return (
+    <Seite titel="Verwaltung" sub={sub}>
+      <Umschalter />
+      <KstListe />
+      {inhalt}
     </Seite>);
 }

@@ -68,6 +68,7 @@ function Leiste() {
       {n("benutzer", "tabBenutzer", "Benutzer", "leute")}
       {n("konten", "tabKonten", "Konten", "liste")}
       {n("geraete", "tabGeraete", "Geräte", "karte")}
+      {n("kst", "tabKst", "Kostenstellen", "raute")}
     </>}
   </div>;
   return (

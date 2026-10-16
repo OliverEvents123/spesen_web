@@ -10,7 +10,7 @@ import { Login } from "./ansichten/login";
 import { MeineBelege, Uebersicht } from "./ansichten/uebersicht";
 import { Erfassen, KontoWahl, AuftragWahl } from "./ansichten/erfassen";
 import { Profil, Passwort, Favoriten, FavForm, Freigabe } from "./ansichten/profil";
-import { Benutzer, Konten, Geraete } from "./ansichten/verwaltung";
+import { Benutzer, Konten, Geraete, Kostenstellen } from "./ansichten/verwaltung";
 
 function Bildschirm() {
   if (!S.gestartet) return <div className="leer" style={{ paddingTop: 80 }}>Lade …</div>;
@@ -30,6 +30,7 @@ function Bildschirm() {
     case "benutzer": case "benForm":  return <Benutzer />;
     case "konten":   case "kontoForm": return <Konten />;
     case "geraete":  case "geraetForm": return <Geraete />;
+    case "kst":      return <Kostenstellen />;
   }
   return <MeineBelege />;
 }

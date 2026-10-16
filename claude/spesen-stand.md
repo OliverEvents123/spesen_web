@@ -39,12 +39,28 @@ Zweite Runde (16.10.2026):
   gespeicherte, „Eigener Zeitraum …" mit Von/Bis), Suche, Filter.
 - Rechner: Beleg im Arbeitsplatz **zoomen** (Regler, − / +, Einpassen).
   PDF-Vorschau dafür schärfer gerendert (1600 px).
-- Übersicht: Reiter in der Reihenfolge Kontierung · Belege · Verlauf,
-  Kontierung zuerst.
+- Übersicht: Reiter Belege · Kontierung · Verlauf (Oli hat es kurz
+  umgedreht und dann wieder so gewünscht).
 - Handy: Übersicht oben mit Abschnitt („Projektleiter-Übersicht" usw.), bei
   mehreren Abschnitten umschaltbar; Suchfeld immer unter der Periode,
   daneben der Filterknopf.
 - Leere laufende Periode: Hinweis mit Knopf „‹ Letzte Periode".
+
+### Kostenstellen-Auswahl (16.10.2026)
+
+Verwaltung → **Kostenstellen** (nur Admin): welche Auftragsnummern in der
+Auswahl erscheinen.
+- **Jahre** mit Haken: alle Aufträge dieses Jahres aus FileMaker. Neues Jahr
+  hinzufügen, altes ausblenden oder entfernen.
+- **Immer anzeigen**: einzelne KST, auch aus ausgeblendeten Jahren (ersetzt
+  die bisher fest eingebaute Liste IMMER_DABEI; die SQL-Datei übernimmt sie).
+- **Ausblenden**: einzelne KST, obwohl ihr Jahr angezeigt wird.
+- SQL: **`supabase/kst-auswahl.sql`** (Tabellen `spesen_kst_jahr`,
+  `spesen_kst_regel`; Startwerte laufendes Jahr + Vorjahr + bisherige feste Liste).
+- **Edge Function `auftragsnummern` neu deployen**: neuer Aufruf
+  `?jahre=…&nummern=…`. Der alte Aufruf `?jahr=` bleibt — die echte App läuft
+  also mit der neuen Function weiter. Ohne Deploy: Jahre gehen, „Immer
+  anzeigen" aus ausgeblendeten Jahren nicht (die Seite sagt das).
 
 ## Neues Aussehen „Dashboard" (12.10.2026) — auf dem Arbeitsbranch, noch nicht live
 
@@ -182,12 +198,13 @@ Oli in der Testdatenbank durchgeklickt (12.10.: „sieht schon ganz gut aus").
 
 1. ~~SQL Etappe 1+2 und Function `benutzer` im Test-Projekt~~ — erledigt.
 2. ~~Freigaben in `/test/` testen~~ — erledigt (alte Fassung, 12.10.).
-3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql` und `geraete.sql` im Test-Projekt ausführen (Oli).
+3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql`, `geraete.sql` und `kst-auswahl.sql` im Test-Projekt ausführen, Edge Function `auftragsnummern` im Test-Projekt deployen (Oli).
 4. Offen: **Etappe 3** (Karten je Kostenstelle) — vor oder nach dem Live-Gang.
 5. **Live-Gang**, alles auf einmal, in dieser Reihenfolge:
    1. `etappe1-status.sql` im Live-Projekt
    2. `etappe2-freigabe.sql` im Live-Projekt
-   3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql` und `geraete.sql` im Live-Projekt
+   3. `verlauf-pruefer.sql`, `kommentar-korrektur-personen.sql`, `geraete.sql` und `kst-auswahl.sql` im Live-Projekt;
+      Edge Function `auftragsnummern` im Live-Projekt deployen
    4. Edge Function `benutzer` im Live-Projekt deployen
    5. Rollen und Zuweisungen in der echten App setzen (sonst läuft alles
       ohne Prüfung durch)

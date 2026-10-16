@@ -468,3 +468,19 @@ button.vzeile:hover { background:var(--flaeche); }
 .freigabefilter { display:flex; flex-direction:column; gap:6px; }
 .freigabefilter select { min-height:34px; font-size:14px; padding:0 8px; }
 .freigabefilter .link { align-self:flex-start; padding:2px 0; }
+
+/* ---------- Verwaltung Kostenstellen ---------- */
+.spalten.drei { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); align-items:start; }
+.kartentitel { display:flex; align-items:center; gap:8px; }
+.kartentitel b { font-size:17px; }
+.zahlmarke { background:#dcf3e2; color:var(--gruen-text); border-radius:999px; font-size:12px; font-weight:700;
+             padding:0 8px; line-height:20px; }
+.zahlmarke.rot { background:#fbe3e1; color:var(--rot-text); }
+.chip.aus { background:#fbe3e1; color:var(--rot-text); }
+.chip.aus button { background:rgba(179,38,30,.12); color:var(--rot-text); }
+.chip .chipname { font-weight:400; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jahrliste { display:flex; flex-direction:column; border:1px solid var(--linie); border-radius:10px; overflow:hidden; }
+.jahrzeile { display:flex; align-items:center; gap:12px; padding:8px 10px 8px 12px; border-top:1px solid var(--linie); }
+.jahrzeile:first-child { border-top:0; }
+.jahrhaken { display:flex; align-items:center; gap:10px; margin:0; color:var(--text); font-size:16px; }
+.jahrzeile .pf { width:32px; height:32px; font-size:14px; background:none; }

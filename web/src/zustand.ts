@@ -24,6 +24,10 @@ export const S: any = {
   benutzer: [], benEdit: null, kontEdit: null,
   // Geräte (Kreditkarte) je KST — in der Datenbank "zahlgeraet". geraeteDa: Tabelle vorhanden
   zahlgeraete: [], geraeteDa: false, geraetEdit: null,
+  // Welche KST erscheinen in der Auswahl: Jahre (mit Haken) und Regeln je KST
+  // (sichtbar = immer anzeigen, sonst ausblenden). kstDa: Tabellen vorhanden;
+  // kstFunktionNeu: die Edge Function kennt "immer anzeigen" aus jedem Jahr
+  kstJahre: [], kstRegeln: [], kstDa: false, kstFunktionNeu: true,
   ansicht: "liste", neu: null, favEdit: null, posIndex: null,
   suche: "", bSuche: "", bSucheNeu: 0, meldung: null, zurueckZu: "liste",
   // Zeitraum für alles: Abrechnungsperiode, mit ‹ › blätterbar
@@ -40,7 +44,7 @@ export const S: any = {
   // leer = alles, was ich sehen darf (Handy)
   bereich: "",
   // Übersicht: Reiter rechts (belege, kontierung, verlauf) und Gruppen links (kst, konto, person)
-  uReiter: "kontierung", uGruppe: "",
+  uReiter: "belege", uGruppe: "",
   // Freigabe filtern (Supervisor, Admin): Person, KST, Konto
   fPerson: "", fKst: "", fKonto: "",
   // Beleg am Rechner vergrössern (Prozent, 100 = auf Breite eingepasst)
