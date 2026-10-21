@@ -2,6 +2,33 @@
 
 **Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
+## Eigene Kreditkarte (21.10.2026) — Arbeitsbranch, noch nicht live
+
+Manche haben eine persönliche Karte und buchen damit auf alle Projekte.
+- Verwaltung → Benutzer → Haken **„Eigene Kreditkarte“**. Speichern legt ein
+  Gerät „Kreditkarte <Name>“ an, das dieser Person gehört (Name unter Geräte
+  änderbar). Haken weg: Gerät aus der Auswahl (alte Belege behalten es).
+- Erfassen mit Kreditkarte: die eigene Karte steht bei dieser Person
+  **immer** in der Geräte-Auswahl (zuoberst), egal auf welche KST. Gibt es
+  dazu eine Projektkarte, muss man wählen; sonst ist sie vorgewählt.
+- Prüfung und Freigabe unverändert. Übersicht: Filter/Export pro Gerät auch
+  für eigene Karten. Geräteliste: Spalte „KST / Person“.
+- **SQL: `supabase/eigene-kreditkarte.sql`** (Spalte `spesen_zahlgeraet.person`,
+  `auftrag_nr` darf leer sein). Erst Test-Projekt, dann Live. Ohne die Datei
+  läuft alles weiter, der Haken ist dann ausgegraut mit Hinweis. Lokal gegen
+  Postgres (schema.sql + live-gang.sql) zweimal hintereinander geprüft.
+
+### Wer genehmigt bei „Konto ohne KST“? (Olis Frage, 21.10.2026)
+
+Gespeichert ist „ohne KST“ — der Projektleiter der gewählten KST ist darum
+nie zuständig. Es prüft nur, wer sonst zuständig ist: Supervisor mit dem
+Konto (z. B. 6210), wer „ohne KST“ zugewiesen hat, bei User-Zahlungen der
+Supervisor der Person, oder bei „Prüfung einrichten“ Admin/Supervisor.
+Gibt es niemanden, geht der Beleg automatisch durch („geprüft“ bzw.
+„genehmigt“, automatisch). Admins sehen „Speichern und genehmigen“ immer —
+zum Ausprobieren mit einem normalen Benutzer anmelden. Lokal gegen Postgres
+nachgeprüft.
+
 ## Konto ohne KST (21.10.2026) — Arbeitsbranch, noch nicht live
 
 Beispiel: 6210 Benzin ist nicht projektspezifisch, wird aber mit der Karte

@@ -29,7 +29,7 @@ export const leererFavorit = () => ({ id: null, name: "", konto: null, auftrag: 
 
 // vor: beim Anlegen vorgemerkte Zuweisungen — gespeichert erst mit dem Benutzer
 export const leererBenutzer = () => ({ neu: true, email: "", name: "", rolle: "user",
-                                       gesperrt: false, pruefung: false,
+                                       gesperrt: false, pruefung: false, eigeneKarte: false,
                                        vor: { kst: [], konto: [], person: [] } });
 
 export const leeresKonto = () => {
@@ -63,13 +63,13 @@ const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv,auftrag_modus";
 
 export async function ladeAlles() {
   const ich = S.session.user.email;
-  const [k, f, adm, me, nam, ger] = await Promise.all([
+  const [k, f, adm, me, nam] = await Promise.all([
     sb.from("spesen_konto").select(KONTO_SPALTEN).order("sortierung").order("nummer"),
     sb.from("spesen_favorit").select("*").order("sortierung").order("id"),
     sb.rpc("ist_admin"),
     sb.from("spesen_benutzer").select("name,rolle").eq("email", ich).maybeSingle(),
     sb.rpc("benutzer_namen"),
-    sb.from("spesen_zahlgeraet").select("*").order("name"),
+    ladeGeraete(),
     ladeMeine(),
     ladePerioden()
   ]);
@@ -80,9 +80,6 @@ export async function ladeAlles() {
   // Namen statt E-Mail — fehlt die Funktion (ältere Datenbank), bleibt es bei der E-Mail
   if (!nam.error && Array.isArray(nam.data))
     S.namen = Object.fromEntries(nam.data.map((x) => [x.email, x.name]));
-  // Geräte — fehlt die Tabelle (Datenbank ohne geraete.sql), gibt es keine Auswahl
-  S.geraeteDa   = !ger.error;
-  S.zahlgeraete = ger.error ? [] : (ger.data || []);
 
   // Fehlt die Funktion (Datenbank ohne Etappe 2), bleibt alles wie bisher.
   const pr = await sb.rpc("ist_pruefer");
@@ -254,10 +251,32 @@ export function verlaufEintrag(v: any) {
 }
 
 // ---------- Geräte ----------
+// Fehlt die Tabelle (Datenbank ohne geraete.sql), gibt es keine Auswahl.
+// Fehlt nur die Spalte "person" (ohne eigene-kreditkarte.sql), gibt es keine
+// eigenen Karten — der Rest läuft wie bisher.
 export async function ladeGeraete() {
-  const { data, error } = await sb.from("spesen_zahlgeraet").select("*").order("name");
-  S.geraeteDa   = !error;
-  S.zahlgeraete = error ? [] : (data || []);
+  let r = await sb.from("spesen_zahlgeraet").select("id,name,auftrag_nr,aktiv,person").order("name");
+  S.geraetPersonDa = !r.error;
+  if (r.error) r = await sb.from("spesen_zahlgeraet").select("*").order("name");
+  S.geraeteDa   = !r.error;
+  S.zahlgeraete = r.error ? [] : (r.data || []);
+}
+
+// Eigene Kreditkarte einer Person (aktiv), falls sie eine hat
+export const eigeneKarte = (email: string) =>
+  S.zahlgeraete.find((g) => g.person && g.person === email && g.aktiv !== false);
+
+// Eigene Kreditkarte beim Benutzer ein- oder ausschalten. Aus: nur aus der
+// Auswahl nehmen (alte Belege behalten sie). Ein: die alte wieder
+// einschalten oder eine neue "Kreditkarte <Name>" anlegen.
+export async function eigeneKarteSetzen(email: string, name: string, an: boolean) {
+  const vorhanden = S.zahlgeraete.filter((g) => g.person === email);
+  if (!an) return vorhanden.length
+    ? sb.from("spesen_zahlgeraet").update({ aktiv: false }).eq("person", email) : { error: null };
+  if (vorhanden.some((g) => g.aktiv !== false)) return { error: null };
+  const alt = vorhanden.reduce((m, g) => (!m || g.id > m.id ? g : m), null);
+  if (alt) return sb.from("spesen_zahlgeraet").update({ aktiv: true }).eq("id", alt.id);
+  return sb.from("spesen_zahlgeraet").insert({ name: "Kreditkarte " + name, person: email, auftrag_nr: null, aktiv: true });
 }
 
 export const geraetName = (id: any) => {
@@ -269,12 +288,15 @@ export const geraetName = (id: any) => {
 // Welche Geräte kommen für diesen Beleg in Frage? Nur bei Kreditkarte, nur
 // aktive auf einer seiner KST — dazu das schon gewählte, auch wenn inaktiv.
 // Auch bei einem Konto ohne KST zählt die gewählte KST (die Karte des Projekts).
+// Die eigene Kreditkarte der erfassenden Person steht immer zuoberst dabei.
 export function geraeteFuer(n: any) {
   if (!n || n.zahlart !== "karte" || !S.zahlgeraete.length) return [];
   const kst = (Array.isArray(n.positionen) ? n.positionen : [n])
     .map((p) => p.auftrag && p.auftrag.id).filter(Boolean);
-  return S.zahlgeraete.filter((g) => kst.includes(g.auftrag_nr)
-    && (g.aktiv !== false || String(g.id) === String(n.zahlgeraet)));
+  const wer = n.geraet || S.session.user.email;
+  return S.zahlgeraete.filter((g) => (g.person ? g.person === wer : kst.includes(g.auftrag_nr))
+    && (g.aktiv !== false || String(g.id) === String(n.zahlgeraet)))
+    .sort((a, b) => (b.person ? 1 : 0) - (a.person ? 1 : 0));
 }
 
 // Das Gerät, das gespeichert wird: das gewählte, wenn es passt —
@@ -290,8 +312,9 @@ export function geraetGewaehlt(n: any) {
 export const geraetFehlt = (n: any) => geraeteFuer(n).length > 1 && geraetGewaehlt(n) == null;
 
 export function geraetSpeichern(g: any) {
-  const daten = { name: String(g.name || "").trim(), auftrag_nr: String(g.auftrag_nr || "").trim(),
-                  aktiv: !!g.aktiv };
+  // Eigene Karte: nur Name und Auswahl — sie bleibt bei der Person
+  const daten: any = g.person ? { name: String(g.name || "").trim(), aktiv: !!g.aktiv }
+    : { name: String(g.name || "").trim(), auftrag_nr: String(g.auftrag_nr || "").trim(), aktiv: !!g.aktiv };
   if (g.neu) return sb.from("spesen_zahlgeraet").insert(daten);
   return sb.from("spesen_zahlgeraet").update(daten).eq("id", g.id);
 }
@@ -786,7 +809,7 @@ export async function belegBearbeiten(id, woher) {
   // der erfasst wurde, steckt in der Karte. Die wieder vorlegen, damit die
   // Karte beim Ändern weiter passt.
   const karte = S.zahlgeraete.find((g) => String(g.id) === String(b.zahlgeraet_id));
-  if (!istGesperrt(S.neu) && karte)
+  if (!istGesperrt(S.neu) && karte && karte.auftrag_nr)
     for (const z of [S.neu, ...(S.neu.positionen || [])])
       if (ohneKst(z.konto.nummer) && z.auftrag.id === OHNE_KST.id) z.auftrag = auftragObjekt(karte.auftrag_nr);
   if (pdfUrl) pdfVorschauLaden(S.neu, pdfUrl);

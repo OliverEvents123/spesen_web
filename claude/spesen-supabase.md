@@ -366,3 +366,10 @@ gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
   gesetzt. Ein Gerät mit Belegen lässt sich nicht löschen (Fremdschlüssel).
 - Nicht verwechseln: `spesen_beleg.geraet` ist die E-Mail der erfassenden
   Person (Name aus der Zeit, als jedes Handy ein eigenes Login hatte).
+
+## Eigene Kreditkarte 21.10.2026 (`eigene-kreditkarte.sql`)
+
+- `spesen_zahlgeraet.person text` — E-Mail: eigene Karte dieser Person.
+  Dann ist `auftrag_nr` leer (Check `spesen_zahlgeraet_zuordnung`: KST oder
+  Person). Angelegt und ein-/ausgeschaltet beim Benutzer („Eigene Kreditkarte“).
+- Die App fragt die Spalte gezielt ab; fehlt sie, gibt es keine eigenen Karten.

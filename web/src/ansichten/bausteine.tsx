@@ -376,7 +376,7 @@ function filterAuswahl(b: Bereich, ohneGruppen?: boolean) {
   if (b === "u" && S.zahlgeraete.length > 0)
     f.push(["Gerät", <Auswahl feld="uzahlgeraet" wert={S.uZahlgeraet}>
       <option value="">Alle Geräte</option>
-      {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>{g.name} · {kstName(g.auftrag_nr)}</option>)}
+      {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>{g.name} · {geraetZuordnung(g)}</option>)}
     </Auswahl>]);
   f.push(["Status", <Auswahl feld={b + "status"} wert={S[b + "Status"]}>
     <option value="">Alle</option>
@@ -442,6 +442,9 @@ export function kstName(nr: string) {
   const a = S.auftraege.find((x) => x.id === nr);
   return a && a.name ? nr + " " + a.name : nr;
 }
+
+// Wozu gehört ein Gerät? "2601 Gurtenfestival" bzw. "eigene Karte Oli"
+export const geraetZuordnung = (g: any) => g.person ? "eigene Karte " + personName(g.person) : kstName(g.auftrag_nr);
 
 // ---------- Auswahl Konto / KST ----------
 // Zeile "KONTO  Verpflegung ›". Am Rechner klappt darunter die Liste auf.

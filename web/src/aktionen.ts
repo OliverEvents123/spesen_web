@@ -7,7 +7,7 @@
 import { S, sb, render, laeuft } from "./zustand";
 import {
   NETZTEXT, GESPERRT_TEXT, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
-  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN
+  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN, kurzName
 } from "./grundlagen";
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
@@ -20,7 +20,7 @@ import {
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
   standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
-  kstZumSpeichern
+  kstZumSpeichern, eigeneKarte, eigeneKarteSetzen
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -156,7 +156,8 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     if (!b) return;
     S.benEdit = { neu: false, email: b.email, name: b.name || "",
                   rolle: b.rolle, gesperrt: b.gesperrt || !b.aktiv,
-                  pruefung: !!b.pruefung, pruefungAlt: !!b.pruefung };
+                  pruefung: !!b.pruefung, pruefungAlt: !!b.pruefung,
+                  eigeneKarte: !!eigeneKarte(b.email), eigeneKarteAlt: !!eigeneKarte(b.email) };
     if (!istBreit()) S.ansicht = "benForm";
     return render();
   }
@@ -179,6 +180,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "benSichern") {
     const b  = S.benEdit;
     const pw = wert("bpw");
+    // Für die eigene Kreditkarte: wem sie gehört und wie sie heisst
+    const karteMail = b.neu ? wert("bmail").trim().toLowerCase() : b.email;
+    const karteName = wert("bname").trim() || kurzName(karteMail);
     laeuft(a, "Speichere …");
 
     if (b.neu) {
@@ -221,6 +225,13 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
         if (!j3.ok) { alert(j3.fehler || "„Prüfung einrichten“ konnte nicht gespeichert werden."); return; }
       }
       S.meldung = "Gespeichert.";
+    }
+
+    // Eigene Kreditkarte: Gerät der Person ein- oder ausschalten
+    if (S.geraetPersonDa && !!b.eigeneKarte !== !!b.eigeneKarteAlt) {
+      const { error } = await eigeneKarteSetzen(karteMail, karteName, !!b.eigeneKarte);
+      if (error) alert("Die eigene Kreditkarte konnte nicht gespeichert werden:\n" + error.message);
+      await ladeGeraete();
     }
 
     S.benEdit = istBreit() ? leererBenutzer() : null;
@@ -393,7 +404,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     const g = S.zahlgeraete.find((x) => String(x.id) === String(d.id));
     if (!g) return;
     S.geraetEdit = { neu: false, id: g.id, name: g.name || "", auftrag_nr: g.auftrag_nr || "",
-                     aktiv: g.aktiv !== false };
+                     person: g.person || null, aktiv: g.aktiv !== false };
     if (!istBreit()) S.ansicht = "geraetForm";
     return render();
   }
@@ -402,8 +413,8 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     const g = S.geraetEdit;
     const name = String(g.name || "").trim(), kst = String(g.auftrag_nr || "").trim();
     if (!name) { alert("Bitte einen Namen für das Gerät eingeben."); return; }
-    if (!kst)  { alert("Bitte eine KST eingeben."); return; }
-    if (kst !== OHNE_KST.id && S.auftraege.length && !S.auftraege.some((x) => x.id === kst)
+    if (!kst && !g.person) { alert("Bitte eine KST eingeben."); return; }
+    if (!g.person && kst !== OHNE_KST.id && S.auftraege.length && !S.auftraege.some((x) => x.id === kst)
         && !confirm(`KST ${kst} ist in FileMaker (dieses und letztes Jahr) nicht bekannt. Trotzdem speichern?`)) return;
     laeuft(a, "Speichere …");
     const { error } = await geraetSpeichern({ ...g, name, auftrag_nr: kst });
@@ -1017,6 +1028,7 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "kaktiv" && S.kontEdit)    { S.kontEdit.aktiv = ziel.checked; return; }
   if (f === "kohnekst" && S.kontEdit)  { S.kontEdit.ohneKst = ziel.checked; return; }
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
+  if (f === "beigenekarte" && S.benEdit) { S.benEdit.eigeneKarte = ziel.checked; return; }
   if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
 
   // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.
