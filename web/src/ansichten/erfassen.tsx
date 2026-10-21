@@ -9,7 +9,7 @@ import {
   kurzDatum, statusVon, statusKlasse, belegZeilen, OHNE_KST
 } from "../grundlagen";
 import {
-  personName, kannSelbstEntscheiden, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName,
+  personName, kannSelbstEntscheiden, kstZumSpeichern, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName,
   freigabeIm, freigabeGefiltert, darfFreigabeFiltern, imBereich, kontoName, BEREICH_NAME
 } from "../daten";
 import { apListe } from "../aktionen";
@@ -258,7 +258,7 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
   const umkont = n.pruefen && !geteilt;
   const korr = umkont && n.zahlartDb !== "vorkasse";
   const kontGeaendert = umkont && n.konto && n.auftrag &&
-    (n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt);
+    (n.konto.nummer !== n.kontoAlt || kstZumSpeichern(n) !== n.auftragAlt);
   const werteGeaendert = korr && (Math.abs(betragVon(n.korrBetrag) - parseFloat(n.betragDb)) > 0.004
     || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
   const geaendert = kontGeaendert || werteGeaendert;
@@ -309,7 +309,7 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
               </Zeile>))
           : umkont ? <>
               <Wahl akt="kontoWahl" titel="Konto" haupt={kt.haupt} neben={kt.neben} />
-              <KstWahl konto={n.konto} auftrag={n.auftrag} />
+              <KstWahl konto={n.konto} auftrag={n.auftrag} pruefen />
             </>
           : <>
               <Zeile titel="Konto"><span className="mono">{n.konto && n.konto.nummer}</span> {n.konto && n.konto.bezeichnung}</Zeile>

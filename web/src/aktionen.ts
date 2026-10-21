@@ -20,7 +20,7 @@ import {
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
   standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
-  kontoSetzen, kstZumSpeichern
+  kstZumSpeichern
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -294,28 +294,15 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "kontoBearbeiten") {
     const k = S.konten.find((x) => x.nummer === d.nr);
     if (!k) return;
-    const ohne = k.auftrag_modus === "ohne";
     S.kontEdit = { neu: false, nummer: k.nummer, bezeichnung: k.bezeichnung || "",
                    mwst: String(k.mwst), sortierung: String(k.sortierung ?? ""),
                    aktiv: k.aktiv !== false, modusAlt: k.auftrag_modus || "alle",
-                   ohneKst: ohne, geraeteKst: ohne ? [...(k.auftrag_liste || [])] : [] };
+                   ohneKst: k.auftrag_modus === "ohne" };
     if (!istBreit()) S.ansicht = "kontoForm";
     return render();
   }
 
   if (a === "kontoMwst") { S.kontEdit.mwst = d.v; return render(); }
-
-  // Konto ohne KST: KST, deren Geräte zur Wahl stehen — gespeichert mit dem Konto
-  if (a === "kontoKstNeu") {
-    const neu = wert(d.f);
-    if (!neu) { alert("Bitte eine KST wählen."); return; }
-    if (!S.kontEdit.geraeteKst.includes(neu)) S.kontEdit.geraeteKst.push(neu);
-    return render();
-  }
-  if (a === "kontoKstWeg") {
-    S.kontEdit.geraeteKst = S.kontEdit.geraeteKst.filter((x) => x !== d.v);
-    return render();
-  }
 
   if (a === "kontoHoch") {
     const fehler = await kontoHoch(d.nr);
@@ -624,12 +611,12 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   };
   if (a === "kontoSet") {
     const k = S.konten.find((x) => x.nummer === d.nr);
-    if (S.favEdit) { kontoSetzen(S.favEdit, k); return ausWahl(); }
+    if (S.favEdit) { S.favEdit.konto = k; return ausWahl(); }
     if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
-      kontoSetzen(S.neu.positionen[S.posIndex], k);
+      S.neu.positionen[S.posIndex].konto = k;
       return ausWahl();
     }
-    kontoSetzen(S.neu, k);
+    S.neu.konto = k;
     if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
     return ausWahl();
   }
@@ -811,9 +798,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "umkontieren") {
     const n = S.neu;
     laeuft(a, "Moment …");
-    const { error } = await umkontieren(n.id, n.konto.nummer, n.auftrag.id);
+    const { error } = await umkontieren(n.id, n.konto.nummer, kstZumSpeichern(n));
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
-    return zurueckNachSpeichern(n.auftrag.id !== n.auftragAlt
+    return zurueckNachSpeichern(kstZumSpeichern(n) !== n.auftragAlt
       ? "Kontierung geändert — der Beleg liegt jetzt bei der neuen KST."
       : "Kontierung geändert.");
   }
@@ -862,7 +849,7 @@ export function apListe(woher: string) {
 function korrekturOffen(n: any) {
   const werte = n.zahlartDb !== "vorkasse" && (Math.abs(betragVon(n.korrBetrag) - parseFloat(n.betragDb)) > 0.004
     || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
-  return werte || n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt;
+  return werte || n.konto.nummer !== n.kontoAlt || kstZumSpeichern(n) !== n.auftragAlt;
 }
 
 // Speichert die Korrektur. Gibt false zurück, wenn es nicht geklappt hat.
@@ -872,14 +859,14 @@ async function korrekturSpeichern(n: any) {
   if (!n.korrDatum) { alert("Bitte ein Belegdatum angeben."); return false; }
   const werteNeu = n.zahlartDb !== "vorkasse" && (Math.abs(betrag - parseFloat(n.betragDb)) > 0.004
                 || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
-  const kontNeu = n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt;
+  const kontNeu = n.konto.nummer !== n.kontoAlt || kstZumSpeichern(n) !== n.auftragAlt;
   if (werteNeu) {
     const { error } = await sb.rpc("beleg_korrigieren", { p_id: n.id, p_betrag: betrag,
                                    p_mwst: parseFloat(n.korrMwst), p_datum: n.korrDatum });
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return false; }
   }
   if (kontNeu) {
-    const { error } = await umkontieren(n.id, n.konto.nummer, n.auftrag.id);
+    const { error } = await umkontieren(n.id, n.konto.nummer, kstZumSpeichern(n));
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return false; }
   }
   return true;
@@ -1028,7 +1015,7 @@ export function aenderung(ziel: HTMLInputElement) {
   }
 
   if (f === "kaktiv" && S.kontEdit)    { S.kontEdit.aktiv = ziel.checked; return; }
-  if (f === "kohnekst" && S.kontEdit)  { S.kontEdit.ohneKst = ziel.checked; return render(); }
+  if (f === "kohnekst" && S.kontEdit)  { S.kontEdit.ohneKst = ziel.checked; return; }
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
   if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
 

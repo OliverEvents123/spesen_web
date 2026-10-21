@@ -79,15 +79,16 @@ Kontenplan, gepflegt über **Admin → Konten** in der App.
 | `sortierung` | `int default 100` — in Zehnerschritten |
 | `aktiv` | `boolean default true` |
 | `auftrag_modus` | `text default 'alle'` — `alle` · `liste` · `ohne` |
-| `auftrag_liste` | `text[]` — bei Modus `liste` die erlaubten KST; bei `ohne` die KST für die Geräte-Auswahl |
+| `auftrag_liste` | `text[]` — nur bei Modus `liste` (von der App nicht benutzt) |
 
 **Konto ohne KST** (seit 21.10.2026, Verwaltung → Konten): `auftrag_modus = 'ohne'`.
-Belege darauf bekommen immer `auftrag_nr = 'ohne KST'`, laufen also in
-Übersicht, Freigabe und Export unter dem Konto und „ohne KST“. Die KST in
-`auftrag_liste` kommen nicht auf den Beleg — sie bestimmen nur, welche Geräte
-(`spesen_zahlgeraet.auftrag_nr`) bei Kreditkarte zur Wahl stehen. Die Spalten
-gab es schon (bisher ungenutzt), darum ohne SQL. Die App kennt `liste` nicht
-und lässt es beim Speichern unberührt.
+Erfasst wird normal mit KST — sie bestimmt nur, welche Karte
+(`spesen_zahlgeraet`) bei Kreditkarte zur Wahl steht. Gespeichert wird
+`auftrag_nr = 'ohne KST'` (auch beim Umkontieren), der Beleg läuft also in
+Übersicht, Freigabe und Export unter dem Konto und „ohne KST“; die Karte
+(`zahlgeraet_id`) bleibt am Beleg. Die Spalte gab es schon (bisher
+ungenutzt), darum ohne SQL. Die App kennt `liste` nicht und lässt es beim
+Speichern unberührt.
 
 **Gelöscht wird nie**, nur `aktiv = false`. Sonst zeigen alte Belege und
 Exporte eine Nummer ohne Bezeichnung.

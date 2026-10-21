@@ -256,49 +256,8 @@ export function Benutzer() {
    Konten
    ========================================================== */
 
-// Konto ohne KST: welche Geräte stehen bei Kreditkarte zur Wahl?
-// Geräte hängen an einer KST — gewählt wird darum die KST, die Liste zeigt
-// gleich ihre Geräte. Gespeichert wird mit dem Konto.
-const geraeteAuf = (nr: string) => S.zahlgeraete.filter((g) => g.auftrag_nr === nr && g.aktiv !== false);
-
-function GeraeteKst({ k }: { k: any }) {
-  const feld = "kgeraetekst";
-  const kst = [...new Set<string>(S.zahlgeraete.filter((g) => g.aktiv !== false && g.auftrag_nr !== OHNE_KST.id)
-    .map((g) => g.auftrag_nr))].filter((nr) => !k.geraeteKst.includes(nr)).sort();
-  const zurWahl = k.geraeteKst.flatMap(geraeteAuf).map((g) => g.name);
-  return (
-    <div className="teilbox">
-      <b style={{ fontSize: 14 }}>Geräte bei Kreditkarte</b>
-      <span className="kn mu">Geräte gehören zu einer KST (Verwaltung → Geräte). Wähle die KST, deren Geräte
-        auf diesem Konto zur Wahl stehen sollen.</span>
-      <div className="chips">
-        {k.geraeteKst.map((nr) =>
-          <span className="chip" key={nr}>{kstName(nr)}
-            <button data-akt="kontoKstWeg" data-v={nr} aria-label={`KST ${nr} entfernen`}>✕</button></span>)}
-      </div>
-      {kst.length > 0
-        ? <div style={{ display: "flex", gap: 8 }}>
-            <select id={feld} defaultValue="" aria-label="KST mit Geräten" style={{ flex: 1, minHeight: 42 }}>
-              <option value="">KST wählen</option>
-              {kst.map((nr) => <option key={nr} value={nr}>
-                {kstName(nr)} — {geraeteAuf(nr).map((g) => g.name).join(", ")}</option>)}
-            </select>
-            <button className="k2 klein" data-akt="kontoKstNeu" data-f={feld}>Hinzufügen</button>
-          </div>
-        : !k.geraeteKst.length && <span className="kn mu">Noch keine Geräte angelegt (Verwaltung → Geräte).</span>}
-      <span className="kn" style={{ color: zurWahl.length ? "var(--akzent-text)" : undefined }}>
-        {zurWahl.length ? "Zur Wahl stehen: " + zurWahl.join(", ")
-                        : "Noch keine — bei Kreditkarte gibt es dann keine Geräte-Auswahl."}</span>
-      <span className="kn mu">Auf den Beleg kommt trotzdem „ohne KST“.</span>
-    </div>);
-}
-
-// "ohne KST · Geräte von 200" — für die Kontenliste
-function ohneKstText(k: any) {
-  if (k.auftrag_modus !== "ohne") return "";
-  const liste = k.auftrag_liste || [];
-  return "ohne KST" + (liste.length ? " · Geräte von KST " + liste.join(", ") : "");
-}
+// "ohne KST" — für die Kontenliste
+const ohneKstText = (k: any) => k.auftrag_modus === "ohne" ? "ohne KST" : "";
 
 function KontoForm() {
   const k = S.kontEdit;
@@ -320,11 +279,11 @@ function KontoForm() {
         <p className="kn mu" style={{ margin: "8px 0 0" }}>Wird beim neuen Beleg vorbelegt und lässt sich dort ändern.</p></div>
       <div className="schalterzeile">
         <label htmlFor="kohnekst"><b>Konto ohne KST</b>
-          <span className="mu">Belege auf diesem Konto laufen immer auf „ohne KST“ — in der Übersicht unter dem
-            Konto, nicht unter einer Kostenstelle. Beim Erfassen wählt man keine KST.</span></label>
+          <span className="mu">Erfasst wird normal mit KST — sie bestimmt, welche Karte zur Wahl steht. Gebucht
+            wird aber auf „ohne KST“: in Übersicht, Freigabe und Export unter dem Konto, nicht unter der
+            Kostenstelle (z. B. Benzin mit der Karte eines Projekts).</span></label>
         <input id="kohnekst" type="checkbox" className="schalter" defaultChecked={!!k.ohneKst} data-feld="kohnekst" />
       </div>
-      {k.ohneKst && <GeraeteKst k={k} />}
       <div className="schalterzeile" style={{ alignItems: "center" }}>
         <label htmlFor="kaktiv"><b>Steht in der Auswahl</b></label>
         <input id="kaktiv" type="checkbox" className="schalter" defaultChecked={!!k.aktiv} data-feld="kaktiv" />
@@ -374,8 +333,8 @@ function KontenListe() {
 const KontoHinweis = () => (
   <div className="karte"><Hinweis>Der Pfeil schiebt ein Konto in der Auswahl nach oben. Inaktiv nimmt ein Konto aus
     der Auswahl, lässt es aber in alten Belegen und Exporten stehen. Löschen gibt es bewusst nicht — die Belege
-    hängen an der Nummer. Ein Konto ohne KST bucht immer auf „ohne KST“; die KST beim Konto bestimmen nur,
-    welche Geräte bei Kreditkarte zur Wahl stehen.</Hinweis></div>);
+    hängen an der Nummer. Ein Konto ohne KST bucht immer auf „ohne KST“; die KST beim Erfassen bestimmt dort
+    nur die Karte.</Hinweis></div>);
 
 export function Konten() {
   // Am Rechner steht das Formular immer da — also eines bereitlegen.
@@ -433,13 +392,6 @@ function GeraetForm() {
     </div>);
 }
 
-// Konten ohne KST, bei denen die KST dieses Geräts hinterlegt ist
-function kontenText(g: any) {
-  const nr = S.konten.filter((k) => k.auftrag_modus === "ohne" && (k.auftrag_liste || []).includes(g.auftrag_nr))
-    .map((k) => k.nummer);
-  return nr.length ? (nr.length === 1 ? "auch Konto " : "auch Konten ") + nr.join(", ") + " (ohne KST)" : "";
-}
-
 function GeraeteListe() {
   if (S.zahlgeraete.length === 0) return <div className="karte leer">Noch keine Geräte angelegt.</div>;
   const offen = S.geraetEdit && !S.geraetEdit.neu && S.geraetEdit.id;
@@ -451,7 +403,7 @@ function GeraeteListe() {
         {S.zahlgeraete.map((g) => (
           <tr key={g.id} className={offen === g.id ? "an" : ""}>
             <td className="fett">{g.name}</td>
-            <td>{kstName(g.auftrag_nr)}{kontenText(g) && <><br /><span className="kn mu">{kontenText(g)}</span></>}</td>
+            <td>{kstName(g.auftrag_nr)}</td>
             <td>{status(g) || <span className="kn mu">aktiv</span>}</td>
             <td className="re mono">{belegeAufGeraet(g.id)}</td>
             <td className="re"><button className="tknopf" data-akt="geraetBearbeiten" data-id={g.id}>Ändern</button></td>
@@ -465,7 +417,7 @@ function GeraeteListe() {
         <div className="zl" key={g.id}>
           <span className="ini"><Ico n="karte" s={18} /></span>
           <span className="mitte"><b style={g.aktiv === false ? { color: "#8a90a6" } : undefined}>{g.name}</b>
-            <span className="kn mu">{[kstName(g.auftrag_nr), kontenText(g)].filter(Boolean).join(" · ")}</span></span>
+            <span className="kn mu">{kstName(g.auftrag_nr)}</span></span>
           {status(g)}
           <button className="pf blau" data-akt="geraetBearbeiten" data-id={g.id} aria-label="Gerät bearbeiten"><Ico n="stift" /></button>
         </div>))}
@@ -474,8 +426,8 @@ function GeraeteListe() {
 
 const GeraetHinweis = () => (
   <div className="karte"><Hinweis>Ein Gerät gehört zu einer KST. Bei Kreditkarte auf diese KST wählt man es beim
-    Erfassen aus — ebenso bei Konten ohne KST, bei denen diese KST hinterlegt ist (Verwaltung → Konten).
-    In der Übersicht lässt sich danach filtern, der Export läuft dann pro Gerät. Ein Gerät, das schon
+    Erfassen aus — auch auf einem Konto ohne KST (gebucht wird dann „ohne KST“, das Gerät bleibt). In der
+    Übersicht lässt sich danach filtern, der Export läuft dann pro Gerät. Ein Gerät, das schon
     in Belegen steckt, lässt sich nicht löschen — dann aus der Auswahl nehmen.</Hinweis></div>);
 
 export function Geraete() {

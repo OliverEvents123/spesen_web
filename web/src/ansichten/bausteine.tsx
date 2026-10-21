@@ -460,16 +460,22 @@ export function Wahl({ akt, titel, haupt, neben, offen, i }:
   </>;
 }
 
-// KST-Zeile zu einem Konto. Bei einem Konto ohne KST steht sie fest auf
-// „ohne KST“ — sofern der Beleg nicht noch eine andere trägt (älterer Beleg).
-export function KstWahl({ konto, auftrag, i }: { konto: any; auftrag: any; i?: number }) {
-  if (konto && ohneKst(konto.nummer) && (!auftrag || auftrag.id === OHNE_KST.id)) return (
+// KST-Zeile zu einem Konto. Bei einem Konto ohne KST wählt man die KST wie
+// immer (sie bestimmt die Karte) — gebucht wird aber auf „ohne KST“, das sagt
+// die Zeile darunter. Beim Prüfen ist die Karte schon gewählt: dort steht
+// nur noch „ohne KST“.
+export function KstWahl({ konto, auftrag, i, pruefen }: { konto: any; auftrag: any; i?: number; pruefen?: boolean }) {
+  const ohne = konto && ohneKst(konto.nummer);
+  if (ohne && pruefen) return (
     <div className="wahl fest">
       <span className="kl titel">KST</span>
-      <span className="wert"><b>{OHNE_KST.name}</b><span className="kn mu">fest bei diesem Konto</span></span>
+      <span className="wert"><b>{OHNE_KST.name}</b><span className="kn mu">Konto ohne KST</span></span>
     </div>);
   const at = auftragWahlText(auftrag);
-  return <Wahl akt="auftragWahl" i={i} titel="KST" offen={!auftrag} haupt={at.haupt} neben={at.neben} />;
+  return <>
+    <Wahl akt="auftragWahl" i={i} titel="KST" offen={!auftrag} haupt={at.haupt} neben={at.neben} />
+    {ohne && <div className="wahlhinweis">Konto ohne KST: gebucht wird auf „ohne KST“ — die KST bestimmt nur die Karte.</div>}
+  </>;
 }
 
 // Werte für die Wahl-Zeilen

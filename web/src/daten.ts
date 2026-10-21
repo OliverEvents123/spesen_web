@@ -35,7 +35,7 @@ export const leererBenutzer = () => ({ neu: true, email: "", name: "", rolle: "u
 export const leeresKonto = () => {
   const hoechste = S.konten.reduce((m, k) => Math.max(m, k.sortierung || 0), 0);
   return { neu: true, nummer: "", bezeichnung: "", mwst: "8.1",
-           sortierung: String(hoechste + 10), aktiv: true, ohneKst: false, geraeteKst: [] };
+           sortierung: String(hoechste + 10), aktiv: true, ohneKst: false };
 };
 
 export const leeresGeraet = () => ({ neu: true, id: null, name: "", auftrag_nr: "", aktiv: true });
@@ -48,29 +48,18 @@ export const kontoName = (nr: string) => {
 // In der Auswahl stehen nur aktive Konten; die Admin-Liste zeigt alle.
 export const aktiveKonten = () => S.konten.filter((k) => k.aktiv !== false);
 
-// Konto ohne KST: Belege darauf laufen immer auf „ohne KST“ — in der
-// Übersicht unter dem Konto, nicht unter einer Kostenstelle. Die KST beim
-// Konto dienen nur der Geräte-Auswahl (Kreditkarte), auf den Beleg kommen sie nicht.
-// In der Datenbank: auftrag_modus = 'ohne', die KST in auftrag_liste.
-const kontoZeile = (nr?: string) => S.konten.find((x) => x.nummer === nr);
-export const ohneKst = (nr?: string) => (kontoZeile(nr) || {}).auftrag_modus === "ohne";
-export const geraeteKstVon = (nr?: string) => ohneKst(nr) ? (kontoZeile(nr).auftrag_liste || []) : [];
-
-// Konto setzen (Beleg, Position, Favorit). Konto ohne KST: KST fest auf
-// „ohne KST“. Zurück auf ein Konto mit KST: KST neu wählen (beim Prüfen bleibt sie).
-export function kontoSetzen(ziel: any, k: any) {
-  const vorher = ziel.konto;
-  ziel.konto = k;
-  if (k && ohneKst(k.nummer)) ziel.auftrag = OHNE_KST;
-  else if (!ziel.pruefen && vorher && ohneKst(vorher.nummer) && ziel.auftrag && ziel.auftrag.id === OHNE_KST.id)
-    ziel.auftrag = null;
-}
+// Konto ohne KST (z. B. 6210 Benzin): erfasst wird ganz normal mit KST —
+// sie bestimmt, welche Karte (Gerät) zur Wahl steht. Gebucht wird aber auf
+// „ohne KST“: in Übersicht, Freigabe und Export läuft der Beleg unter dem
+// Konto, nicht unter der Kostenstelle. In der Datenbank: auftrag_modus = 'ohne'.
+export const ohneKst = (nr?: string) => (S.konten.find((x) => x.nummer === nr) || {}).auftrag_modus === "ohne";
 
 // Die KST, die gespeichert wird: bei einem Konto ohne KST immer „ohne KST“
-export const kstZumSpeichern = (p: any) => ohneKst(p.konto && p.konto.nummer) ? OHNE_KST.id : p.auftrag.id;
+export const kstZumSpeichern = (p: any) =>
+  p.konto && ohneKst(p.konto.nummer) ? OHNE_KST.id : (p.auftrag ? p.auftrag.id : null);
 
 // ---------- Laden ----------
-const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv,auftrag_modus,auftrag_liste";
+const KONTO_SPALTEN = "nummer,bezeichnung,mwst,sortierung,aktiv,auftrag_modus";
 
 export async function ladeAlles() {
   const ich = S.session.user.email;
@@ -279,11 +268,11 @@ export const geraetName = (id: any) => {
 
 // Welche Geräte kommen für diesen Beleg in Frage? Nur bei Kreditkarte, nur
 // aktive auf einer seiner KST — dazu das schon gewählte, auch wenn inaktiv.
-// Bei einem Konto ohne KST zählen auch die KST, die beim Konto hinterlegt sind.
+// Auch bei einem Konto ohne KST zählt die gewählte KST (die Karte des Projekts).
 export function geraeteFuer(n: any) {
   if (!n || n.zahlart !== "karte" || !S.zahlgeraete.length) return [];
   const kst = (Array.isArray(n.positionen) ? n.positionen : [n])
-    .flatMap((p) => [p.auftrag && p.auftrag.id, ...geraeteKstVon(p.konto && p.konto.nummer)]).filter(Boolean);
+    .map((p) => p.auftrag && p.auftrag.id).filter(Boolean);
   return S.zahlgeraete.filter((g) => kst.includes(g.auftrag_nr)
     && (g.aktiv !== false || String(g.id) === String(n.zahlgeraet)));
 }
@@ -417,7 +406,7 @@ export const darfFreigabeFiltern = (bereich: string = S.bereich) =>
 export function kannSelbstEntscheiden(n: any) {
   if (S.istAdmin) return true;
   const zeilen = Array.isArray(n.positionen) ? n.positionen : [n];
-  return zeilen.some((p) => (p.auftrag && S.meineKst.includes(p.auftrag.id))
+  return zeilen.some((p) => S.meineKst.includes(kstZumSpeichern(p))
                          || (p.konto && S.meineKonten.includes(p.konto.nummer)));
 }
 
@@ -464,15 +453,10 @@ export async function kontoSpeichern(k) {
     sortierung:  parseInt(k.sortierung, 10) || 0,
     aktiv:       !!k.aktiv
   };
-  // Konto ohne KST: Modus 'ohne', die KST für die Geräte in der Liste.
-  // Haken weg: zurück auf 'alle'. Sonst bleibt der Modus, wie er ist.
-  if (k.ohneKst) {
-    daten.auftrag_modus = "ohne";
-    daten.auftrag_liste = k.geraeteKst && k.geraeteKst.length ? k.geraeteKst : null;
-  } else if (k.modusAlt === "ohne") {
-    daten.auftrag_modus = "alle";
-    daten.auftrag_liste = null;
-  }
+  // Konto ohne KST: Modus 'ohne'. Haken weg: zurück auf 'alle'.
+  // Sonst bleibt der Modus, wie er ist.
+  if (k.ohneKst) daten.auftrag_modus = "ohne";
+  else if (k.modusAlt === "ohne") daten.auftrag_modus = "alle";
   if (k.neu) {
     return sb.from("spesen_konto").insert({ ...daten, nummer: String(k.nummer).trim() });
   }
@@ -528,7 +512,7 @@ export function favAnwenden(id) {
   if (!f) return;
   const k = S.konten.find((x) => x.nummer === f.konto_nummer)
             || { nummer: f.konto_nummer, bezeichnung: kontoName(f.konto_nummer) };
-  const a = ohneKst(k.nummer) ? OHNE_KST : auftragObjekt(f.auftrag_nr, f.auftrag_name);
+  const a = auftragObjekt(f.auftrag_nr, f.auftrag_name);
   S.neu = { ...leererBeleg(), konto: k, auftrag: a, mwst: String(k.mwst ?? "8.1") };
   S.zurueckZu = ["liste", "uebersicht", "freigabe"].includes(S.ansicht) ? S.ansicht : "liste";
   S.ansicht = "erfassen";
@@ -542,7 +526,7 @@ export function favUebernehmen(id) {
   const k = S.konten.find((x) => x.nummer === f.konto_nummer)
             || { nummer: f.konto_nummer, bezeichnung: kontoName(f.konto_nummer) };
   S.neu.konto = k;
-  S.neu.auftrag = ohneKst(k.nummer) ? OHNE_KST : auftragObjekt(f.auftrag_nr, f.auftrag_name);
+  S.neu.auftrag = auftragObjekt(f.auftrag_nr, f.auftrag_name);
   if (!S.neu.id && k.mwst != null) S.neu.mwst = String(k.mwst);
   render();
 }
@@ -798,10 +782,13 @@ export async function belegBearbeiten(id, woher) {
     // Korrektur beim Prüfen (Kreditkarte/Bar): Betrag, Satz, Datum
     korrBetrag: chf(b.betrag), korrMwst: String(b.mwst), korrDatum: b.beleg_datum
   };
-  // Noch änderbar und auf einem Konto ohne KST: KST so, wie sie gespeichert wird
-  if (!istGesperrt(S.neu))
+  // Noch änderbar, Konto ohne KST: gespeichert ist „ohne KST“ — die KST, mit
+  // der erfasst wurde, steckt in der Karte. Die wieder vorlegen, damit die
+  // Karte beim Ändern weiter passt.
+  const karte = S.zahlgeraete.find((g) => String(g.id) === String(b.zahlgeraet_id));
+  if (!istGesperrt(S.neu) && karte)
     for (const z of [S.neu, ...(S.neu.positionen || [])])
-      if (ohneKst(z.konto.nummer)) z.auftrag = OHNE_KST;
+      if (ohneKst(z.konto.nummer) && z.auftrag.id === OHNE_KST.id) z.auftrag = auftragObjekt(karte.auftrag_nr);
   if (pdfUrl) pdfVorschauLaden(S.neu, pdfUrl);
   S.posIndex  = null;
   S.wahlOffen = null;

@@ -4,24 +4,23 @@
 
 ## Konto ohne KST (21.10.2026) — Arbeitsbranch, noch nicht live
 
-Verwaltung → Konten → Haken **„Konto ohne KST“**, darunter **„Geräte bei
-Kreditkarte“**: Auswahl der KST, die Geräte haben (mit deren Gerätenamen),
-eine oder mehrere; darunter „Zur Wahl stehen: …“.
-- Erfassen (auch Positionen, Favoriten, Umkontieren beim Prüfen): wählt man
-  ein solches Konto, steht die KST fest auf „ohne KST“ (nicht anklickbar).
-  Zurück auf ein Konto mit KST: KST muss neu gewählt werden.
-- Gespeichert wird `auftrag_nr = 'ohne KST'` — in der Übersicht also unter
-  dem Konto und „ohne KST“, nicht unter der Kostenstelle; Projektleiter der
-  Geräte-KST sehen den Beleg nicht.
-- Kreditkarte: zur Wahl stehen die Geräte der KST beim Konto (dazu wie bisher
-  Geräte auf „ohne KST“). Damit läuft der Export pro Gerät vollständig.
-- Kontenliste zeigt „ohne KST · Geräte von KST …“, die Geräteliste „auch
-  Konto …“.
-- **Kein SQL nötig:** nutzt die vorhandenen, bisher ungenutzten Spalten
-  `spesen_konto.auftrag_modus` (`'ohne'`) und `auftrag_liste`
-  (`claude/spesen-supabase.md`).
-- Geprüft gegen eine nachgebildete Supabase (Konto speichern, Beleg erfassen,
-  Haken wieder weg).
+Beispiel: 6210 Benzin ist nicht projektspezifisch, wird aber mit der Karte
+eines Projekts bezahlt.
+- Verwaltung → Konten → Haken **„Konto ohne KST“** (`auftrag_modus = 'ohne'`).
+- Erfassen läuft normal: Konto und KST wählen, die KST bestimmt die Karte
+  (Gerät), wie bei jedem anderen Konto. Unter der KST steht der Hinweis
+  „gebucht wird auf ohne KST“.
+- Gespeichert wird `auftrag_nr = 'ohne KST'` mit der Karte — in Übersicht,
+  Freigabe und Export also unter dem Konto und „ohne KST“; der Projektleiter
+  der KST sieht den Beleg nicht. Export pro Gerät enthält ihn.
+- Beim Ändern eines noch offenen Belegs wird die KST aus der Karte wieder
+  vorgelegt. Beim Prüfen/Umkontieren steht die KST fest auf „ohne KST“.
+- Bei Bar/User-Zahlung wählt man die KST auch, sie hat dort aber keine Wirkung.
+- **Kein SQL nötig:** nutzt die vorhandene, bisher ungenutzte Spalte
+  `spesen_konto.auftrag_modus` (`claude/spesen-supabase.md`).
+- Erste Fassung (KST beim Konto hinterlegen) hat Oli verworfen — die KST soll
+  automatisch aus dem Erfassen kommen.
+- Geprüft gegen eine nachgebildete Supabase.
 
 ## LIVE seit 16.10.2026
 
