@@ -4,8 +4,9 @@
 
 ## Konto ohne KST (21.10.2026) — Arbeitsbranch, noch nicht live
 
-Verwaltung → Konten → Haken **„Konto ohne KST“**, darunter **„KST für die
-Geräte“** (eine oder mehrere KST).
+Verwaltung → Konten → Haken **„Konto ohne KST“**, darunter **„Geräte bei
+Kreditkarte“**: Auswahl der KST, die Geräte haben (mit deren Gerätenamen),
+eine oder mehrere; darunter „Zur Wahl stehen: …“.
 - Erfassen (auch Positionen, Favoriten, Umkontieren beim Prüfen): wählt man
   ein solches Konto, steht die KST fest auf „ohne KST“ (nicht anklickbar).
   Zurück auf ein Konto mit KST: KST muss neu gewählt werden.

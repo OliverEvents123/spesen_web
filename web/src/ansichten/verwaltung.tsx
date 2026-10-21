@@ -256,25 +256,40 @@ export function Benutzer() {
    Konten
    ========================================================== */
 
-// Konto ohne KST: von welchen KST stehen bei Kreditkarte die Geräte zur Wahl?
-// Gespeichert wird mit dem Konto ("Änderungen speichern").
+// Konto ohne KST: welche Geräte stehen bei Kreditkarte zur Wahl?
+// Geräte hängen an einer KST — gewählt wird darum die KST, die Liste zeigt
+// gleich ihre Geräte. Gespeichert wird mit dem Konto.
+const geraeteAuf = (nr: string) => S.zahlgeraete.filter((g) => g.auftrag_nr === nr && g.aktiv !== false);
+
 function GeraeteKst({ k }: { k: any }) {
   const feld = "kgeraetekst";
+  const kst = [...new Set<string>(S.zahlgeraete.filter((g) => g.aktiv !== false && g.auftrag_nr !== OHNE_KST.id)
+    .map((g) => g.auftrag_nr))].filter((nr) => !k.geraeteKst.includes(nr)).sort();
+  const zurWahl = k.geraeteKst.flatMap(geraeteAuf).map((g) => g.name);
   return (
     <div className="teilbox">
-      <b style={{ fontSize: 14 }}>KST für die Geräte</b>
+      <b style={{ fontSize: 14 }}>Geräte bei Kreditkarte</b>
+      <span className="kn mu">Geräte gehören zu einer KST (Verwaltung → Geräte). Wähle die KST, deren Geräte
+        auf diesem Konto zur Wahl stehen sollen.</span>
       <div className="chips">
-        {k.geraeteKst.length === 0 && <span className="kn mu">noch keine — dann gibt es bei Kreditkarte keine Geräte-Auswahl</span>}
         {k.geraeteKst.map((nr) =>
           <span className="chip" key={nr}>{kstName(nr)}
             <button data-akt="kontoKstWeg" data-v={nr} aria-label={`KST ${nr} entfernen`}>✕</button></span>)}
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input id={feld} list="kstliste" placeholder="KST-Nummer" aria-label="KST-Nummer" style={{ flex: 1, minHeight: 42 }} />
-        <button className="k2 klein" data-akt="kontoKstNeu" data-f={feld}>Hinzufügen</button>
-      </div>
-      <span className="kn mu">Bei Kreditkarte stehen die Geräte dieser KST zur Wahl. Die KST selbst kommt nicht auf
-        den Beleg, er bleibt „ohne KST“. Übernommen wird mit „{k.neu ? "Konto anlegen" : "Änderungen speichern"}“.</span>
+      {kst.length > 0
+        ? <div style={{ display: "flex", gap: 8 }}>
+            <select id={feld} defaultValue="" aria-label="KST mit Geräten" style={{ flex: 1, minHeight: 42 }}>
+              <option value="">KST wählen</option>
+              {kst.map((nr) => <option key={nr} value={nr}>
+                {kstName(nr)} — {geraeteAuf(nr).map((g) => g.name).join(", ")}</option>)}
+            </select>
+            <button className="k2 klein" data-akt="kontoKstNeu" data-f={feld}>Hinzufügen</button>
+          </div>
+        : !k.geraeteKst.length && <span className="kn mu">Noch keine Geräte angelegt (Verwaltung → Geräte).</span>}
+      <span className="kn" style={{ color: zurWahl.length ? "var(--akzent-text)" : undefined }}>
+        {zurWahl.length ? "Zur Wahl stehen: " + zurWahl.join(", ")
+                        : "Noch keine — bei Kreditkarte gibt es dann keine Geräte-Auswahl."}</span>
+      <span className="kn mu">Auf den Beleg kommt trotzdem „ohne KST“.</span>
     </div>);
 }
 
@@ -369,7 +384,6 @@ export function Konten() {
   if (istBreit()) return (
     <Seite titel="Konten" pfad={`${S.konten.length} Konten`} tab
            rechts={<button className="k1 klein" data-akt="kontoNeu">+ Neues Konto</button>}>
-      <KstListe />
       <div className="spalten">
         <div className="spalte"><KontenListe /><KontoHinweis /></div>
         <KontoForm />
@@ -381,7 +395,7 @@ export function Konten() {
     return (
       <Seite titel={k.neu ? "Neues Konto" : "Konto ändern"}
              sub={k.neu ? "Nummer und Bezeichnung festlegen" : k.nummer + "  " + k.bezeichnung}>
-        <KstListe /><KontoForm />
+        <KontoForm />
       </Seite>);
   }
 

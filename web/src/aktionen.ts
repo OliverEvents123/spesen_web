@@ -305,17 +305,11 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "kontoMwst") { S.kontEdit.mwst = d.v; return render(); }
 
-  // Konto ohne KST: KST für die Geräte — gespeichert mit dem Konto
+  // Konto ohne KST: KST, deren Geräte zur Wahl stehen — gespeichert mit dem Konto
   if (a === "kontoKstNeu") {
-    const neu = wert(d.f).trim();
-    if (!neu) { alert("Bitte eine KST eingeben."); return; }
-    if (neu === OHNE_KST.id) { alert("Bitte eine KST mit Nummer eingeben — „ohne KST“ gilt ohnehin."); return; }
-    if (S.kontEdit.geraeteKst.includes(neu)) { alert("Diese KST ist schon dabei."); return; }
-    if (S.auftraege.length && !S.auftraege.some((x) => x.id === neu)
-        && !confirm(`KST ${neu} ist in der Auswahl nicht bekannt. Trotzdem hinzufügen?`)) return;
-    S.kontEdit.geraeteKst.push(neu);
-    const feld = document.getElementById(d.f) as HTMLInputElement;
-    if (feld) feld.value = "";
+    const neu = wert(d.f);
+    if (!neu) { alert("Bitte eine KST wählen."); return; }
+    if (!S.kontEdit.geraeteKst.includes(neu)) S.kontEdit.geraeteKst.push(neu);
     return render();
   }
   if (a === "kontoKstWeg") {
