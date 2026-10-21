@@ -2,7 +2,7 @@
 
 **Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
-## Verwaltung: ganze Zeile klickbar (21.10.2026) — Arbeitsbranch, noch nicht live
+## Verwaltung: ganze Zeile klickbar (21.10.2026) — LIVE seit 21.10.2026
 
 Konten und Geräte öffnen sich wie die Benutzer mit einem Klick irgendwo auf
 die Zeile (nicht nur auf „Ändern“). Der ↑-Pfeil bei den Konten verschiebt
