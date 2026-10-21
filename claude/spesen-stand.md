@@ -1,6 +1,54 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 16.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Eigene Kreditkarte (21.10.2026) — LIVE seit 21.10.2026
+
+Manche haben eine persönliche Karte und buchen damit auf alle Projekte.
+- Verwaltung → Benutzer → Haken **„Eigene Kreditkarte“**. Speichern legt ein
+  Gerät „Kreditkarte <Name>“ an, das dieser Person gehört (Name unter Geräte
+  änderbar). Haken weg: Gerät aus der Auswahl (alte Belege behalten es).
+- Erfassen mit Kreditkarte: die eigene Karte steht bei dieser Person
+  **immer** in der Geräte-Auswahl (zuoberst), egal auf welche KST. Gibt es
+  dazu eine Projektkarte, muss man wählen; sonst ist sie vorgewählt.
+- Prüfung und Freigabe unverändert. Übersicht: Filter/Export pro Gerät auch
+  für eigene Karten. Geräteliste: Spalte „KST / Person“.
+- **SQL: `supabase/eigene-kreditkarte.sql`** (Spalte `spesen_zahlgeraet.person`,
+  `auftrag_nr` darf leer sein). Im Live- und im Test-Projekt ausgeführt
+  (21.10.; Live versehentlich zuerst — harmlos). Ohne die Datei
+  läuft alles weiter, der Haken ist dann ausgegraut mit Hinweis. Lokal gegen
+  Postgres (schema.sql + live-gang.sql) zweimal hintereinander geprüft.
+
+### Wer genehmigt bei „Konto ohne KST“? (Olis Frage, 21.10.2026)
+
+Gespeichert ist „ohne KST“ — der Projektleiter der gewählten KST ist darum
+nie zuständig. Es prüft nur, wer sonst zuständig ist: Supervisor mit dem
+Konto (z. B. 6210), wer „ohne KST“ zugewiesen hat, bei User-Zahlungen der
+Supervisor der Person, oder bei „Prüfung einrichten“ Admin/Supervisor.
+Gibt es niemanden, geht der Beleg automatisch durch („geprüft“ bzw.
+„genehmigt“, automatisch). Admins sehen „Speichern und genehmigen“ immer —
+zum Ausprobieren mit einem normalen Benutzer anmelden. Lokal gegen Postgres
+nachgeprüft.
+
+## Konto ohne KST (21.10.2026) — LIVE seit 21.10.2026
+
+Beispiel: 6210 Benzin ist nicht projektspezifisch, wird aber mit der Karte
+eines Projekts bezahlt.
+- Verwaltung → Konten → Haken **„Konto ohne KST“** (`auftrag_modus = 'ohne'`).
+- Erfassen läuft normal: Konto und KST wählen, die KST bestimmt die Karte
+  (Gerät), wie bei jedem anderen Konto. Unter der KST steht der Hinweis
+  „gebucht wird auf ohne KST“.
+- Gespeichert wird `auftrag_nr = 'ohne KST'` mit der Karte — in Übersicht,
+  Freigabe und Export also unter dem Konto und „ohne KST“; der Projektleiter
+  der KST sieht den Beleg nicht. Export pro Gerät enthält ihn.
+- Beim Ändern eines noch offenen Belegs wird die KST aus der Karte wieder
+  vorgelegt. Beim Prüfen/Umkontieren steht die KST fest auf „ohne KST“.
+- Bei Bar/User-Zahlung wählt man die KST auch, sie hat dort aber keine Wirkung.
+- **Kein SQL nötig:** nutzt die vorhandene, bisher ungenutzte Spalte
+  `spesen_konto.auftrag_modus` (`claude/spesen-supabase.md`).
+- Erste Fassung (KST beim Konto hinterlegen) hat Oli verworfen — die KST soll
+  automatisch aus dem Erfassen kommen.
+- Geprüft gegen eine nachgebildete Supabase.
 
 ## LIVE seit 16.10.2026
 

@@ -22,8 +22,9 @@ export const S: any = {
   // abgelehnte, egal aus welcher Periode — das sind die offenen Aufgaben
   belege: [], offeneEigene: [],
   benutzer: [], benEdit: null, kontEdit: null,
-  // Geräte (Kreditkarte) je KST — in der Datenbank "zahlgeraet". geraeteDa: Tabelle vorhanden
-  zahlgeraete: [], geraeteDa: false, geraetEdit: null,
+  // Geräte (Kreditkarte) je KST oder Person — in der Datenbank "zahlgeraet".
+  // geraeteDa: Tabelle vorhanden; geraetPersonDa: eigene Karten möglich (Spalte person)
+  zahlgeraete: [], geraeteDa: false, geraetPersonDa: false, geraetEdit: null,
   // Welche KST erscheinen in der Auswahl: Jahre (mit Haken) und Regeln je KST
   // (sichtbar = immer anzeigen, sonst ausblenden). kstDa: Tabellen vorhanden;
   // kstFunktionNeu: die Edge Function kennt "immer anzeigen" aus jedem Jahr

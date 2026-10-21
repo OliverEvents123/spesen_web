@@ -7,7 +7,7 @@
 import { S, sb, render, laeuft } from "./zustand";
 import {
   NETZTEXT, GESPERRT_TEXT, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
-  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN
+  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN, kurzName
 } from "./grundlagen";
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
@@ -19,7 +19,8 @@ import {
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
   standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
-  ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen
+  ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
+  kstZumSpeichern, eigeneKarte, eigeneKarteSetzen
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -155,7 +156,8 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     if (!b) return;
     S.benEdit = { neu: false, email: b.email, name: b.name || "",
                   rolle: b.rolle, gesperrt: b.gesperrt || !b.aktiv,
-                  pruefung: !!b.pruefung, pruefungAlt: !!b.pruefung };
+                  pruefung: !!b.pruefung, pruefungAlt: !!b.pruefung,
+                  eigeneKarte: !!eigeneKarte(b.email), eigeneKarteAlt: !!eigeneKarte(b.email) };
     if (!istBreit()) S.ansicht = "benForm";
     return render();
   }
@@ -178,6 +180,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "benSichern") {
     const b  = S.benEdit;
     const pw = wert("bpw");
+    // Für die eigene Kreditkarte: wem sie gehört und wie sie heisst
+    const karteMail = b.neu ? wert("bmail").trim().toLowerCase() : b.email;
+    const karteName = wert("bname").trim() || kurzName(karteMail);
     laeuft(a, "Speichere …");
 
     if (b.neu) {
@@ -220,6 +225,13 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
         if (!j3.ok) { alert(j3.fehler || "„Prüfung einrichten“ konnte nicht gespeichert werden."); return; }
       }
       S.meldung = "Gespeichert.";
+    }
+
+    // Eigene Kreditkarte: Gerät der Person ein- oder ausschalten
+    if (S.geraetPersonDa && !!b.eigeneKarte !== !!b.eigeneKarteAlt) {
+      const { error } = await eigeneKarteSetzen(karteMail, karteName, !!b.eigeneKarte);
+      if (error) alert("Die eigene Kreditkarte konnte nicht gespeichert werden:\n" + error.message);
+      await ladeGeraete();
     }
 
     S.benEdit = istBreit() ? leererBenutzer() : null;
@@ -295,7 +307,8 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     if (!k) return;
     S.kontEdit = { neu: false, nummer: k.nummer, bezeichnung: k.bezeichnung || "",
                    mwst: String(k.mwst), sortierung: String(k.sortierung ?? ""),
-                   aktiv: k.aktiv !== false };
+                   aktiv: k.aktiv !== false, modusAlt: k.auftrag_modus || "alle",
+                   ohneKst: k.auftrag_modus === "ohne" };
     if (!istBreit()) S.ansicht = "kontoForm";
     return render();
   }
@@ -391,7 +404,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     const g = S.zahlgeraete.find((x) => String(x.id) === String(d.id));
     if (!g) return;
     S.geraetEdit = { neu: false, id: g.id, name: g.name || "", auftrag_nr: g.auftrag_nr || "",
-                     aktiv: g.aktiv !== false };
+                     person: g.person || null, aktiv: g.aktiv !== false };
     if (!istBreit()) S.ansicht = "geraetForm";
     return render();
   }
@@ -400,8 +413,8 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     const g = S.geraetEdit;
     const name = String(g.name || "").trim(), kst = String(g.auftrag_nr || "").trim();
     if (!name) { alert("Bitte einen Namen für das Gerät eingeben."); return; }
-    if (!kst)  { alert("Bitte eine KST eingeben."); return; }
-    if (kst !== OHNE_KST.id && S.auftraege.length && !S.auftraege.some((x) => x.id === kst)
+    if (!kst && !g.person) { alert("Bitte eine KST eingeben."); return; }
+    if (!g.person && kst !== OHNE_KST.id && S.auftraege.length && !S.auftraege.some((x) => x.id === kst)
         && !confirm(`KST ${kst} ist in FileMaker (dieses und letztes Jahr) nicht bekannt. Trotzdem speichern?`)) return;
     laeuft(a, "Speichere …");
     const { error } = await geraetSpeichern({ ...g, name, auftrag_nr: kst });
@@ -796,9 +809,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "umkontieren") {
     const n = S.neu;
     laeuft(a, "Moment …");
-    const { error } = await umkontieren(n.id, n.konto.nummer, n.auftrag.id);
+    const { error } = await umkontieren(n.id, n.konto.nummer, kstZumSpeichern(n));
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return; }
-    return zurueckNachSpeichern(n.auftrag.id !== n.auftragAlt
+    return zurueckNachSpeichern(kstZumSpeichern(n) !== n.auftragAlt
       ? "Kontierung geändert — der Beleg liegt jetzt bei der neuen KST."
       : "Kontierung geändert.");
   }
@@ -847,7 +860,7 @@ export function apListe(woher: string) {
 function korrekturOffen(n: any) {
   const werte = n.zahlartDb !== "vorkasse" && (Math.abs(betragVon(n.korrBetrag) - parseFloat(n.betragDb)) > 0.004
     || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
-  return werte || n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt;
+  return werte || n.konto.nummer !== n.kontoAlt || kstZumSpeichern(n) !== n.auftragAlt;
 }
 
 // Speichert die Korrektur. Gibt false zurück, wenn es nicht geklappt hat.
@@ -857,14 +870,14 @@ async function korrekturSpeichern(n: any) {
   if (!n.korrDatum) { alert("Bitte ein Belegdatum angeben."); return false; }
   const werteNeu = n.zahlartDb !== "vorkasse" && (Math.abs(betrag - parseFloat(n.betragDb)) > 0.004
                 || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
-  const kontNeu = n.konto.nummer !== n.kontoAlt || n.auftrag.id !== n.auftragAlt;
+  const kontNeu = n.konto.nummer !== n.kontoAlt || kstZumSpeichern(n) !== n.auftragAlt;
   if (werteNeu) {
     const { error } = await sb.rpc("beleg_korrigieren", { p_id: n.id, p_betrag: betrag,
                                    p_mwst: parseFloat(n.korrMwst), p_datum: n.korrDatum });
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return false; }
   }
   if (kontNeu) {
-    const { error } = await umkontieren(n.id, n.konto.nummer, n.auftrag.id);
+    const { error } = await umkontieren(n.id, n.konto.nummer, kstZumSpeichern(n));
     if (error) { alert(istNetzfehler(error) ? NETZTEXT : error.message); return false; }
   }
   return true;
@@ -889,7 +902,7 @@ async function belegSpeichern(a: string) {
     betrag:       betragVon(p.betragText),
     mwst:         parseFloat(p.mwst),
     konto_nummer: p.konto.nummer,
-    auftrag_nr:   p.auftrag.id
+    auftrag_nr:   kstZumSpeichern(p)
   })) : null;
 
   const betrag = geteilt
@@ -918,7 +931,7 @@ async function belegSpeichern(a: string) {
     betrag:       betrag,
     mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
     konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
-    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : n.auftrag.id,
+    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : kstZumSpeichern(n),
     positionen:   positionen,
     zahlart:      n.zahlart,
     datei_pfad:   pfad,
@@ -1013,7 +1026,9 @@ export function aenderung(ziel: HTMLInputElement) {
   }
 
   if (f === "kaktiv" && S.kontEdit)    { S.kontEdit.aktiv = ziel.checked; return; }
+  if (f === "kohnekst" && S.kontEdit)  { S.kontEdit.ohneKst = ziel.checked; return; }
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
+  if (f === "beigenekarte" && S.benEdit) { S.benEdit.eigeneKarte = ziel.checked; return; }
   if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
 
   // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.

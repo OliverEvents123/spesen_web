@@ -12,7 +12,7 @@ import {
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
-  verlaufEintrag, geraetName, imBereich
+  verlaufEintrag, geraetName, imBereich, ohneKst
 } from "../daten";
 
 // ---------- Symbole ----------
@@ -376,7 +376,7 @@ function filterAuswahl(b: Bereich, ohneGruppen?: boolean) {
   if (b === "u" && S.zahlgeraete.length > 0)
     f.push(["Gerät", <Auswahl feld="uzahlgeraet" wert={S.uZahlgeraet}>
       <option value="">Alle Geräte</option>
-      {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>{g.name} · {kstName(g.auftrag_nr)}</option>)}
+      {S.zahlgeraete.map((g) => <option key={g.id} value={String(g.id)}>{g.name} · {geraetZuordnung(g)}</option>)}
     </Auswahl>]);
   f.push(["Status", <Auswahl feld={b + "status"} wert={S[b + "Status"]}>
     <option value="">Alle</option>
@@ -443,6 +443,9 @@ export function kstName(nr: string) {
   return a && a.name ? nr + " " + a.name : nr;
 }
 
+// Wozu gehört ein Gerät? "2601 Gurtenfestival" bzw. "eigene Karte Oli"
+export const geraetZuordnung = (g: any) => g.person ? "eigene Karte " + personName(g.person) : kstName(g.auftrag_nr);
+
 // ---------- Auswahl Konto / KST ----------
 // Zeile "KONTO  Verpflegung ›". Am Rechner klappt darunter die Liste auf.
 export function Wahl({ akt, titel, haupt, neben, offen, i }:
@@ -457,6 +460,24 @@ export function Wahl({ akt, titel, haupt, neben, offen, i }:
       <span className="pfeil" aria-hidden="true">{auf ? "⌄" : "›"}</span>
     </button>
     {auf && <WahlListe art={art} />}
+  </>;
+}
+
+// KST-Zeile zu einem Konto. Bei einem Konto ohne KST wählt man die KST wie
+// immer (sie bestimmt die Karte) — gebucht wird aber auf „ohne KST“, das sagt
+// die Zeile darunter. Beim Prüfen ist die Karte schon gewählt: dort steht
+// nur noch „ohne KST“.
+export function KstWahl({ konto, auftrag, i, pruefen }: { konto: any; auftrag: any; i?: number; pruefen?: boolean }) {
+  const ohne = konto && ohneKst(konto.nummer);
+  if (ohne && pruefen) return (
+    <div className="wahl fest">
+      <span className="kl titel">KST</span>
+      <span className="wert"><b>{OHNE_KST.name}</b><span className="kn mu">Konto ohne KST</span></span>
+    </div>);
+  const at = auftragWahlText(auftrag);
+  return <>
+    <Wahl akt="auftragWahl" i={i} titel="KST" offen={!auftrag} haupt={at.haupt} neben={at.neben} />
+    {ohne && <div className="wahlhinweis">Konto ohne KST: gebucht wird auf „ohne KST“ — die KST bestimmt nur die Karte.</div>}
   </>;
 }
 

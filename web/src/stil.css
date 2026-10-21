@@ -149,6 +149,8 @@ button.zl:hover { background:var(--flaeche); }
 .wahl.offen .wert b { color:var(--orange-text); }
 .wahl .pfeil { color:var(--grau2); font-size:22px; }
 .wahl.auf { background:var(--akzent-flaeche); }
+.wahl.fest { cursor:default; }
+.wahlhinweis { padding:0 14px 10px 84px; font-size:12.5px; color:var(--akzent-text); }
 .wahlliste { border-top:1px solid var(--linie); background:var(--flaeche); padding:10px; display:flex;
              flex-direction:column; gap:8px; }
 .wahlliste .liste { max-height:300px; overflow:auto; background:#fff; border-radius:8px; border:1px solid var(--linie); }

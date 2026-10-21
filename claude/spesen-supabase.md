@@ -78,8 +78,17 @@ Kontenplan, gepflegt über **Admin → Konten** in der App.
 | `mwst` | `numeric(4,2) default 8.1` |
 | `sortierung` | `int default 100` — in Zehnerschritten |
 | `aktiv` | `boolean default true` |
-| `auftrag_modus` | `text default 'alle'` — `alle` · `liste` |
-| `auftrag_liste` | `text[]` — nur bei Modus `liste` |
+| `auftrag_modus` | `text default 'alle'` — `alle` · `liste` · `ohne` |
+| `auftrag_liste` | `text[]` — nur bei Modus `liste` (von der App nicht benutzt) |
+
+**Konto ohne KST** (seit 21.10.2026, Verwaltung → Konten): `auftrag_modus = 'ohne'`.
+Erfasst wird normal mit KST — sie bestimmt nur, welche Karte
+(`spesen_zahlgeraet`) bei Kreditkarte zur Wahl steht. Gespeichert wird
+`auftrag_nr = 'ohne KST'` (auch beim Umkontieren), der Beleg läuft also in
+Übersicht, Freigabe und Export unter dem Konto und „ohne KST“; die Karte
+(`zahlgeraet_id`) bleibt am Beleg. Die Spalte gab es schon (bisher
+ungenutzt), darum ohne SQL. Die App kennt `liste` nicht und lässt es beim
+Speichern unberührt.
 
 **Gelöscht wird nie**, nur `aktiv = false`. Sonst zeigen alte Belege und
 Exporte eine Nummer ohne Bezeichnung.
@@ -357,3 +366,10 @@ gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
   gesetzt. Ein Gerät mit Belegen lässt sich nicht löschen (Fremdschlüssel).
 - Nicht verwechseln: `spesen_beleg.geraet` ist die E-Mail der erfassenden
   Person (Name aus der Zeit, als jedes Handy ein eigenes Login hatte).
+
+## Eigene Kreditkarte 21.10.2026 (`eigene-kreditkarte.sql`)
+
+- `spesen_zahlgeraet.person text` — E-Mail: eigene Karte dieser Person.
+  Dann ist `auftrag_nr` leer (Check `spesen_zahlgeraet_zuordnung`: KST oder
+  Person). Angelegt und ein-/ausgeschaltet beim Benutzer („Eigene Kreditkarte“).
+- Die App fragt die Spalte gezielt ab; fehlt sie, gibt es keine eigenen Karten.

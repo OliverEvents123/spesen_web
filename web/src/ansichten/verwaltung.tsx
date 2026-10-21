@@ -5,9 +5,10 @@
 
 import { S, schluessel } from "../zustand";
 import { istBreit, kurzZeit, kurzName, rolleName, istGeschuetzt, initialen, ROLLEN, SAETZE, OHNE_KST } from "../grundlagen";
-import { kontoName, aktiveKonten, belegeVon, postenAufKonto, leeresKonto, personName, leeresGeraet, belegeAufGeraet } from "../daten";
+import { kontoName, aktiveKonten, belegeVon, postenAufKonto, leeresKonto, personName, leeresGeraet, belegeAufGeraet,
+         eigeneKarte } from "../daten";
 import { Seite } from "./rahmen";
-import { Ico, Knopf, Hinweis, kstName } from "./bausteine";
+import { Ico, Knopf, Hinweis, kstName, geraetZuordnung } from "./bausteine";
 
 const istGesperrt = (b) => b.gesperrt || !b.aktiv;
 
@@ -133,6 +134,16 @@ function BenForm() {
         <input id="bpruefung" type="checkbox" className="schalter" defaultChecked={!!b.pruefung} data-feld="bpruefung" />
       </div>
 
+      {S.geraeteDa &&
+        <div className="schalterzeile">
+          <label htmlFor="beigenekarte"><b>Eigene Kreditkarte</b>
+            <span className="mu">{S.geraetPersonDa
+              ? "Die persönliche Karte erscheint beim Erfassen mit Kreditkarte immer in der Geräte-Auswahl — egal, auf welche KST gebucht wird. Prüfung und Freigabe bleiben gleich. Den Namen der Karte unter Geräte ändern."
+              : "Braucht zuerst eigene-kreditkarte.sql in der Datenbank."}</span></label>
+          <input id="beigenekarte" type="checkbox" className="schalter" defaultChecked={!!b.eigeneKarte}
+                 data-feld="beigenekarte" disabled={!S.geraetPersonDa} />
+        </div>}
+
       <div className="feld"><label htmlFor="bpw">{b.neu ? "Passwort" : "Neues Passwort"}</label>
         <input id="bpw" type="text" autoComplete="off" placeholder={b.neu ? "mindestens 6 Zeichen" : "leer lassen = unverändert"} />
         <span className="kn mu" style={{ paddingTop: 6 }}>Im Klartext sichtbar, damit du es weitergeben kannst.</span></div>
@@ -158,7 +169,8 @@ function BenTabelle({ liste }: { liste: any[] }) {
               <span className={"ini" + (istGesperrt(b) ? " aus" : "")} style={{ width: 34, height: 34 }}>{initialen(b.name || b.email)}</span>
               <span style={{ display: "flex", flexDirection: "column", whiteSpace: "nowrap" }}><b>{b.name || kurzName(b.email)}</b>
                 <span className="kn mu">{b.email}</span></span></span></td>
-            <td>{istGesperrt(b) ? <span className="pill p-abl">gesperrt</span> : <span className="pill p-rol">{rolleName(b.rolle)}</span>}</td>
+            <td>{istGesperrt(b) ? <span className="pill p-abl">gesperrt</span> : <span className="pill p-rol">{rolleName(b.rolle)}</span>}
+              {eigeneKarte(b.email) && <><br /><span className="kn mu nw">eigene Kreditkarte</span></>}</td>
             <td className="kn" style={{ color: "var(--akzent-text)" }}>{prueftText(b.email) || (b.pruefung ? "" : <span className="mu">—</span>)}
               {b.pruefung && <><br /><span className="mu">Prüfung eingerichtet</span></>}</td>
             <td className="kn mu nw">{b.angemeldet ? kurzZeit(b.angemeldet) : "nie"}</td>
@@ -177,8 +189,9 @@ function BenZeilen({ liste }: { liste: any[] }) {
         <span className={"ini" + (istGesperrt(b) ? " aus" : "")}>{initialen(b.name || b.email)}</span>
         <span className="mitte"><b>{b.name || kurzName(b.email)}</b>
           <span className="kn mu">{b.email}</span>
-          {(pr || b.pruefung) && <span className="kn" style={{ color: "var(--akzent-text)" }}>
-            {[pr, b.pruefung ? "Prüfung eingerichtet" : ""].filter(Boolean).join(" · ")}</span>}</span>
+          {(pr || b.pruefung || eigeneKarte(b.email)) && <span className="kn" style={{ color: "var(--akzent-text)" }}>
+            {[pr, b.pruefung ? "Prüfung eingerichtet" : "", eigeneKarte(b.email) ? "eigene Kreditkarte" : ""]
+              .filter(Boolean).join(" · ")}</span>}</span>
         {istGesperrt(b) ? <span className="pill p-abl">gesperrt</span> : <span className="pill p-rol">{rolleName(b.rolle)}</span>}
         <button className="pf blau" data-akt="benBearbeiten" data-e={b.email} aria-label="Benutzer bearbeiten"><Ico n="stift" /></button>
       </div>);
@@ -256,6 +269,9 @@ export function Benutzer() {
    Konten
    ========================================================== */
 
+// "ohne KST" — für die Kontenliste
+const ohneKstText = (k: any) => k.auftrag_modus === "ohne" ? "ohne KST" : "";
+
 function KontoForm() {
   const k = S.kontEdit;
   return (
@@ -274,6 +290,13 @@ function KontoForm() {
                     aria-pressed={String(k.mwst) === m}>{m} %</button>)}
         </div>
         <p className="kn mu" style={{ margin: "8px 0 0" }}>Wird beim neuen Beleg vorbelegt und lässt sich dort ändern.</p></div>
+      <div className="schalterzeile">
+        <label htmlFor="kohnekst"><b>Konto ohne KST</b>
+          <span className="mu">Erfasst wird normal mit KST — sie bestimmt, welche Karte zur Wahl steht. Gebucht
+            wird aber auf „ohne KST“: in Übersicht, Freigabe und Export unter dem Konto, nicht unter der
+            Kostenstelle (z. B. Benzin mit der Karte eines Projekts).</span></label>
+        <input id="kohnekst" type="checkbox" className="schalter" defaultChecked={!!k.ohneKst} data-feld="kohnekst" />
+      </div>
       <div className="schalterzeile" style={{ alignItems: "center" }}>
         <label htmlFor="kaktiv"><b>Steht in der Auswahl</b></label>
         <input id="kaktiv" type="checkbox" className="schalter" defaultChecked={!!k.aktiv} data-feld="kaktiv" />
@@ -296,7 +319,8 @@ function KontenListe() {
         {S.konten.map((k, i) => (
           <tr key={k.nummer} className={offen === k.nummer ? "an" : ""}>
             <td>{hoch(k, i)}</td>
-            <td className="mono fett">{k.nummer}</td><td>{k.bezeichnung}</td>
+            <td className="mono fett">{k.nummer}</td>
+            <td>{k.bezeichnung}{ohneKstText(k) && <><br /><span className="kn" style={{ color: "var(--akzent-text)" }}>{ohneKstText(k)}</span></>}</td>
             <td className="mono">{k.mwst} %</td>
             <td>{k.aktiv === false ? <span className="pill p-erf">inaktiv</span> : <span className="kn mu">aktiv</span>}</td>
             <td className="re mono">{postenAufKonto(k.nummer)}</td>
@@ -312,7 +336,7 @@ function KontenListe() {
           {hoch(k, i)}
           <span className="mono fett" style={{ width: 44 }}>{k.nummer}</span>
           <span className="mitte"><b style={k.aktiv === false ? { color: "#8a90a6" } : undefined}>{k.bezeichnung}</b>
-            <span className="kn mu">MwSt {k.mwst} %</span></span>
+            <span className="kn mu">MwSt {k.mwst} %{ohneKstText(k) && " · " + ohneKstText(k)}</span></span>
           {k.aktiv === false && <span className="pill p-erf">inaktiv</span>}
           <button className="pf blau" data-akt="kontoBearbeiten" data-nr={k.nummer} aria-label="Konto bearbeiten"><Ico n="stift" /></button>
         </div>))}
@@ -322,7 +346,8 @@ function KontenListe() {
 const KontoHinweis = () => (
   <div className="karte"><Hinweis>Der Pfeil schiebt ein Konto in der Auswahl nach oben. Inaktiv nimmt ein Konto aus
     der Auswahl, lässt es aber in alten Belegen und Exporten stehen. Löschen gibt es bewusst nicht — die Belege
-    hängen an der Nummer.</Hinweis></div>);
+    hängen an der Nummer. Ein Konto ohne KST bucht immer auf „ohne KST“; die KST beim Erfassen bestimmt dort
+    nur die Karte.</Hinweis></div>);
 
 export function Konten() {
   // Am Rechner steht das Formular immer da — also eines bereitlegen.
@@ -366,10 +391,13 @@ function GeraetForm() {
       <b style={{ fontSize: 17 }}>{g.neu ? "Neues Gerät" : g.name}</b>
       <div className="feld"><label htmlFor="gname">Name</label>
         <input id="gname" type="text" defaultValue={g.name} placeholder="Kreditkarte Gurtenfestival" data-feld="gname" /></div>
-      <div className="feld"><label htmlFor="gkst">KST</label>
-        <input id="gkst" list="kstliste" defaultValue={g.auftrag_nr} placeholder="KST-Nummer" data-feld="gkst" />
-        <span className="kn mu" style={{ paddingTop: 6 }}>Wer mit Kreditkarte auf diese KST bucht, wählt das Gerät aus.
-          Gibt es auf der KST nur eines, ist es vorgewählt.</span></div>
+      {g.person
+        ? <span className="kn mu">Eigene Kreditkarte von <b>{personName(g.person)}</b> — erscheint bei dieser Person
+            immer in der Auswahl, egal auf welche KST. Ein- und ausschalten auch beim Benutzer.</span>
+        : <div className="feld"><label htmlFor="gkst">KST</label>
+            <input id="gkst" list="kstliste" defaultValue={g.auftrag_nr} placeholder="KST-Nummer" data-feld="gkst" />
+            <span className="kn mu" style={{ paddingTop: 6 }}>Wer mit Kreditkarte auf diese KST bucht, wählt das Gerät aus.
+              Gibt es auf der KST nur eines, ist es vorgewählt.</span></div>}
       <div className="schalterzeile" style={{ alignItems: "center" }}>
         <label htmlFor="gaktiv"><b>Steht in der Auswahl</b></label>
         <input id="gaktiv" type="checkbox" className="schalter" defaultChecked={!!g.aktiv} data-feld="gaktiv" />
@@ -386,12 +414,12 @@ function GeraeteListe() {
   const status = (g) => g.aktiv === false ? <span className="pill p-erf">inaktiv</span> : null;
   if (istBreit()) return (
     <div className="karte"><div className="tabelle"><table>
-      <thead><tr><th>Name</th><th>KST</th><th>Status</th><th className="re">Belege im Zeitraum</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>KST / Person</th><th>Status</th><th className="re">Belege im Zeitraum</th><th></th></tr></thead>
       <tbody>
         {S.zahlgeraete.map((g) => (
           <tr key={g.id} className={offen === g.id ? "an" : ""}>
             <td className="fett">{g.name}</td>
-            <td>{kstName(g.auftrag_nr)}</td>
+            <td>{geraetZuordnung(g)}</td>
             <td>{status(g) || <span className="kn mu">aktiv</span>}</td>
             <td className="re mono">{belegeAufGeraet(g.id)}</td>
             <td className="re"><button className="tknopf" data-akt="geraetBearbeiten" data-id={g.id}>Ändern</button></td>
@@ -405,7 +433,7 @@ function GeraeteListe() {
         <div className="zl" key={g.id}>
           <span className="ini"><Ico n="karte" s={18} /></span>
           <span className="mitte"><b style={g.aktiv === false ? { color: "#8a90a6" } : undefined}>{g.name}</b>
-            <span className="kn mu">{kstName(g.auftrag_nr)}</span></span>
+            <span className="kn mu">{geraetZuordnung(g)}</span></span>
           {status(g)}
           <button className="pf blau" data-akt="geraetBearbeiten" data-id={g.id} aria-label="Gerät bearbeiten"><Ico n="stift" /></button>
         </div>))}
@@ -414,7 +442,9 @@ function GeraeteListe() {
 
 const GeraetHinweis = () => (
   <div className="karte"><Hinweis>Ein Gerät gehört zu einer KST. Bei Kreditkarte auf diese KST wählt man es beim
-    Erfassen aus. In der Übersicht lässt sich danach filtern, der Export läuft dann pro Gerät. Ein Gerät, das schon
+    Erfassen aus — auch auf einem Konto ohne KST (gebucht wird dann „ohne KST“, das Gerät bleibt). Eigene
+    Kreditkarten (beim Benutzer anhaken) erscheinen bei ihrer Person immer. In der
+    Übersicht lässt sich danach filtern, der Export läuft dann pro Gerät. Ein Gerät, das schon
     in Belegen steckt, lässt sich nicht löschen — dann aus der Auswahl nehmen.</Hinweis></div>);
 
 export function Geraete() {
