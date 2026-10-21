@@ -2,6 +2,12 @@
 
 **Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
+## Verwaltung: ganze Zeile klickbar (21.10.2026) — LIVE seit 21.10.2026
+
+Konten und Geräte öffnen sich wie die Benutzer mit einem Klick irgendwo auf
+die Zeile (nicht nur auf „Ändern“). Der ↑-Pfeil bei den Konten verschiebt
+weiterhin nur. Am Handy ebenso, auch bei den Benutzern.
+
 ## Eigene Kreditkarte (21.10.2026) — LIVE seit 21.10.2026
 
 Manche haben eine persönliche Karte und buchen damit auf alle Projekte.

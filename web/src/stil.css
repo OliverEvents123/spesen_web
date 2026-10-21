@@ -211,7 +211,7 @@ tr.an td { background:var(--akzent-flaeche); }
 td .neben { color:var(--grau); }
 td.nw, th.nw { white-space:nowrap; }
 td .tknopf { border:0; background:none; color:var(--akzent); font-weight:700; font-size:14px; padding:4px 0 4px 10px; }
-tr.klickbar { cursor:pointer; }
+tr.klickbar, .zl.klickbar { cursor:pointer; }
 td.buchung { min-width:240px; }
 tr.klickbar:hover td { background:var(--flaeche); }
 td .pfeilchen { color:var(--grau2); font-size:20px; }
