@@ -14,7 +14,9 @@ Manche haben eine persönliche Karte und buchen damit auf alle Projekte.
 - Prüfung und Freigabe unverändert. Übersicht: Filter/Export pro Gerät auch
   für eigene Karten. Geräteliste: Spalte „KST / Person“.
 - **SQL: `supabase/eigene-kreditkarte.sql`** (Spalte `spesen_zahlgeraet.person`,
-  `auftrag_nr` darf leer sein). Erst Test-Projekt, dann Live. Ohne die Datei
+  `auftrag_nr` darf leer sein). **Im Live-Projekt schon ausgeführt (21.10.,
+  versehentlich vor dem Test — harmlos, die echte App aus `main` läuft damit
+  unverändert)**; im Test-Projekt führt Oli sie noch aus. Ohne die Datei
   läuft alles weiter, der Haken ist dann ausgegraut mit Hinweis. Lokal gegen
   Postgres (schema.sql + live-gang.sql) zweimal hintereinander geprüft.
 
