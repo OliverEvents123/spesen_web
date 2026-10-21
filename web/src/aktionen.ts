@@ -19,7 +19,8 @@ import {
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
   standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
-  ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen
+  ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
+  kontoSetzen, kstZumSpeichern
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -293,14 +294,34 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "kontoBearbeiten") {
     const k = S.konten.find((x) => x.nummer === d.nr);
     if (!k) return;
+    const ohne = k.auftrag_modus === "ohne";
     S.kontEdit = { neu: false, nummer: k.nummer, bezeichnung: k.bezeichnung || "",
                    mwst: String(k.mwst), sortierung: String(k.sortierung ?? ""),
-                   aktiv: k.aktiv !== false };
+                   aktiv: k.aktiv !== false, modusAlt: k.auftrag_modus || "alle",
+                   ohneKst: ohne, geraeteKst: ohne ? [...(k.auftrag_liste || [])] : [] };
     if (!istBreit()) S.ansicht = "kontoForm";
     return render();
   }
 
   if (a === "kontoMwst") { S.kontEdit.mwst = d.v; return render(); }
+
+  // Konto ohne KST: KST für die Geräte — gespeichert mit dem Konto
+  if (a === "kontoKstNeu") {
+    const neu = wert(d.f).trim();
+    if (!neu) { alert("Bitte eine KST eingeben."); return; }
+    if (neu === OHNE_KST.id) { alert("Bitte eine KST mit Nummer eingeben — „ohne KST“ gilt ohnehin."); return; }
+    if (S.kontEdit.geraeteKst.includes(neu)) { alert("Diese KST ist schon dabei."); return; }
+    if (S.auftraege.length && !S.auftraege.some((x) => x.id === neu)
+        && !confirm(`KST ${neu} ist in der Auswahl nicht bekannt. Trotzdem hinzufügen?`)) return;
+    S.kontEdit.geraeteKst.push(neu);
+    const feld = document.getElementById(d.f) as HTMLInputElement;
+    if (feld) feld.value = "";
+    return render();
+  }
+  if (a === "kontoKstWeg") {
+    S.kontEdit.geraeteKst = S.kontEdit.geraeteKst.filter((x) => x !== d.v);
+    return render();
+  }
 
   if (a === "kontoHoch") {
     const fehler = await kontoHoch(d.nr);
@@ -609,12 +630,12 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   };
   if (a === "kontoSet") {
     const k = S.konten.find((x) => x.nummer === d.nr);
-    if (S.favEdit) { S.favEdit.konto = k; return ausWahl(); }
+    if (S.favEdit) { kontoSetzen(S.favEdit, k); return ausWahl(); }
     if (S.posIndex != null && Array.isArray(S.neu.positionen)) {
-      S.neu.positionen[S.posIndex].konto = k;
+      kontoSetzen(S.neu.positionen[S.posIndex], k);
       return ausWahl();
     }
-    S.neu.konto = k;
+    kontoSetzen(S.neu, k);
     if (!S.neu.id) S.neu.mwst = String(k.mwst);   // beim Bearbeiten den Satz nicht überschreiben
     return ausWahl();
   }
@@ -889,7 +910,7 @@ async function belegSpeichern(a: string) {
     betrag:       betragVon(p.betragText),
     mwst:         parseFloat(p.mwst),
     konto_nummer: p.konto.nummer,
-    auftrag_nr:   p.auftrag.id
+    auftrag_nr:   kstZumSpeichern(p)
   })) : null;
 
   const betrag = geteilt
@@ -918,7 +939,7 @@ async function belegSpeichern(a: string) {
     betrag:       betrag,
     mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
     konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
-    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : n.auftrag.id,
+    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : kstZumSpeichern(n),
     positionen:   positionen,
     zahlart:      n.zahlart,
     datei_pfad:   pfad,
@@ -1013,6 +1034,7 @@ export function aenderung(ziel: HTMLInputElement) {
   }
 
   if (f === "kaktiv" && S.kontEdit)    { S.kontEdit.aktiv = ziel.checked; return; }
+  if (f === "kohnekst" && S.kontEdit)  { S.kontEdit.ohneKst = ziel.checked; return render(); }
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
   if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
 

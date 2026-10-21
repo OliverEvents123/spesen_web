@@ -8,7 +8,7 @@ import { personName, freigabeGefiltert, darfFreigabeFiltern } from "../daten";
 import { FreigabePlatz, FreigabeFilter } from "./erfassen";
 import { Seite } from "./rahmen";
 import {
-  Ico, Knopf, Hinweis, Wahl, belegKopf, eigenerName, eigeneRolle, kontoWahlText, auftragWahlText
+  Ico, Knopf, Hinweis, Wahl, KstWahl, belegKopf, eigenerName, eigeneRolle, kontoWahlText
 } from "./bausteine";
 
 // ---------- Profil (Handy) ----------
@@ -93,7 +93,7 @@ export function Favoriten() {
 export function FavForm() {
   const f = S.favEdit;
   const fertig = f.konto && f.auftrag;
-  const kt = kontoWahlText(f.konto), at = auftragWahlText(f.auftrag);
+  const kt = kontoWahlText(f.konto);
   return (
     <Seite titel={f.id ? "Favorit ändern" : "Neuer Favorit"} sub="Konto und KST festlegen" pfad="Favoriten">
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }} key={schluessel(f)}>
@@ -102,7 +102,7 @@ export function FavForm() {
                  placeholder={f.konto ? f.konto.bezeichnung : "z. B. Verpflegung Event"} /></div>
         <section className="karte huelle">
           <Wahl akt="kontoWahl" titel="Konto" offen={!f.konto} haupt={kt.haupt} neben={kt.neben} />
-          <Wahl akt="auftragWahl" titel="KST" offen={!f.auftrag} haupt={at.haupt} neben={at.neben} />
+          <KstWahl konto={f.konto} auftrag={f.auftrag} />
         </section>
         <Knopf akt="favSichern" className="k1" disabled={!fertig}>
           {fertig ? "Favorit speichern" : "Konto und KST nötig"}</Knopf>

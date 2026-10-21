@@ -12,7 +12,7 @@ import {
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
-  verlaufEintrag, geraetName, imBereich
+  verlaufEintrag, geraetName, imBereich, ohneKst
 } from "../daten";
 
 // ---------- Symbole ----------
@@ -458,6 +458,18 @@ export function Wahl({ akt, titel, haupt, neben, offen, i }:
     </button>
     {auf && <WahlListe art={art} />}
   </>;
+}
+
+// KST-Zeile zu einem Konto. Bei einem Konto ohne KST steht sie fest auf
+// „ohne KST“ — sofern der Beleg nicht noch eine andere trägt (älterer Beleg).
+export function KstWahl({ konto, auftrag, i }: { konto: any; auftrag: any; i?: number }) {
+  if (konto && ohneKst(konto.nummer) && (!auftrag || auftrag.id === OHNE_KST.id)) return (
+    <div className="wahl fest">
+      <span className="kl titel">KST</span>
+      <span className="wert"><b>{OHNE_KST.name}</b><span className="kn mu">fest bei diesem Konto</span></span>
+    </div>);
+  const at = auftragWahlText(auftrag);
+  return <Wahl akt="auftragWahl" i={i} titel="KST" offen={!auftrag} haupt={at.haupt} neben={at.neben} />;
 }
 
 // Werte für die Wahl-Zeilen

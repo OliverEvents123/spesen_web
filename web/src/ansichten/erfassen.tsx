@@ -15,7 +15,7 @@ import {
 import { apListe } from "../aktionen";
 import { Seite } from "./rahmen";
 import {
-  Ico, Knopf, StatusMarke, Wahl, WahlListe, Hinweis, Meldung, stempelText, kontoWahlText, auftragWahlText, kstTitel,
+  Ico, Knopf, StatusMarke, Wahl, KstWahl, WahlListe, Hinweis, Meldung, stempelText, kontoWahlText, auftragWahlText, kstTitel,
   belegKopf, kstName
 } from "./bausteine";
 
@@ -65,7 +65,7 @@ function BelegKarte({ n, gross }: { n: any; gross?: boolean }) {
 
 // Eine Position eines aufgeteilten Belegs: Betrag, Satz, Konto, KST.
 function Position({ p, i, anzahl }: { p: any; i: number; anzahl: number }) {
-  const kt = kontoWahlText(p.konto), at = auftragWahlText(p.auftrag);
+  const kt = kontoWahlText(p.konto);
   return (
     <section className="karte huelle">
       <div className="kartenkopf">
@@ -85,7 +85,7 @@ function Position({ p, i, anzahl }: { p: any; i: number; anzahl: number }) {
       </div>
       <div style={{ borderTop: "1px solid var(--linie)" }}>
         <Wahl akt="kontoWahl" i={i} titel="Konto" offen={!p.konto} haupt={kt.haupt} neben={kt.neben} />
-        <Wahl akt="auftragWahl" i={i} titel="KST" offen={!p.auftrag} haupt={at.haupt} neben={at.neben} />
+        <KstWahl konto={p.konto} auftrag={p.auftrag} i={i} />
       </div>
     </section>);
 }
@@ -120,7 +120,7 @@ export function Erfassen() {
   const fertig = angabenFertig && !geraetFehlt(n);
   const fehltText = angabenFertig ? "Bitte das Gerät wählen" : "Beleg, Konto, KST und Betrag nötig";
   const breit = istBreit();
-  const kt = kontoWahlText(n.konto), at = auftragWahlText(n.auftrag);
+  const kt = kontoWahlText(n.konto);
 
   const abgelehnt = n.status === "abgelehnt" &&
     <div className="fehler">
@@ -145,7 +145,7 @@ export function Erfassen() {
              placeholder="0.00" defaultValue={n.betragText} data-feld="betrag" /></div>
     <section className="karte huelle">
       <Wahl akt="kontoWahl" titel="Konto" offen={!n.konto} haupt={kt.haupt} neben={kt.neben} />
-      <Wahl akt="auftragWahl" titel="KST" offen={!n.auftrag} haupt={at.haupt} neben={at.neben} />
+      <KstWahl konto={n.konto} auftrag={n.auftrag} />
     </section>
     <div><span className="lab">MwSt</span>
       <div className="seg">
@@ -262,7 +262,7 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
   const werteGeaendert = korr && (Math.abs(betragVon(n.korrBetrag) - parseFloat(n.betragDb)) > 0.004
     || parseFloat(n.korrMwst) !== parseFloat(n.mwst) || n.korrDatum !== n.datum);
   const geaendert = kontGeaendert || werteGeaendert;
-  const kt = kontoWahlText(n.konto), at = auftragWahlText(n.auftrag);
+  const kt = kontoWahlText(n.konto);
 
   const kopf = (
     <section className="karte innen" style={{ gap: 10 }}>
@@ -309,7 +309,7 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
               </Zeile>))
           : umkont ? <>
               <Wahl akt="kontoWahl" titel="Konto" haupt={kt.haupt} neben={kt.neben} />
-              <Wahl akt="auftragWahl" titel="KST" haupt={at.haupt} neben={at.neben} />
+              <KstWahl konto={n.konto} auftrag={n.auftrag} />
             </>
           : <>
               <Zeile titel="Konto"><span className="mono">{n.konto && n.konto.nummer}</span> {n.konto && n.konto.bezeichnung}</Zeile>

@@ -1,6 +1,26 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 16.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Konto ohne KST (21.10.2026) — Arbeitsbranch, noch nicht live
+
+Verwaltung → Konten → Haken **„Konto ohne KST“**, darunter **„KST für die
+Geräte“** (eine oder mehrere KST).
+- Erfassen (auch Positionen, Favoriten, Umkontieren beim Prüfen): wählt man
+  ein solches Konto, steht die KST fest auf „ohne KST“ (nicht anklickbar).
+  Zurück auf ein Konto mit KST: KST muss neu gewählt werden.
+- Gespeichert wird `auftrag_nr = 'ohne KST'` — in der Übersicht also unter
+  dem Konto und „ohne KST“, nicht unter der Kostenstelle; Projektleiter der
+  Geräte-KST sehen den Beleg nicht.
+- Kreditkarte: zur Wahl stehen die Geräte der KST beim Konto (dazu wie bisher
+  Geräte auf „ohne KST“). Damit läuft der Export pro Gerät vollständig.
+- Kontenliste zeigt „ohne KST · Geräte von KST …“, die Geräteliste „auch
+  Konto …“.
+- **Kein SQL nötig:** nutzt die vorhandenen, bisher ungenutzten Spalten
+  `spesen_konto.auftrag_modus` (`'ohne'`) und `auftrag_liste`
+  (`claude/spesen-supabase.md`).
+- Geprüft gegen eine nachgebildete Supabase (Konto speichern, Beleg erfassen,
+  Haken wieder weg).
 
 ## LIVE seit 16.10.2026
 
