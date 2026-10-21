@@ -2,7 +2,7 @@
 
 **Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
-## Eigene Kreditkarte (21.10.2026) — Arbeitsbranch, noch nicht live
+## Eigene Kreditkarte (21.10.2026) — LIVE seit 21.10.2026
 
 Manche haben eine persönliche Karte und buchen damit auf alle Projekte.
 - Verwaltung → Benutzer → Haken **„Eigene Kreditkarte“**. Speichern legt ein
@@ -14,9 +14,8 @@ Manche haben eine persönliche Karte und buchen damit auf alle Projekte.
 - Prüfung und Freigabe unverändert. Übersicht: Filter/Export pro Gerät auch
   für eigene Karten. Geräteliste: Spalte „KST / Person“.
 - **SQL: `supabase/eigene-kreditkarte.sql`** (Spalte `spesen_zahlgeraet.person`,
-  `auftrag_nr` darf leer sein). **Im Live-Projekt schon ausgeführt (21.10.,
-  versehentlich vor dem Test — harmlos, die echte App aus `main` läuft damit
-  unverändert)**; im Test-Projekt führt Oli sie noch aus. Ohne die Datei
+  `auftrag_nr` darf leer sein). Im Live- und im Test-Projekt ausgeführt
+  (21.10.; Live versehentlich zuerst — harmlos). Ohne die Datei
   läuft alles weiter, der Haken ist dann ausgegraut mit Hinweis. Lokal gegen
   Postgres (schema.sql + live-gang.sql) zweimal hintereinander geprüft.
 
@@ -31,7 +30,7 @@ Gibt es niemanden, geht der Beleg automatisch durch („geprüft“ bzw.
 zum Ausprobieren mit einem normalen Benutzer anmelden. Lokal gegen Postgres
 nachgeprüft.
 
-## Konto ohne KST (21.10.2026) — Arbeitsbranch, noch nicht live
+## Konto ohne KST (21.10.2026) — LIVE seit 21.10.2026
 
 Beispiel: 6210 Benzin ist nicht projektspezifisch, wird aber mit der Karte
 eines Projekts bezahlt.
