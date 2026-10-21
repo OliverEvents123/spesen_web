@@ -185,7 +185,7 @@ function BenZeilen({ liste }: { liste: any[] }) {
   return <>{liste.map((b) => {
     const pr = prueftText(b.email);
     return (
-      <div className="zl" key={b.email}>
+      <div className="zl klickbar" key={b.email} data-akt="benBearbeiten" data-e={b.email}>
         <span className={"ini" + (istGesperrt(b) ? " aus" : "")}>{initialen(b.name || b.email)}</span>
         <span className="mitte"><b>{b.name || kurzName(b.email)}</b>
           <span className="kn mu">{b.email}</span>
@@ -317,14 +317,14 @@ function KontenListe() {
         <th className="re">Posten im Zeitraum</th><th></th></tr></thead>
       <tbody>
         {S.konten.map((k, i) => (
-          <tr key={k.nummer} className={offen === k.nummer ? "an" : ""}>
+          <tr key={k.nummer} className={"klickbar" + (offen === k.nummer ? " an" : "")} data-akt="kontoBearbeiten" data-nr={k.nummer}>
             <td>{hoch(k, i)}</td>
             <td className="mono fett">{k.nummer}</td>
             <td>{k.bezeichnung}{ohneKstText(k) && <><br /><span className="kn" style={{ color: "var(--akzent-text)" }}>{ohneKstText(k)}</span></>}</td>
             <td className="mono">{k.mwst} %</td>
             <td>{k.aktiv === false ? <span className="pill p-erf">inaktiv</span> : <span className="kn mu">aktiv</span>}</td>
             <td className="re mono">{postenAufKonto(k.nummer)}</td>
-            <td className="re"><button className="tknopf" data-akt="kontoBearbeiten" data-nr={k.nummer}>Ändern</button></td>
+            <td className="re"><span className="tknopf">Ändern</span></td>
           </tr>))}
       </tbody>
     </table></div></div>);
@@ -332,7 +332,7 @@ function KontenListe() {
   return (
     <section className="karte huelle">
       {S.konten.map((k, i) => (
-        <div className="zl" key={k.nummer}>
+        <div className="zl klickbar" key={k.nummer} data-akt="kontoBearbeiten" data-nr={k.nummer}>
           {hoch(k, i)}
           <span className="mono fett" style={{ width: 44 }}>{k.nummer}</span>
           <span className="mitte"><b style={k.aktiv === false ? { color: "#8a90a6" } : undefined}>{k.bezeichnung}</b>
@@ -417,12 +417,12 @@ function GeraeteListe() {
       <thead><tr><th>Name</th><th>KST / Person</th><th>Status</th><th className="re">Belege im Zeitraum</th><th></th></tr></thead>
       <tbody>
         {S.zahlgeraete.map((g) => (
-          <tr key={g.id} className={offen === g.id ? "an" : ""}>
+          <tr key={g.id} className={"klickbar" + (offen === g.id ? " an" : "")} data-akt="geraetBearbeiten" data-id={g.id}>
             <td className="fett">{g.name}</td>
             <td>{geraetZuordnung(g)}</td>
             <td>{status(g) || <span className="kn mu">aktiv</span>}</td>
             <td className="re mono">{belegeAufGeraet(g.id)}</td>
-            <td className="re"><button className="tknopf" data-akt="geraetBearbeiten" data-id={g.id}>Ändern</button></td>
+            <td className="re"><span className="tknopf">Ändern</span></td>
           </tr>))}
       </tbody>
     </table></div></div>);
@@ -430,7 +430,7 @@ function GeraeteListe() {
   return (
     <section className="karte huelle">
       {S.zahlgeraete.map((g) => (
-        <div className="zl" key={g.id}>
+        <div className="zl klickbar" key={g.id} data-akt="geraetBearbeiten" data-id={g.id}>
           <span className="ini"><Ico n="karte" s={18} /></span>
           <span className="mitte"><b style={g.aktiv === false ? { color: "#8a90a6" } : undefined}>{g.name}</b>
             <span className="kn mu">{geraetZuordnung(g)}</span></span>
