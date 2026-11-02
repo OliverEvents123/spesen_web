@@ -2,7 +2,7 @@
 
 **Zuletzt aktualisiert: 02.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
-## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — Arbeitsbranch, noch nicht live
+## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — LIVE seit 02.11.2026
 
 **Mehrseitige PDFs:** Ein PDF mit mehreren Seiten liess sich schon immer
 hinterlegen und kam ganz ins Export-PDF — nur zeigte die App bloss Seite 1.
