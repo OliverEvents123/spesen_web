@@ -187,6 +187,13 @@ button.zl:hover { background:var(--flaeche); }
           display:flex; align-items:center; justify-content:center; font:700 12px var(--mono); color:var(--grau);
           border:1px solid var(--linie); }
 .belegkarte { display:flex; gap:12px; align-items:center; padding:12px; }
+/* Mehrseitiges PDF: Seiten zum Umschalten (Handy) bzw. Seitenzahl zwischen den Seiten (Rechner) */
+.seitenstreifen { display:flex; flex-direction:column; gap:6px; padding-top:8px; }
+.daumenreihe { display:flex; gap:6px; align-items:center; overflow-x:auto; padding-bottom:2px; }
+.daumenreihe button.daumen { padding:0; overflow:hidden; width:44px; height:58px; cursor:pointer; }
+.daumenreihe button.daumen img { width:100%; height:100%; object-fit:cover; display:block; }
+.daumenreihe button.daumen.an { border-color:var(--akzent); box-shadow:0 0 0 1px var(--akzent); }
+.seitenmarke { align-self:center; font-size:12px; font-weight:600; color:var(--grau); flex-shrink:0; }
 .belegkarte .daumen { width:84px; height:112px; }
 .ablage { transition:box-shadow .12s, background .12s; }
 body.ziehen .ablage { box-shadow:0 0 0 3px var(--akzent); background:var(--akzent-flaeche); }

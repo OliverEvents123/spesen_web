@@ -274,8 +274,9 @@ function Gruppen() {
 
 // "Projektleiter-Übersicht" usw. — am Handy oben im Kopf, am Rechner in der Kopfleiste
 const BEREICH_TITEL: Record<string, string> = { pl: "Projektleiter-Übersicht", sup: "Supervisor-Übersicht",
-                                                admin: "Admin-Übersicht" };
-const BEREICH_KURZ: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Admin" };
+                                                karte: "Meine Kreditkarte", admin: "Admin-Übersicht" };
+const BEREICH_KURZ: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", karte: "Kreditkarte",
+                                               admin: "Admin" };
 const bereichTitel = () => BEREICH_TITEL[S.bereich] || "Übersicht";
 
 export function Uebersicht() {
@@ -286,7 +287,7 @@ export function Uebersicht() {
   const brutto = gruppen.reduce((s, g) => s + g.brutto, 0);
   const erledigt = ohneStatus.filter(istErledigt).length;
   const fg = freigabeIm();
-  const reiter = S.uReiter || "belege";
+  const reiter = S.uReiter === "verlauf" && !S.istPruefer ? "belege" : (S.uReiter || "belege");
   const breit = istBreit();
 
   const statusReiter = [
@@ -295,10 +296,11 @@ export function Uebersicht() {
     { v: "erledigt", lab: "Erledigt", n: erledigt }
   ];
   const summeText = <><b>CHF {chfLang(brutto)}</b><span className="kn mu">{anzahlText(gefiltert.length)}, wie gebucht</span></>;
+  // Den Verlauf sehen nur Prüfer und Admins
   const inhaltReiter = [
     { v: "belege", lab: "Belege", n: liste.length },
     { v: "kontierung", lab: "Kontierung", n: gruppen.length },
-    { v: "verlauf", lab: "Verlauf", n: null }
+    ...(S.istPruefer ? [{ v: "verlauf", lab: "Verlauf", n: null }] : [])
   ];
   const ReiterInhalt = () => (
     <div className="reiterleiste flach">

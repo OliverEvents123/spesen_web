@@ -16,7 +16,7 @@ import {
 export const leererBeleg = () => ({
   id: null, status: "offen", konto: null, auftrag: null, mwst: "8.1", betragText: "",
   positionen: null, datum: heute(), zahlart: "karte", datei: null, vorschau: null,
-  altPfad: null, altUrl: null, kommentar: "", zahlgeraet: null
+  altPfad: null, altUrl: null, seiten: null, seitenAnzahl: null, kommentar: "", zahlgeraet: null
 });
 
 export const leerePosition = (vorlage?: any) => ({
@@ -378,15 +378,27 @@ async function ladeEigeneZuweisungen() {
 
 // ---------- Abschnitte: Projektleitung, Supervisor, Administration ----------
 // Jeder Abschnitt hat seine eigene Übersicht und Freigabe.
-export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Alle Belege" };
+// Dazu "Meine Kreditkarte" für alle mit eigener Kreditkarte: nur Übersicht
+// und Export der Belege auf dieser Karte, keine Freigabe.
+export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor",
+  karte: "Meine Kreditkarte", admin: "Alle Belege" };
 
 export function bereiche(): string[] {
   const l = [];
   if (S.meineKst.length) l.push("pl");
   if (S.ich.rolle === "supervisor" || S.meineKonten.length || S.meinePersonen.length) l.push("sup");
+  if (S.session && eigeneKarte(S.session.user.email)) l.push("karte");
   if (S.istAdmin) l.push("admin");
   return l;
 }
+
+// Meine eigenen Karten — auch ausgeschaltete, damit alte Belege darauf
+// weiter im Abschnitt "Meine Kreditkarte" erscheinen
+export const meineKarten = () => S.session
+  ? S.zahlgeraete.filter((g) => g.person && g.person === S.session.user.email) : [];
+
+// Abschnitte mit Freigabe (alle ausser "Meine Kreditkarte")
+export const mitFreigabe = (b: string) => b !== "karte";
 
 // Wo startet die Übersicht? Admin bei allem, sonst beim ersten Abschnitt.
 export const standardBereich = () => {
@@ -394,14 +406,21 @@ export const standardBereich = () => {
   return l.includes("admin") ? "admin" : (l[0] || "");
 };
 
+// Am Rechner beginnen Prüfer und Admins in der Übersicht — wer nur eine
+// eigene Kreditkarte hat, bei den eigenen Belegen.
+export const startInUebersicht = () => bereiche().some(mitFreigabe);
+
 // Gehört ein Beleg in diesen Abschnitt?
 // Projektleitung: eine seiner KST ist mir zugewiesen.
 // Supervisor: eines seiner Konten, eine User-Zahlung meiner Personen — und
 // alles andere Fremde, das ich sehen darf, aber nicht über meine KST
 // (das sind Belege von Benutzern mit eingerichteter Prüfung).
+// Meine Kreditkarte: mit einer meiner eigenen Karten bezahlt.
 // Administration (und leer): alles.
 export function imBereich(b: any, bereich: string = S.bereich) {
   if (!bereich || bereich === "admin") return true;
+  if (bereich === "karte")
+    return b.zahlgeraet_id != null && meineKarten().some((g) => String(g.id) === String(b.zahlgeraet_id));
   const zeilen = belegZeilen(b);
   const kst = zeilen.some((p) => S.meineKst.includes(p.auftrag_nr));
   if (bereich === "pl") return kst;
@@ -410,7 +429,8 @@ export function imBereich(b: any, bereich: string = S.bereich) {
       || (!kst && b.geraet !== S.session.user.email);
 }
 
-export const freigabeIm = (bereich: string = S.bereich) => S.freigabe.filter((b) => imBereich(b, bereich));
+export const freigabeIm = (bereich: string = S.bereich) =>
+  mitFreigabe(bereich) ? S.freigabe.filter((b) => imBereich(b, bereich)) : [];
 
 // Freigabe mit den Filtern Person, KST, Konto (Supervisor und Admin)
 export const freigabeGefiltert = (bereich: string = S.bereich) => freigabeIm(bereich).filter((b) =>
@@ -660,12 +680,20 @@ export function auftraegeImZeitraum() {
 
 export const uZeitraumText = () => `${langDatum(S.uVon)} – ${langDatum(S.uBis)}`;
 
+// Meine Kreditkarte: Name der Karte(n), z. B. "Kreditkarte Oli"
+const kartenText = () => meineKarten().filter((g) => g.aktiv !== false).map((g) => g.name).join(", ")
+                      || BEREICH_NAME.karte;
+
 export const uTitel = () => {
+  const karte = S.bereich === "karte";
   const teile = [
     uZeitraumText(),
-    ...(S.bereich && S.bereich !== "admin" ? [BEREICH_NAME[S.bereich]] : []),
-    S.uGeraet ? personName(S.uGeraet) : (S.istAdmin ? "Alle Personen" : S.session.user.email),
-    S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
+    ...(karte ? [kartenText()] : S.bereich && S.bereich !== "admin" ? [BEREICH_NAME[S.bereich]] : []),
+    S.uGeraet ? personName(S.uGeraet)
+      : karte ? personName(S.session.user.email)
+      : (S.istAdmin ? "Alle Personen" : S.session.user.email),
+    // Meine Kreditkarte: ist ohnehin alles Kreditkarte
+    ...(S.uZahlart ? [zahlartName(S.uZahlart)] : karte ? [] : ["Alle Zahlungsarten"])
   ];
   if (S.uZahlgeraet) teile.push("Gerät " + geraetName(S.uZahlgeraet));
   if (S.uStatus)  teile.push("Status " + (STATUS_FILTER[S.uStatus] || S.uStatus));
@@ -680,7 +708,9 @@ export const uDateiname = () =>
   (S.uAuftrag ? "_A" + String(S.uAuftrag).replace(/\s+/g, "") : "") +
   (S.uZahlart ? "_" + S.uZahlart : "") +
   (S.uZahlgeraet ? "_" + geraetName(S.uZahlgeraet).replace(/[^\wäöüÄÖÜ-]+/g, "") : "") +
-  (S.uGeraet ? "_" + kurzName(S.uGeraet) : (S.istAdmin ? "_alle" : "")) + ".pdf";
+  (S.bereich === "karte" && !S.uZahlgeraet ? "_" + kartenText().replace(/[^\wäöüÄÖÜ-]+/g, "") : "") +
+  (S.uGeraet ? "_" + kurzName(S.uGeraet)
+    : S.bereich === "karte" ? "" : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
 // Wie viele Belege hat ein Gerät im gewählten Zeitraum?
 export const belegeVon = (mail) => S.uBelege.filter((b) => b.geraet === mail).length;
@@ -729,21 +759,30 @@ export function dateiGewaehlt(file: File) {
   const n = S.neu;
   n.datei    = file;
   n.vorschau = file.type === "application/pdf" ? null : URL.createObjectURL(file);
+  n.seiten   = null; n.seitenAnzahl = null; n.seiteAn = 0;
   render();
-  // PDF: erste Seite als Bild zeigen
+  // PDF: die Seiten als Bilder zeigen — die erste, sobald sie da ist
   if (file.type === "application/pdf") {
-    file.arrayBuffer().then((p) => SpesenExport.ersteSeite(p, 1600)).then((bild) => {
-      if (S.neu === n && n.datei === file) { n.vorschau = bild; render(); }
-    }).catch(() => { /* bleibt bei "PDF: Name" */ });
+    file.arrayBuffer().then((p) => SpesenExport.vorschauSeiten(p, 1600, VORSCHAU_SEITEN, (bilder, anzahl) => {
+      if (S.neu === n && n.datei === file) {
+        n.vorschau = bilder[0]; n.seiten = bilder; n.seitenAnzahl = anzahl; render();
+      }
+    })).catch(() => { /* bleibt bei "PDF: Name" */ });
   }
 }
 
-// Vorschau eines hinterlegten PDFs: erste Seite als Bild, kommt nach
+// So viele Seiten eines PDFs zeigt die Vorschau höchstens. Ins Export-PDF
+// kommen immer alle.
+const VORSCHAU_SEITEN = 12;
+
+// Vorschau eines hinterlegten PDFs: die Seiten als Bilder, kommen nach
 async function pdfVorschauLaden(n: any, url: string) {
+  const pfad = n.altPfad;   // wird der Beleg inzwischen ersetzt, nichts mehr setzen
   try {
     const puffer = await (await fetch(url)).arrayBuffer();
-    const bild = await SpesenExport.ersteSeite(puffer, 1600);
-    if (S.neu === n) { n.altUrl = bild; render(); }
+    await SpesenExport.vorschauSeiten(puffer, 1600, VORSCHAU_SEITEN, (bilder, anzahl) => {
+      if (S.neu === n && !n.datei && n.altPfad === pfad) { n.altUrl = bilder[0]; n.seiten = bilder; n.seitenAnzahl = anzahl; render(); }
+    });
   } catch { /* bleibt bei "PDF-Beleg hinterlegt" */ }
 }
 
@@ -799,6 +838,7 @@ export async function belegBearbeiten(id, woher) {
     })) : null,
     datum: b.beleg_datum, zahlart: b.zahlart || "karte",
     datei: null, vorschau: null, altPfad: b.datei_pfad, altUrl: url, altPdf: !!pdfUrl,
+    seiten: null, seitenAnzahl: null,   // PDF: Seiten als Bilder (kommen nach)
     // Kommentar: "kommentarDa" merkt sich, ob die Datenbank die Spalte schon kennt
     kommentar: b.kommentar || "", kommentarDa: "kommentar" in b,
     zahlgeraet: b.zahlgeraet_id ?? null,
@@ -898,7 +938,7 @@ export async function nachAnmeldung(session) {
   await ladeAlles();
   if (istBreit()) {
     S.bereich = standardBereich();
-    if (S.bereich) S.ansicht = "uebersicht";
+    if (startInUebersicht()) S.ansicht = "uebersicht";
     await ladeUebersicht(true);
   } else render();
 }

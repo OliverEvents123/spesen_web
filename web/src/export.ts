@@ -10,6 +10,8 @@
 // damit die Kopfzeile nichts überdeckt.
 // Verschlüsselte PDFs (Bankauszüge, viele Shop-Rechnungen) lassen sich nicht
 // einbetten — ihre Datenströme sind unlesbar. Die werden gerendert.
+// Mehrseitige PDF-Belege kommen ganz hinein, jede Seite mit eigener
+// Nummer: Beleg 3.1, 3.2, 3.3 (einseitige bleiben „Beleg 3“).
 
 export const SpesenExport = (function () {
 
@@ -80,11 +82,9 @@ export const SpesenExport = (function () {
     return bilder;
   }
 
-  // Erste Seite eines PDFs als Bild (für die Vorschau in der App)
-  async function ersteSeite(puffer, breite = 900) {
-    const lib = await pdfJsLaden();
-    const dok = await lib.getDocument({ data: puffer.slice(0) }).promise;
-    const seite = await dok.getPage(1);
+  // Eine Seite eines geladenen PDFs als Bild in der gewünschten Breite
+  async function seiteAlsBild(dok, nr, breite) {
+    const seite = await dok.getPage(nr);
     const v1 = seite.getViewport({ scale: 1 });
     const sicht = seite.getViewport({ scale: breite / v1.width });
     const c = document.createElement("canvas");
@@ -93,6 +93,27 @@ export const SpesenExport = (function () {
     ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height);
     await seite.render({ canvasContext: ctx, viewport: sicht }).promise;
     return c.toDataURL("image/jpeg", 0.85);
+  }
+
+  // Erste Seite eines PDFs als Bild (für die Vorschau in der App)
+  async function ersteSeite(puffer, breite = 900) {
+    const lib = await pdfJsLaden();
+    const dok = await lib.getDocument({ data: puffer.slice(0) }).promise;
+    return seiteAlsBild(dok, 1, breite);
+  }
+
+  // Vorschau mehrseitiger PDFs: die Seiten nacheinander als Bild, höchstens
+  // "max" Stück. jeSeite(bilder, anzahl) kommt nach jeder fertigen Seite —
+  // so steht die erste Seite schon da, während die übrigen noch laden.
+  async function vorschauSeiten(puffer, breite = 900, max = 10, jeSeite) {
+    const lib = await pdfJsLaden();
+    const dok = await lib.getDocument({ data: puffer.slice(0) }).promise;
+    const bilder = [];
+    for (let nr = 1; nr <= Math.min(dok.numPages, max); nr++) {
+      bilder.push(await seiteAlsBild(dok, nr, breite));
+      if (jeSeite) jeSeite(bilder.slice(), dok.numPages);
+    }
+    return { bilder, anzahl: dok.numPages };
   }
 
   function speichern(blob, name) {
@@ -131,15 +152,15 @@ export const SpesenExport = (function () {
       });
     }
 
-    function kopfzeile(seite, b, zusatz) {
+    // teil: bei mehrseitigen Belegen "1.1", "1.2" … statt nur "1"
+    function kopfzeile(seite, b, teil) {
       const gekuerzt = Math.abs(gebucht(b) - parseFloat(b.betrag)) > 0.004;
-      let t = `Beleg ${b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
+      let t = `Beleg ${teil || b.nr} · ${datumCH(b.beleg_datum)} · Konto ${b.konto_nummer} · ` +
               `KST ${b.auftrag_nr} · MwSt ${b.mwst} % · ${zahlartName(b.zahlart)}` +
               (b.geraetName ? ` (${b.geraetName})` : "") + " · " +
               `CHF ${chf(gebucht(b))}` +
               (gekuerzt ? ` (von ${chf(b.betrag)})` : "") +
-              (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "") +
-              (zusatz || "");
+              (b.gesamtBetrag != null ? ` (Anteil von CHF ${chf(b.gesamtBetrag)})` : "");
       t = pdfText(t);
       while (font.widthOfTextAtSize(t, 9) > BREITE - 2*RAND) t = t.slice(0, -1);
       seite.drawText(t, { x:RAND, y:HOEHE-RAND+4, size:9, font, color:grau });
@@ -276,23 +297,31 @@ export const SpesenExport = (function () {
     const platzB = BREITE - 2*RAND;
     const platzH = HOEHE - 2*RAND - 26;
 
-    async function bildSeite(bytes, istPng, b, zusatz) {
+    async function bildSeite(bytes, istPng, b, teil) {
       const p = doc.addPage([BREITE, HOEHE]);
-      kopfzeile(p, b, zusatz);
+      kopfzeile(p, b, teil);
       const bild = istPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
       const f = Math.min(platzB / bild.width, platzH / bild.height);
       const w = bild.width * f, h = bild.height * f;
       p.drawImage(bild, { x:(BREITE-w)/2, y:RAND + (platzH-h)/2, width:w, height:h });
     }
 
-    async function seiteEinbetten(quellSeite, b, zusatz) {
+    async function seiteEinbetten(quellSeite, b, teil) {
       const p = doc.addPage([BREITE, HOEHE]);
-      kopfzeile(p, b, zusatz);
+      kopfzeile(p, b, teil);
       const e = await doc.embedPage(quellSeite);
       const f = Math.min(platzB / e.width, platzH / e.height);
       const w = e.width * f, h = e.height * f;
       p.drawPage(e, { x:(BREITE-w)/2, y:RAND + (platzH-h)/2, width:w, height:h });
     }
+
+    // Mehrseitiger Beleg: jede Seite eine eigene Nummer — Beleg 3.1, 3.2 …
+    const teilNr = (b, s, anzahl) => anzahl > 1 ? `${b.nr}.${s + 1}` : "";
+    let puffer;   // Datei des Belegs, der gerade drankommt
+    const alsBilder = async (b) => {
+      const bilder = await seitenAlsBilder(puffer, 2);
+      for (let s = 0; s < bilder.length; s++) await bildSeite(bilder[s], false, b, teilNr(b, s, bilder.length));
+    };
 
     let i = 0;
     for (const b of nummeriert) {
@@ -303,38 +332,32 @@ export const SpesenExport = (function () {
       const url = urlVon[b.datei_pfad];
       if (!url) { ersatzSeite(b, "Belegdatei nicht gefunden"); continue; }
 
-      let puffer;
       try { puffer = await (await fetch(url)).arrayBuffer(); }
       catch { ersatzSeite(b, "Belegdatei konnte nicht geladen werden"); continue; }
 
       const endung = (b.datei_pfad.split(".").pop() || "").toLowerCase();
+      const seitenVorher = doc.getPageCount();
 
       try {
         if (endung === "pdf") {
           const quelle = await PDFDocument.load(puffer, { ignoreEncryption:true });
           const anzahl = quelle.getPageCount();
 
-          if (quelle.isEncrypted) {
-            const bilder = await seitenAlsBilder(puffer, 2);
-            for (let s = 0; s < bilder.length; s++)
-              await bildSeite(bilder[s], false, b, bilder.length > 1 ? ` · Seite ${s+1} von ${bilder.length}` : "");
-          } else {
+          if (quelle.isEncrypted) await alsBilder(b);
+          else {
             const seiten = quelle.getPages();
-            for (let s = 0; s < anzahl; s++)
-              await seiteEinbetten(seiten[s], b, anzahl > 1 ? ` · Seite ${s+1} von ${anzahl}` : "");
+            for (let s = 0; s < anzahl; s++) await seiteEinbetten(seiten[s], b, teilNr(b, s, anzahl));
           }
         } else {
           await bildSeite(new Uint8Array(puffer), endung === "png", b, "");
         }
       } catch (fehler) {
+        // Halb eingebettet (eine spätere Seite scheiterte): die schon
+        // angehängten Seiten wieder weg, sonst stünden sie doppelt drin.
+        while (doc.getPageCount() > seitenVorher) doc.removePage(doc.getPageCount() - 1);
         let geschafft = false;
         if (endung === "pdf") {
-          try {
-            const bilder = await seitenAlsBilder(puffer, 2);
-            for (let s = 0; s < bilder.length; s++)
-              await bildSeite(bilder[s], false, b, bilder.length > 1 ? ` · Seite ${s+1} von ${bilder.length}` : "");
-            geschafft = true;
-          } catch { /* unten abfangen */ }
+          try { await alsBilder(b); geschafft = true; } catch { /* unten abfangen */ }
         }
         if (!geschafft) ersatzSeite(b, "Beleg konnte nicht eingebettet werden");
       }
@@ -382,5 +405,5 @@ export const SpesenExport = (function () {
               dateiname || `Spesen_${monat}.csv`);
   }
 
-  return { pdf, csv, ersteSeite };
+  return { pdf, csv, ersteSeite, vorschauSeiten };
 })();

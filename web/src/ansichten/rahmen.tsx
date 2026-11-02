@@ -5,7 +5,7 @@
 import { S } from "../zustand";
 import { istBreit, initialen } from "../grundlagen";
 import { Ico, Meldung, eigenerName, eigeneRolle } from "./bausteine";
-import { bereiche, freigabeIm, BEREICH_NAME } from "../daten";
+import { bereiche, freigabeIm, mitFreigabe, BEREICH_NAME } from "../daten";
 
 // Welche Hauptseite ist gerade "an"? Unterseiten zählen zu ihrer Hauptseite.
 function aktiv() {
@@ -43,7 +43,7 @@ function Tabbar() {
   return (
     <nav className="tabbar" aria-label="Hauptnavigation">
       {t("liste", "tabListe", "Belege", "doc")}
-      {S.istPruefer && t("uebersicht", "tabUebersicht", "Übersicht", "grid")}
+      {(S.istPruefer || bereiche().length > 0) && t("uebersicht", "tabUebersicht", "Übersicht", "grid")}
       <div className="tabmitte"><button data-akt="neu" aria-label="Beleg erfassen"><Ico n="kamera" /></button></div>
       {S.istPruefer && t("freigabe", "tabFreigabe", "Freigabe", "check", S.freigabe.length)}
       {t("profil", "zuProfil", "Profil", "person")}
@@ -52,7 +52,8 @@ function Tabbar() {
 
 // ---------- Rechner ----------
 // Seitenleiste mit Abschnitten: "Meine Spesen" haben alle, dazu je nach
-// Zuweisung Projektleitung und Supervisor; Admins haben "Alle Belege"
+// Zuweisung Projektleitung und Supervisor, mit eigener Kreditkarte
+// "Meine Kreditkarte" (nur Übersicht); Admins haben "Alle Belege"
 // (Übersicht, Freigabe) und darunter getrennt die Administration.
 // Jeder Abschnitt hat seine eigene Übersicht und Freigabe.
 function Leiste() {
@@ -64,7 +65,7 @@ function Leiste() {
   const abschnitt = (b: string) => <div className="abschnitt" key={b}>
     <div className="gr">{BEREICH_NAME[b].toUpperCase()}</div>
     {n("uebersicht:" + b, "tabUebersicht", "Übersicht", "grid", 0, b)}
-    {n("freigabe:" + b, "tabFreigabe", "Freigabe", "check", freigabeIm(b).length, b)}
+    {mitFreigabe(b) && n("freigabe:" + b, "tabFreigabe", "Freigabe", "check", freigabeIm(b).length, b)}
   </div>;
   return (
     <aside className="leiste">

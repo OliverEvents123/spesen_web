@@ -18,7 +18,7 @@ import {
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
-  standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
+  standardBereich, bereiche, mitFreigabe, freigabeIm, freigabeGefiltert, meineGefiltert,
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
   kstZumSpeichern, eigeneKarte, eigeneKarteSetzen
 } from "./daten";
@@ -607,9 +607,11 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "foto")     { document.getElementById("kamera").click(); return; }
   if (a === "waehlen")  { document.getElementById("datei").click(); return; }
   if (a === "belegAuf") return belegOeffnen(d.p);
+  if (a === "seiteZeigen") { S.neu.seiteAn = Number(d.v); return render(); }
   if (a === "belegNeu") {
     if (S.neu.vorschau) URL.revokeObjectURL(S.neu.vorschau);
     S.neu.datei = null; S.neu.vorschau = null; S.neu.altPfad = null; S.neu.altUrl = null;
+    S.neu.seiten = null; S.neu.seitenAnzahl = null; S.neu.seiteAn = 0;
     return render();
   }
 
@@ -703,7 +705,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "tabFreigabe") {
     // Am Handy gibt es eine Freigabe für alles; der Abschnitt bleibt für die Übersicht
     if (istBreit()) {
-      const neu = d.b || S.bereich || standardBereich();
+      let neu = d.b || S.bereich || standardBereich();
+      // "Meine Kreditkarte" hat keine Freigabe — dann der erste Abschnitt mit einer
+      if (!mitFreigabe(neu)) neu = bereiche().find(mitFreigabe) || "";
       if (neu !== S.bereich) { S.fPerson = ""; S.fKst = ""; S.fKonto = ""; }
       S.bereich = neu;
     }
