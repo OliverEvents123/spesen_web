@@ -1,6 +1,40 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 21.10.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 02.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — LIVE seit 02.11.2026
+
+**Mehrseitige PDFs:** Ein PDF mit mehreren Seiten liess sich schon immer
+hinterlegen und kam ganz ins Export-PDF — nur zeigte die App bloss Seite 1.
+- Export-PDF: jede Seite eigene Nummer, **Beleg 3.1, 3.2, 3.3** (statt
+  „Beleg 3 · Seite 1 von 3“). Einseitige bleiben „Beleg 3“. Scheitert das
+  Einbetten mittendrin, werden die halben Seiten wieder entfernt (vorher
+  standen sie dann doppelt drin).
+- Vorschau: am Rechner alle Seiten untereinander mit „Seite 2 von 3“, in
+  der Zoomleiste „3 Seiten“. Am Handy kleine Seitenbilder zum Umschalten
+  und „PDF mit 3 Seiten — alle Seiten kommen ins Export-PDF“. Die Vorschau
+  zeigt höchstens 12 Seiten, der Export immer alle.
+
+**Export für eigene Kreditkarte:** In **Meine Belege** stehen bei allen
+mit eigener Kreditkarte (Haken beim Benutzer) die Knöpfe **„PDF
+Kreditkarte“ und „CSV“** — am Rechner oben rechts, am Handy als Zeile
+„Kreditkarte <Name>“. Exportiert werden die eigenen Belege, die mit dieser
+Karte bezahlt sind, mit Zeitraum und Filtern der Liste (Status, Konto,
+KST; die Suche nicht). Ohne Kartenbelege in der Auswahl keine Knöpfe.
+Dateiname z. B. `Spesen_…_KreditkarteAnna.pdf`. Ausgeschaltete eigene
+Karten zählen mit (ältere Belege).
+Erste Fassung mit eigenem Abschnitt „Meine Kreditkarte“ (eigene Übersicht)
+hat Oli verworfen — zeigt nur dasselbe nochmals.
+
+**PLs:** konnten das schon — Übersicht → Projektleitung zeigt die Belege
+ihrer KST mit PDF und CSV (RLS und Storage-Regel lassen sie die Dateien
+lesen). Nachgeprüft, nichts geändert. Achtung: Belege auf „Konto ohne
+KST“ (z. B. Benzin mit der Projektkarte) stehen unter „ohne KST“ und sind
+darum **nicht** im Export des PLs.
+
+Kein SQL nötig. Geprüft gegen eine nachgebildete Supabase (Admin lädt
+3-seitiges PDF hoch und exportiert; Anna mit eigener Karte am Rechner und
+Handy; Peter als PL von 2601).
 
 ## Verwaltung: ganze Zeile klickbar (21.10.2026) — LIVE seit 21.10.2026
 

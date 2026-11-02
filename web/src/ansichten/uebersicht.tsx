@@ -13,7 +13,8 @@ import {
 } from "../grundlagen";
 import {
   uGefiltert, gruppiere, uTitel, eigeneErfasste, istErledigt, personName, kontoName,
-  meineGefiltert, istMeinOffen, istMeinErledigt, freigabeIm, bereiche, imBereich
+  meineGefiltert, istMeinOffen, istMeinErledigt, freigabeIm, bereiche, imBereich,
+  meineKarten, kartenBelege, kartenName
 } from "../daten";
 import { Seite } from "./rahmen";
 import {
@@ -132,12 +133,27 @@ function listenTitel() {
   return "Belege der Periode";
 }
 
+// Eigene Kreditkarte: PDF und CSV der Belege mit dieser Karte, so gefiltert
+// wie die Liste. Nur wer eine hat und Belege darauf in der Auswahl.
+function KartenExport() {
+  const n = meineKarten().length ? kartenBelege().length : 0;
+  if (!n) return null;
+  const info = `${anzahlText(n)} mit ${kartenName()} — Zeitraum und Filter wie in der Liste`;
+  return <>
+    <Knopf akt="expPdf" data-w="karte" className="k2 klein fett" title={info}>
+      <Ico n="runter" s={16} /> PDF Kreditkarte</Knopf>
+    <button className="k2 klein" data-akt="expCsv" data-w="karte" title={info}>CSV</button>
+  </>;
+}
+
 export function MeineBelege() {
   const liste = belegeSuchen(meineGefiltert());
+  const mitKarte = meineKarten().length > 0 && kartenBelege().length > 0;
 
   if (istBreit()) return (
     <Seite titel="Meine Belege" pfad={eigenerName()} tab
-           rechts={<button className="k1 klein" data-akt="neu"><Ico n="plus" s={16} /> Beleg erfassen</button>}>
+           rechts={<><KartenExport />
+             <button className="k1 klein" data-akt="neu"><Ico n="plus" s={16} /> Beleg erfassen</button></>}>
       <Werkzeugleiste b="m" />
       <MeineReiter />
       <LeerePeriode leer={!S.belege.length} />
@@ -158,6 +174,7 @@ export function MeineBelege() {
       <HandyFilter b="m" />
       <MeineReiter />
       <LeerePeriode leer={!S.belege.length} />
+      {mitKarte && <div className="schnell"><span className="kl">{kartenName()}</span><KartenExport /></div>}
       <Aufgaben />
       <SchnellErfassen />
       <section className="karte huelle" id="belegliste">

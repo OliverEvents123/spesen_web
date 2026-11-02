@@ -2,6 +2,7 @@
 // Beleg erfassen und bearbeiten, eingereichte Belege ansehen und prüfen,
 // dazu die Auswahlseiten für Konto und KST (am Handy).
 
+import { Fragment } from "react";
 import { S, schluessel } from "../zustand";
 import {
   istBreit, chf, chfLang, langDatum, zeitCH, betragVon, statusName, zahlartName, istGesperrt,
@@ -24,12 +25,39 @@ const kontoText = (k: any) => k ? k.nummer + "  " + (k.bezeichnung || "") : "—
 const auftragText = (a: any) => { const t = auftragWahlText(a); return t.neben ? t.neben + "  " + t.haupt : t.haupt; };
 
 // ---------- Belegbild ----------
+// PDF mit mehreren Seiten: n.seiten hält die Seiten als Bilder (höchstens
+// ein Dutzend), n.seitenAnzahl, wie viele es wirklich sind. Ins Export-PDF
+// kommen immer alle (Beleg 3.1, 3.2 …).
+const mehrseitig = (n: any) => (n.seitenAnzahl || 0) > 1 && Array.isArray(n.seiten) && n.seiten.length > 0;
+const seitenText = (n: any) => `${n.seitenAnzahl} Seiten`;
+// Welches Bild steht gross da? Bei mehreren Seiten die gewählte.
+const gezeigt = (n: any, bild: string) =>
+  mehrseitig(n) ? n.seiten[Math.min(n.seiteAn || 0, n.seiten.length - 1)] : bild;
+
+// Mehrere Seiten: kleine Bilder zum Umschalten, darüber die Seitenzahl
+function SeitenDaumen({ n }: { n: any }) {
+  if (!mehrseitig(n)) return null;
+  const an = Math.min(n.seiteAn || 0, n.seiten.length - 1);
+  const fehlen = n.seitenAnzahl - n.seiten.length;
+  return (
+    <div className="seitenstreifen">
+      <span className="kn mu"><b>PDF mit {seitenText(n)}</b> — alle Seiten kommen ins Export-PDF</span>
+      <div className="daumenreihe">
+        {n.seiten.map((b: string, i: number) => (
+          <button key={i} className={"daumen" + (i === an ? " an" : "")} data-akt="seiteZeigen" data-v={i}
+                  aria-label={`Seite ${i + 1}`} aria-pressed={i === an}><img src={b} alt="" /></button>))}
+        {fehlen > 0 && <span className="kn mu">+ {fehlen}</span>}
+      </div>
+    </div>);
+}
+
 function BelegVorschau({ n, gross }: { n: any; gross?: boolean }) {
+  const stil = gross ? { maxHeight: 560 } : undefined;
   if (n.datei) return n.vorschau
-    ? <img className="papierbild" src={n.vorschau} alt="Belegvorschau" style={gross ? { maxHeight: 560 } : undefined} />
+    ? <><img className="papierbild" src={gezeigt(n, n.vorschau)} alt="Belegvorschau" style={stil} /><SeitenDaumen n={n} /></>
     : <div className="pdfmarke">PDF: {n.datei.name}</div>;
   if (n.altPfad) return n.altUrl
-    ? <img className="papierbild" src={n.altUrl} alt="Beleg" style={gross ? { maxHeight: 560 } : undefined} />
+    ? <><img className="papierbild" src={gezeigt(n, n.altUrl)} alt="Beleg" style={stil} /><SeitenDaumen n={n} /></>
     : <div className="pdfmarke">{n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>;
   return null;
 }
@@ -289,12 +317,14 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
   const bild = n.altPfad
     ? (breit
         ? <div className="belegbild" style={{ borderRadius: 12 }}>
-            {n.altUrl ? <img src={n.altUrl} alt="Beleg" />
+            {n.altUrl ? <img src={gezeigt(n, n.altUrl)} alt="Beleg" />
               : <div className="pdfmarke" style={{ width: "100%" }}>{n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>}
+            <SeitenDaumen n={n} />
             <button className="link" data-akt="belegAuf" data-p={n.altPfad}>Beleg gross öffnen</button></div>
         : <div className="belegkarte" style={{ padding: "12px 14px" }}>
             {n.altUrl ? <img className="daumen" src={n.altUrl} alt="Beleg" /> : <span className="daumen">PDF</span>}
-            <span style={{ flex: 1 }}>Beleg vom {langDatum(n.datum)}</span>
+            <span style={{ flex: 1 }}>Beleg vom {langDatum(n.datum)}
+              {mehrseitig(n) && <span className="kn mu"><br />PDF mit {seitenText(n)}</span>}</span>
             <button className="k2 klein" data-akt="belegAuf" data-p={n.altPfad}>Öffnen</button></div>)
     : <div className="leer">Kein Beleg hinterlegt.</div>;
 
@@ -512,6 +542,10 @@ function ApBeleg({ n }: { n: any }) {
   const aenderbar = !n.pruefen && (!n.id || !istGesperrt(n));
   const bild = n.datei ? n.vorschau : n.altUrl;
   const hat = !!(n.datei || n.altPfad);
+  // Mehrseitiges PDF: alle Seiten untereinander, wie im Export
+  const bilder: string[] = mehrseitig(n) ? n.seiten : (bild ? [bild] : []);
+  const breite = { width: `calc(min(820px, 100%) * ${S.zoom / 100})` };
+  const fehlen = mehrseitig(n) ? n.seitenAnzahl - n.seiten.length : 0;
   return (
     <div className="ap-beleg ablage">
       {!hat && !aenderbar
@@ -524,8 +558,14 @@ function ApBeleg({ n }: { n: any }) {
             <span className="mu">Ziehe ein PDF oder Bild hierher oder wähle eine Datei aus.</span>
             <button className="k1 klein" data-akt="waehlen">Beleg auswählen …</button>
           </div>
-        : bild ? <img className="papier" src={bild} alt="Beleg"
-                      style={{ width: `calc(min(820px, 100%) * ${S.zoom / 100})` }} />
+        : bild ? <>
+            {bilder.map((b, i) => <Fragment key={i}>
+              {bilder.length > 1 && <span className="seitenmarke">Seite {i + 1} von {n.seitenAnzahl}</span>}
+              <img className="papier" src={b} alt={bilder.length > 1 ? `Beleg, Seite ${i + 1}` : "Beleg"} style={breite} />
+            </Fragment>)}
+            {fehlen > 0 && <span className="seitenmarke">… und {fehlen} weitere {fehlen === 1 ? "Seite" : "Seiten"} —
+              nicht in der Vorschau, im Export-PDF schon</span>}
+          </>
         : <div className="pdfmarke papierleer">{n.datei ? "PDF: " + n.datei.name
             : n.altPdf ? "PDF-Beleg — Vorschau lädt …" : "PDF-Beleg hinterlegt"}</div>}
       {/* Leiste unten: Zoom mit Regler, öffnen, ersetzen */}
@@ -537,6 +577,7 @@ function ApBeleg({ n }: { n: any }) {
                    onChange={() => { /* läuft über data-feld */ }} />
             <button className="pf" data-akt="zoom" data-v="+" aria-label="Vergrössern" disabled={S.zoom >= 400}>+</button>
             <span className="mono kn">{S.zoom} %</span>
+            {mehrseitig(n) && <span className="kn fett">{seitenText(n)}</span>}
             <button className="link" data-akt="zoom" data-v="fit" disabled={S.zoom === 100}>Einpassen</button>
           </>}
           {n.altPfad && !n.datei && <>
