@@ -6,7 +6,6 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { S, abonnieren, aktuellerStand } from "./zustand";
 import { IST_TEST } from "./konfig";
 import { klick, aenderung, eingabe } from "./aktionen";
-import { bereiche } from "./daten";
 import { Login } from "./ansichten/login";
 import { MeineBelege, Uebersicht } from "./ansichten/uebersicht";
 import { Erfassen, KontoWahl, AuftragWahl } from "./ansichten/erfassen";
@@ -21,9 +20,8 @@ function Bildschirm() {
     case "erfassen":    return S.neu ? <Erfassen /> : <MeineBelege />;
     case "kontoWahl":   return <KontoWahl />;
     case "auftragWahl": return <AuftragWahl />;
-    // User haben keine Übersicht — nur ihre Belege. Ausser mit eigener
-    // Kreditkarte: dann "Meine Kreditkarte" mit Export.
-    case "uebersicht":  return S.istPruefer || bereiche().length > 0 ? <Uebersicht /> : <MeineBelege />;
+    // User haben keine Übersicht — nur ihre Belege
+    case "uebersicht":  return S.istPruefer ? <Uebersicht /> : <MeineBelege />;
     case "freigabe":    return <Freigabe />;
     case "profil":      return <Profil />;
     case "passwort":    return <Passwort />;

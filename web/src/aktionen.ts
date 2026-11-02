@@ -18,9 +18,10 @@ import {
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
   zuruecksetzen, zeigeLogin, ladePerioden, periodeSpeichern, periodeLoeschen, personName,
   leeresGeraet, ladeGeraete, geraetSpeichern, geraetLoeschen, geraetName, geraetGewaehlt, geraetFehlt,
-  standardBereich, bereiche, mitFreigabe, freigabeIm, freigabeGefiltert, meineGefiltert,
+  standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
-  kstZumSpeichern, eigeneKarte, eigeneKarteSetzen
+  kstZumSpeichern, eigeneKarte, eigeneKarteSetzen,
+  zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -650,7 +651,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "korrMwst") { S.neu.korrMwst = d.v; return render(); }
 
   // ---------- Export ----------
-  const zumExport = () => uGefiltert().map((b) => ({
+  // Aus der Übersicht — oder aus Meine Belege die eigene Kreditkarte (data-w="karte")
+  const karte = d.w === "karte";
+  const zumExport = () => (karte ? kartenBelege() : uGefiltert()).map((b) => ({
     ...b, bezeichnung: kontoName(b.konto_nummer),
     gebucht: buchungsBetrag(b), statusText: statusName(statusVon(b)),
     geraetName: b.zahlgeraet_id != null ? geraetName(b.zahlgeraet_id) : "",
@@ -658,9 +661,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "expCsv") {
     const belege = zumExport();
-    SpesenExport.csv({ belege, gruppen: gruppiere(belege),
-                       monat: S.uVon.slice(0, 7),
-                       titel: uTitel(), dateiname: uDateiname().replace(".pdf", ".csv") });
+    SpesenExport.csv({ belege, gruppen: gruppiere(belege, karte ? meineZeilePasst : zeilePasst),
+                       monat: S.uVon.slice(0, 7), titel: karte ? kartenTitel() : uTitel(),
+                       dateiname: (karte ? kartenDateiname() : uDateiname()).replace(".pdf", ".csv") });
     return;
   }
 
@@ -669,9 +672,9 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     laeuft(a, "Bereite vor …");
     try {
       await SpesenExport.pdf({
-        sb, belege, gruppen: gruppiere(belege),
-        monat: S.uVon.slice(0, 7), titel: uTitel(),
-        dateiname: uDateiname(),
+        sb, belege, gruppen: gruppiere(belege, karte ? meineZeilePasst : zeilePasst),
+        monat: S.uVon.slice(0, 7), titel: karte ? kartenTitel() : uTitel(),
+        dateiname: karte ? kartenDateiname() : uDateiname(),
         fortschritt: (i, n) => laeuft(a, `Beleg ${i} von ${n} …`)
       });
     } catch (err) {
@@ -705,9 +708,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "tabFreigabe") {
     // Am Handy gibt es eine Freigabe für alles; der Abschnitt bleibt für die Übersicht
     if (istBreit()) {
-      let neu = d.b || S.bereich || standardBereich();
-      // "Meine Kreditkarte" hat keine Freigabe — dann der erste Abschnitt mit einer
-      if (!mitFreigabe(neu)) neu = bereiche().find(mitFreigabe) || "";
+      const neu = d.b || S.bereich || standardBereich();
       if (neu !== S.bereich) { S.fPerson = ""; S.fKst = ""; S.fKonto = ""; }
       S.bereich = neu;
     }

@@ -9,7 +9,7 @@ import { SpesenExport } from "./export";
 import {
   OHNE_KST, NETZTEXT, istBreit, istNetzfehler, heute, chf, chfLang, kurzName, kurzZeit,
   statusVon, statusName, statusKlasse, istEntschieden, zahlartName, auftragAnzeige, langDatum,
-  buchungsBetrag, belegZeilen, istGesperrt, STATUS_FILTER
+  buchungsBetrag, belegZeilen, istGesperrt, STATUS_FILTER, STATUS_FILTER_MEINE
 } from "./grundlagen";
 
 // ---------- Leere Vorlagen ----------
@@ -378,27 +378,15 @@ async function ladeEigeneZuweisungen() {
 
 // ---------- Abschnitte: Projektleitung, Supervisor, Administration ----------
 // Jeder Abschnitt hat seine eigene Übersicht und Freigabe.
-// Dazu "Meine Kreditkarte" für alle mit eigener Kreditkarte: nur Übersicht
-// und Export der Belege auf dieser Karte, keine Freigabe.
-export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor",
-  karte: "Meine Kreditkarte", admin: "Alle Belege" };
+export const BEREICH_NAME: Record<string, string> = { pl: "Projektleitung", sup: "Supervisor", admin: "Alle Belege" };
 
 export function bereiche(): string[] {
   const l = [];
   if (S.meineKst.length) l.push("pl");
   if (S.ich.rolle === "supervisor" || S.meineKonten.length || S.meinePersonen.length) l.push("sup");
-  if (S.session && eigeneKarte(S.session.user.email)) l.push("karte");
   if (S.istAdmin) l.push("admin");
   return l;
 }
-
-// Meine eigenen Karten — auch ausgeschaltete, damit alte Belege darauf
-// weiter im Abschnitt "Meine Kreditkarte" erscheinen
-export const meineKarten = () => S.session
-  ? S.zahlgeraete.filter((g) => g.person && g.person === S.session.user.email) : [];
-
-// Abschnitte mit Freigabe (alle ausser "Meine Kreditkarte")
-export const mitFreigabe = (b: string) => b !== "karte";
 
 // Wo startet die Übersicht? Admin bei allem, sonst beim ersten Abschnitt.
 export const standardBereich = () => {
@@ -406,21 +394,14 @@ export const standardBereich = () => {
   return l.includes("admin") ? "admin" : (l[0] || "");
 };
 
-// Am Rechner beginnen Prüfer und Admins in der Übersicht — wer nur eine
-// eigene Kreditkarte hat, bei den eigenen Belegen.
-export const startInUebersicht = () => bereiche().some(mitFreigabe);
-
 // Gehört ein Beleg in diesen Abschnitt?
 // Projektleitung: eine seiner KST ist mir zugewiesen.
 // Supervisor: eines seiner Konten, eine User-Zahlung meiner Personen — und
 // alles andere Fremde, das ich sehen darf, aber nicht über meine KST
 // (das sind Belege von Benutzern mit eingerichteter Prüfung).
-// Meine Kreditkarte: mit einer meiner eigenen Karten bezahlt.
 // Administration (und leer): alles.
 export function imBereich(b: any, bereich: string = S.bereich) {
   if (!bereich || bereich === "admin") return true;
-  if (bereich === "karte")
-    return b.zahlgeraet_id != null && meineKarten().some((g) => String(g.id) === String(b.zahlgeraet_id));
   const zeilen = belegZeilen(b);
   const kst = zeilen.some((p) => S.meineKst.includes(p.auftrag_nr));
   if (bereich === "pl") return kst;
@@ -429,8 +410,7 @@ export function imBereich(b: any, bereich: string = S.bereich) {
       || (!kst && b.geraet !== S.session.user.email);
 }
 
-export const freigabeIm = (bereich: string = S.bereich) =>
-  mitFreigabe(bereich) ? S.freigabe.filter((b) => imBereich(b, bereich)) : [];
+export const freigabeIm = (bereich: string = S.bereich) => S.freigabe.filter((b) => imBereich(b, bereich));
 
 // Freigabe mit den Filtern Person, KST, Konto (Supervisor und Admin)
 export const freigabeGefiltert = (bereich: string = S.bereich) => freigabeIm(bereich).filter((b) =>
@@ -584,14 +564,15 @@ export const zeilePasst = (p) =>
 // MwSt wird auf der Gruppensumme gerechnet, nicht je Beleg — sonst
 // entstehen durch das Runden Rappendifferenzen.
 // Ein aufgeteilter Beleg liefert je Position eine Zeile.
-export function gruppiere(belege: any[]) {
+// passt: welche Positionen zählen — Filter der Übersicht oder von Meine Belege
+export function gruppiere(belege: any[], passt: (p: any) => boolean = zeilePasst) {
   const m = new Map();
   for (const b of belege) {
     if (statusVon(b) === "abgelehnt") continue;   // wird nicht gebucht
     // Teilgenehmigt: jede Position im selben Verhältnis kürzen.
     const faktor = parseFloat(b.betrag) ? buchungsBetrag(b) / parseFloat(b.betrag) : 1;
     for (const p0 of belegZeilen(b)) {
-      if (!zeilePasst(p0)) continue;  // gefilterte Positionen zählen nicht mit
+      if (!passt(p0)) continue;  // gefilterte Positionen zählen nicht mit
       const p = faktor === 1 ? p0
         : { ...p0, betrag: Math.round(parseFloat(p0.betrag) * faktor * 100) / 100 };
       const s = `${p.konto_nummer}|${p.auftrag_nr}|${p.mwst}|${b.zahlart || "karte"}`;
@@ -619,11 +600,10 @@ export function gruppiere(belege: any[]) {
 // Ist nach Konto oder Auftrag gefiltert, zählt von einem aufgeteilten Beleg
 // nur der passende Teil — sonst zeigt die Belegliste mehr als die Kontierung.
 // gesamtBetrag hält dann fest, wie viel der ganze Beleg ausmacht.
-function belegImFilter(b) {
-  if (!S.uKonto && !S.uAuftrag) return b;
+function belegImFilter(b, passt: (p: any) => boolean = zeilePasst) {
   if (!Array.isArray(b.positionen) || b.positionen.length < 2) return b;
-  const teile = b.positionen.filter(zeilePasst);
-  if (teile.length === b.positionen.length) return b;
+  const teile = b.positionen.filter(passt);
+  if (!teile.length || teile.length === b.positionen.length) return b;
   const betrag = Math.round(teile.reduce((t, p) => t + parseFloat(p.betrag), 0) * 100) / 100;
   const genehmigt = b.genehmigt_betrag != null && parseFloat(b.betrag)
     ? Math.round(parseFloat(b.genehmigt_betrag) * betrag / parseFloat(b.betrag) * 100) / 100
@@ -638,7 +618,7 @@ const meineStatusPasst = (b, st) => !st ? true
   : st === "offenePunkte" ? ["offen", "eingereicht", "abgelehnt"].includes(statusVon(b))
   : st === "erledigt"     ? istErledigt(b) && statusVon(b) !== "abgelehnt"
   : statusVon(b) === st;
-const meineZeilePasst = (p) => (!S.mKonto || p.konto_nummer === S.mKonto)
+export const meineZeilePasst = (p) => (!S.mKonto || p.konto_nummer === S.mKonto)
                             && (!S.mAuftrag || p.auftrag_nr === S.mAuftrag);
 // ohne: "status" oder "zahlart" — für die Zähler auf den Kacheln
 export const meineGefiltert = (ohne?: string) => S.belege.filter((b) =>
@@ -647,6 +627,30 @@ export const meineGefiltert = (ohne?: string) => S.belege.filter((b) =>
   belegZeilen(b).some(meineZeilePasst));
 export const istMeinOffen = (b) => meineStatusPasst(b, "offenePunkte");
 export const istMeinErledigt = (b) => meineStatusPasst(b, "erledigt");
+
+// ---------- Meine Belege: Export der eigenen Kreditkarte ----------
+// Wer eine eigene Kreditkarte hat, exportiert in Meine Belege die Belege,
+// die mit ihr bezahlt sind — so gefiltert wie die Liste (Zeitraum, Status,
+// Konto, KST). Eine eigene Übersicht braucht es dafür nicht.
+// Auch ausgeschaltete Karten zählen, damit ältere Belege darauf mitkommen.
+export const meineKarten = () =>
+  S.zahlgeraete.filter((g) => g.person && g.person === S.session.user.email);
+const aufMeinerKarte = (b) => b.zahlgeraet_id != null
+  && meineKarten().some((g) => String(g.id) === String(b.zahlgeraet_id));
+export const kartenBelege = () =>
+  meineGefiltert().filter(aufMeinerKarte).map((b) => belegImFilter(b, meineZeilePasst));
+export const kartenName = () =>
+  (eigeneKarte(S.session.user.email) || meineKarten()[0] || { name: "Kreditkarte" }).name;
+export const kartenTitel = () => [
+  uZeitraumText(), kartenName(), personName(S.session.user.email),
+  ...(S.mStatus ? ["Status " + (STATUS_FILTER_MEINE[S.mStatus] || S.mStatus)] : []),
+  ...(S.mKonto ? ["Konto " + S.mKonto] : []),
+  ...(S.mAuftrag ? ["Auftrag " + auftragAnzeige(S.mAuftrag)] : [])
+].join(" · ");
+export const kartenDateiname = () =>
+  `Spesen_${S.uVon}_bis_${S.uBis}_` + kartenName().replace(/[^\wäöüÄÖÜ-]+/g, "") +
+  (S.mKonto   ? "_K" + S.mKonto : "") +
+  (S.mAuftrag ? "_A" + String(S.mAuftrag).replace(/\s+/g, "") : "") + ".pdf";
 
 // Statusfilter: ein einzelner Status oder eine der zwei Gruppen
 export const istErledigt = (b) => istEntschieden(b) || statusVon(b) === "abgeschlossen";
@@ -663,7 +667,7 @@ export const uGefiltert = (ohneStatus?: boolean) => S.uBelege.filter((b) =>
   (!S.uZahlgeraet || String(b.zahlgeraet_id) === S.uZahlgeraet) &&
   (!S.uZahlart || (b.zahlart || "karte") === S.uZahlart) &&
   (ohneStatus || statusPasst(b, S.uStatus)) &&
-  belegZeilen(b).some(zeilePasst)).map(belegImFilter);
+  belegZeilen(b).some(zeilePasst)).map((b) => belegImFilter(b));
 
 // Was kommt im geladenen Zeitraum überhaupt vor? Füllt die Auswahlfelder.
 export function kontenImZeitraum() {
@@ -680,20 +684,12 @@ export function auftraegeImZeitraum() {
 
 export const uZeitraumText = () => `${langDatum(S.uVon)} – ${langDatum(S.uBis)}`;
 
-// Meine Kreditkarte: Name der Karte(n), z. B. "Kreditkarte Oli"
-const kartenText = () => meineKarten().filter((g) => g.aktiv !== false).map((g) => g.name).join(", ")
-                      || BEREICH_NAME.karte;
-
 export const uTitel = () => {
-  const karte = S.bereich === "karte";
   const teile = [
     uZeitraumText(),
-    ...(karte ? [kartenText()] : S.bereich && S.bereich !== "admin" ? [BEREICH_NAME[S.bereich]] : []),
-    S.uGeraet ? personName(S.uGeraet)
-      : karte ? personName(S.session.user.email)
-      : (S.istAdmin ? "Alle Personen" : S.session.user.email),
-    // Meine Kreditkarte: ist ohnehin alles Kreditkarte
-    ...(S.uZahlart ? [zahlartName(S.uZahlart)] : karte ? [] : ["Alle Zahlungsarten"])
+    ...(S.bereich && S.bereich !== "admin" ? [BEREICH_NAME[S.bereich]] : []),
+    S.uGeraet ? personName(S.uGeraet) : (S.istAdmin ? "Alle Personen" : S.session.user.email),
+    S.uZahlart ? zahlartName(S.uZahlart) : "Alle Zahlungsarten"
   ];
   if (S.uZahlgeraet) teile.push("Gerät " + geraetName(S.uZahlgeraet));
   if (S.uStatus)  teile.push("Status " + (STATUS_FILTER[S.uStatus] || S.uStatus));
@@ -708,9 +704,7 @@ export const uDateiname = () =>
   (S.uAuftrag ? "_A" + String(S.uAuftrag).replace(/\s+/g, "") : "") +
   (S.uZahlart ? "_" + S.uZahlart : "") +
   (S.uZahlgeraet ? "_" + geraetName(S.uZahlgeraet).replace(/[^\wäöüÄÖÜ-]+/g, "") : "") +
-  (S.bereich === "karte" && !S.uZahlgeraet ? "_" + kartenText().replace(/[^\wäöüÄÖÜ-]+/g, "") : "") +
-  (S.uGeraet ? "_" + kurzName(S.uGeraet)
-    : S.bereich === "karte" ? "" : (S.istAdmin ? "_alle" : "")) + ".pdf";
+  (S.uGeraet ? "_" + kurzName(S.uGeraet) : (S.istAdmin ? "_alle" : "")) + ".pdf";
 
 // Wie viele Belege hat ein Gerät im gewählten Zeitraum?
 export const belegeVon = (mail) => S.uBelege.filter((b) => b.geraet === mail).length;
@@ -938,7 +932,7 @@ export async function nachAnmeldung(session) {
   await ladeAlles();
   if (istBreit()) {
     S.bereich = standardBereich();
-    if (startInUebersicht()) S.ansicht = "uebersicht";
+    if (S.bereich) S.ansicht = "uebersicht";
     await ladeUebersicht(true);
   } else render();
 }

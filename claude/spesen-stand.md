@@ -15,12 +15,16 @@ hinterlegen und kam ganz ins Export-PDF — nur zeigte die App bloss Seite 1.
   und „PDF mit 3 Seiten — alle Seiten kommen ins Export-PDF“. Die Vorschau
   zeigt höchstens 12 Seiten, der Export immer alle.
 
-**Export für eigene Kreditkarte:** Wer eine eigene Kreditkarte hat (Haken
-beim Benutzer), bekommt den Abschnitt **„Meine Kreditkarte“** (Rechner:
-Seitenleiste, Handy: Reiter „Übersicht“) — Übersicht nur mit den Belegen
-auf dieser Karte, Kontierung, **PDF für DocuWare und CSV**. Keine Freigabe,
-kein Verlauf (für Nicht-Prüfer). Startseite bleibt „Meine Belege“.
-Dateiname z. B. `Spesen_…_KreditkarteAnna.pdf`.
+**Export für eigene Kreditkarte:** In **Meine Belege** stehen bei allen
+mit eigener Kreditkarte (Haken beim Benutzer) die Knöpfe **„PDF
+Kreditkarte“ und „CSV“** — am Rechner oben rechts, am Handy als Zeile
+„Kreditkarte <Name>“. Exportiert werden die eigenen Belege, die mit dieser
+Karte bezahlt sind, mit Zeitraum und Filtern der Liste (Status, Konto,
+KST; die Suche nicht). Ohne Kartenbelege in der Auswahl keine Knöpfe.
+Dateiname z. B. `Spesen_…_KreditkarteAnna.pdf`. Ausgeschaltete eigene
+Karten zählen mit (ältere Belege).
+Erste Fassung mit eigenem Abschnitt „Meine Kreditkarte“ (eigene Übersicht)
+hat Oli verworfen — zeigt nur dasselbe nochmals.
 
 **PLs:** konnten das schon — Übersicht → Projektleitung zeigt die Belege
 ihrer KST mit PDF und CSV (RLS und Storage-Regel lassen sie die Dateien
