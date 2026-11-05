@@ -7,7 +7,7 @@ import { S, schluessel } from "../zustand";
 import {
   istBreit, chf, chfLang, langDatum, zeitCH, betragVon, statusName, zahlartName, istGesperrt,
   istEntschieden, positionenSumme, positionenFertig, ZAHLART, SAETZE,
-  kurzDatum, statusVon, statusKlasse, belegZeilen, OHNE_KST
+  kurzDatum, statusVon, statusKlasse, statusKlasseVon, belegZeilen, OHNE_KST
 } from "../grundlagen";
 import {
   personName, kannSelbstEntscheiden, kstZumSpeichern, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName,
@@ -540,7 +540,7 @@ function ApEintrag({ b, woher, an }: { b: any; woher: string; an: boolean }) {
   return (
     <button className={"ap-eintrag" + (an ? " an" : "")} data-akt="bearbeiten" data-id={b.id} data-w={woher}
             aria-current={an || undefined}>
-      <span className="punkt" style={{ background: STATUS_FARBE[statusKlasse(statusVon(b))] }} />
+      <span className="punkt" style={{ background: STATUS_FARBE[statusKlasseVon(b)] }} />
       <span className="mitte"><b>{belegKopf(b)}</b><span className="kn mu">{unten}</span></span>
       <span className="betragz kn">{chfLang(b.betrag)}</span>
     </button>);

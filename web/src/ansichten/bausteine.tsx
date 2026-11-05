@@ -38,7 +38,8 @@ const PFADE: Record<string, string> = {
   plus: "M11 5h2v14h-2zM5 11h14v2H5z",
   karte: "M2 5h20v14H2zm2 2v2h16V7zm0 5v5h16v-5zm2 2h5v1.5H6z",
   raute: "M9.5 3 8.7 8H4v2h4.4l-.7 4H3v2h4.4L6.6 21h2l.8-5h4l-.8 5h2l.8-5H20v-2h-4.4l.7-4H21V8h-4.4l.8-5h-2l-.8 5h-4l.8-5zm.6 7h4l-.7 4h-4z",
-  pfeilhoch: "M12 5l-6 6h4v8h4v-8h4z"
+  pfeilhoch: "M12 5l-6 6h4v8h4v-8h4z",
+  griff: "M9 4.5a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2m6 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2M9 10.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2m6 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2M9 16.3a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2m6 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2"
 };
 export const Ico = ({ n, s }: { n: string; s?: number }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"

@@ -58,6 +58,7 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
 - `src/stil.css` — Aussehen nach Vorbild „PDF Master" (16.10.2026), Basis Variante D.
 - `public/sw.js` — Service Worker, nur in der echten App angemeldet.
 - `src/export.ts` — PDF/CSV, unverändert aus `export.js`.
+- `src/ziehen.ts` — Reihenfolge per Ziehen (Konten), Pointer Events.
 - Eingabefelder sind ungesteuert (`defaultValue`) und werden über
   `key={schluessel(obj)}` neu aufgebaut, wenn das bearbeitete Objekt wechselt.
 - `web/.env.test` / `web/.env.live` — Supabase-URL und publishable Key je Fassung.

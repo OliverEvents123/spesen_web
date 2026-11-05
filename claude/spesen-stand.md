@@ -57,6 +57,20 @@ zugeordnet. Verlauf mit Namen des Admins. „Abbrechen“ verwirft.
 **SQL: `supabase/admin-anpassen.sql`** (RPC `beleg_admin_anpassen`) —
 setzt `user-zahlungen.sql` voraus. Lokal gegen Postgres geprüft.
 
+**Kleinere Anpassungen (05.11.2026):**
+- Konten: Reihenfolge per **Ziehen** am Griff links (Maus und Finger;
+  Tastatur: Pfeil hoch/runter auf dem Griff) statt ↑-Pfeil
+  (`web/src/ziehen.ts`, `kontenOrdnen`).
+- Benutzer: **Suchfeld** (Name, E-Mail, Rolle, KST/Konten, „gesperrt“ …).
+- Seitenleiste: „User-Zahlungen“ unter ALLE BELEGE nach „Freigabe“.
+- Benutzer: „Prüfung einrichten“ nur bei User und Projektleiter (Admin und
+  Supervisor prüfen selbst; beim Speichern wird sie für sie ausgeschaltet).
+  „Eigene Kreditkarte“ nicht bei Admin (eine schon eingeschaltete lässt
+  sich noch ausschalten).
+- Rechner: „Spesen erfassen“ heisst jetzt „Beleg erfassen“ wie am Handy.
+- Farben: „genehmigt“/„teilweise“ (User-Zahlung) blau wie „geprüft“;
+  grün ist nur noch „bezahlt“ (`statusKlasseVon`).
+
 ## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — LIVE seit 02.11.2026
 
 **Mehrseitige PDFs:** Ein PDF mit mehreren Seiten liess sich schon immer

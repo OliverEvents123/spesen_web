@@ -539,17 +539,18 @@ export async function kontoSpeichern(k) {
   return sb.from("spesen_konto").update(daten).eq("nummer", k.nummer);
 }
 
-// Konto in der Auswahl eins nach oben. Danach stehen alle Konten in
+// Neue Reihenfolge der Konten (Nummern von oben nach unten), gezogen in der
+// Verwaltung. Gleich anzeigen, dann speichern; danach stehen alle in
 // Zehnerschritten — nur geänderte werden geschrieben.
-export async function kontoHoch(nr) {
-  const liste = [...S.konten];
-  const i = liste.findIndex((k) => k.nummer === nr);
-  if (i <= 0) return null;
-  [liste[i - 1], liste[i]] = [liste[i], liste[i - 1]];
-  const auftraege = liste
-    .map((k, j) => ({ k, neu: (j + 1) * 10 }))
-    .filter(({ k, neu }) => k.sortierung !== neu)
-    .map(({ k, neu }) => sb.from("spesen_konto").update({ sortierung: neu }).eq("nummer", k.nummer));
+export async function kontenOrdnen(nummern: string[]) {
+  const liste = nummern.map((nr) => S.konten.find((k) => String(k.nummer) === String(nr))).filter(Boolean);
+  for (const k of S.konten) if (!liste.includes(k)) liste.push(k);
+  const vorher = new Map(S.konten.map((k) => [k.nummer, k.sortierung]));
+  S.konten = liste.map((k, j) => ({ ...k, sortierung: (j + 1) * 10 }));
+  render();
+  const auftraege = S.konten
+    .filter((k) => vorher.get(k.nummer) !== k.sortierung)
+    .map((k) => sb.from("spesen_konto").update({ sortierung: k.sortierung }).eq("nummer", k.nummer));
   const ergebnisse = await Promise.all(auftraege);
   await ladeKonten();
   return ergebnisse.find((r) => r.error)?.error || null;

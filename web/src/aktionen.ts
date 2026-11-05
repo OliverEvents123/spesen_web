@@ -13,7 +13,7 @@ import {
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
   ladeAlles, ladeKonten, ladeFavoriten, ladeFreigabe, ladeZuweisungen, ladeVerlauf,
-  ladeUebersicht, ladeBenutzer, benutzerRuf, zeitraumLaden, kontoHoch,
+  ladeUebersicht, ladeBenutzer, benutzerRuf, zeitraumLaden, kontenOrdnen,
   kontoSpeichern, favSpeichern, favLoeschen, favHoch, favAnwenden, favUebernehmen, belegBearbeiten,
   belegOeffnen, auftragObjekt, gruppiere, uGefiltert, uTitel, uDateiname, belegeFreigeben,
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
@@ -183,6 +183,11 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "benSichern") {
     const b  = S.benEdit;
     const pw = wert("bpw");
+    // Admin und Supervisor prüfen selbst — "Prüfung einrichten" gibt es für sie
+    // nicht. Ein Admin braucht keine eigene Kreditkarte (eine schon
+    // eingeschaltete lässt sich aber noch ausschalten).
+    if (b.rolle === "admin" || b.rolle === "supervisor") b.pruefung = false;
+    if (b.rolle === "admin" && !b.eigeneKarteAlt) b.eigeneKarte = false;
     // Für die eigene Kreditkarte: wem sie gehört und wie sie heisst
     const karteMail = b.neu ? wert("bmail").trim().toLowerCase() : b.email;
     const karteName = wert("bname").trim() || kurzName(karteMail);
@@ -318,11 +323,6 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "kontoMwst") { S.kontEdit.mwst = d.v; return render(); }
 
-  if (a === "kontoHoch") {
-    const fehler = await kontoHoch(d.nr);
-    if (fehler) alert(istNetzfehler(fehler) ? NETZTEXT : "Reihenfolge nicht gespeichert:\n" + fehler.message);
-    return render();
-  }
 
   if (a === "kontoSichern") {
     const k = S.kontEdit;
@@ -1184,6 +1184,7 @@ export function eingabe(ziel: HTMLInputElement) {
 
   if (f === "suche")   { S.suche = ziel.value; return render(); }
   if (f === "bsuche")  { S.bSuche = ziel.value; return render(); }
+  if (f === "bensuche") { S.benSuche = ziel.value; return render(); }
   if (f === "zoom")    { S.zoom = Number(ziel.value) || 100; return render(); }
   if (f === "kommentar" && S.neu)  { S.neu.kommentar = ziel.value; return; }
   if (f === "korrBetrag" && S.neu) { S.neu.korrBetrag = ziel.value; return render(); }
@@ -1196,4 +1197,12 @@ export function eingabe(ziel: HTMLInputElement) {
   if (f === "gname" && S.geraetEdit) { S.geraetEdit.name       = ziel.value; return; }
   if (f === "gkst"  && S.geraetEdit) { S.geraetEdit.auftrag_nr = ziel.value; return; }
   if (f === "ksort"   && S.kontEdit) { S.kontEdit.sortierung  = ziel.value; return; }
+}
+
+// ---------- Reihenfolge per Ziehen (ziehen.ts) ----------
+export async function gezogen(liste: string, reihenfolge: string[]) {
+  if (liste !== "konten") return;
+  const fehler = await kontenOrdnen(reihenfolge);
+  if (fehler) alert(istNetzfehler(fehler) ? NETZTEXT : "Reihenfolge nicht gespeichert:\n" + fehler.message);
+  render();
 }
