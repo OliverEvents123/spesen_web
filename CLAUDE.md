@@ -53,7 +53,8 @@ Die alte Fassung in reinem JavaScript ist entfernt. Rückweg: Commit `85fe211`.
   Übersicht), `erfassen` (Erfassen, Ansehen/Prüfen, am Rechner der
   Arbeitsplatz Liste | Beleg | Angaben inkl. Freigabe), `profil` (Profil,
   Passwort, Favoriten, Freigabe), `verwaltung` (Benutzer inkl. Zuweisungen,
-  Konten, Geräte, Kostenstellen-Auswahl), `login`.
+  Konten, Geräte, Kostenstellen-Auswahl), `zahlungen` (Admin: User-Zahlungen
+  zurückbezahlen), `login`.
 - `src/stil.css` — Aussehen nach Vorbild „PDF Master" (16.10.2026), Basis Variante D.
 - `public/sw.js` — Service Worker, nur in der echten App angemeldet.
 - `src/export.ts` — PDF/CSV, unverändert aus `export.js`.

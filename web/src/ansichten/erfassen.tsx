@@ -11,7 +11,8 @@ import {
 } from "../grundlagen";
 import {
   personName, kannSelbstEntscheiden, kstZumSpeichern, geraeteFuer, geraetGewaehlt, geraetFehlt, geraetName,
-  freigabeIm, freigabeGefiltert, darfFreigabeFiltern, imBereich, kontoName, BEREICH_NAME
+  freigabeIm, freigabeGefiltert, darfFreigabeFiltern, imBereich, kontoName, BEREICH_NAME,
+  zahlartText, zahlartWahl
 } from "../daten";
 import { apListe } from "../aktionen";
 import { Seite } from "./rahmen";
@@ -196,9 +197,9 @@ export function Erfassen() {
   const rest = <>
     <div><span className="lab">Bezahlt mit</span>
       <div className="seg">
-        {Object.entries(ZAHLART).map(([w, t]) =>
+        {Object.keys(ZAHLART).map((w) =>
           <button key={w} className={n.zahlart === w ? "an" : ""} data-akt="zahlart" data-v={w}
-                  aria-pressed={n.zahlart === w}>{t}</button>)}
+                  aria-pressed={n.zahlart === w}>{zahlartWahl(w, n.geraet)}</button>)}
       </div></div>
     <GeraetWahl n={n} />
     <div className="feld"><label htmlFor="datum">Belegdatum</label>
@@ -363,7 +364,8 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
             {!geteilt && <Zeile titel="MwSt"><span className="mono">{n.mwst} %</span></Zeile>}
             <Zeile titel="Belegdatum"><span className="mono">{langDatum(n.datum)}</span></Zeile>
           </>}
-        <Zeile titel="Bezahlt mit">{zahlartName(n.zahlart)}</Zeile>
+        <Zeile titel="Bezahlt mit">{zahlartText(n.zahlart, n.geraet)}</Zeile>
+        {n.bezahltAm && <Zeile titel="Zurückbezahlt">am {langDatum(n.bezahltAm)}</Zeile>}
         {n.zahlgeraet != null && <Zeile titel="Gerät">{geraetName(n.zahlgeraet)}</Zeile>}
         {n.kommentar && <Zeile titel="Kommentar">{n.kommentar}</Zeile>}
         {n.geraet && n.geraet !== S.session.user.email && <Zeile titel="Erfasst von">{personName(n.geraet)}</Zeile>}
@@ -480,7 +482,7 @@ const STATUS_FARBE: Record<string, string> = { erf: "#9ba1bb", ein: "#e8590c", g
 
 function ApEintrag({ b, woher, an }: { b: any; woher: string; an: boolean }) {
   const unten = woher === "liste"
-    ? `${kurzDatum(b.beleg_datum)} · ${zahlartName(b.zahlart)}`
+    ? `${kurzDatum(b.beleg_datum)} · ${zahlartText(b.zahlart, b.geraet)}`
     : `${personName(b.geraet)} · ${kurzDatum(b.beleg_datum)}`;
   return (
     <button className={"ap-eintrag" + (an ? " an" : "")} data-akt="bearbeiten" data-id={b.id} data-w={woher}

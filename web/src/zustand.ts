@@ -57,6 +57,10 @@ export const S: any = {
   istPruefer: false, freigabe: [], zuweisungen: [], zuweisungenKonto: [], verlauf: [],
   // Am Rechner klappt die Auswahl für Konto/KST direkt unter dem Feld auf: { art, i }
   wahlOffen: null,
+  // User-Zahlungen zurückbezahlen (Admin): alle User-Zahlungen, ob die Spalte
+  // bezahlt_am da ist (user-zahlungen.sql), Reiter (offen, pruefung, bezahlt),
+  // angehakte Belege (ids) und der Zahltag
+  zahlungen: [], zahlungenDa: true, zReiter: "offen", zAuswahl: [] as string[], zDatum: "",
   // Knopf, der gerade arbeitet: { akt, text } — zeigt z. B. "Speichere …"
   laeuft: null
 };

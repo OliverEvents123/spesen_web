@@ -14,7 +14,7 @@ import {
 import {
   uGefiltert, gruppiere, uTitel, eigeneErfasste, istErledigt, personName, kontoName,
   meineGefiltert, istMeinOffen, istMeinErledigt, freigabeIm, bereiche, imBereich,
-  meineKarten, kartenBelege, kartenName
+  meineKarten, kartenBelege, kartenName, meinName
 } from "../daten";
 import { Seite } from "./rahmen";
 import {
@@ -107,6 +107,7 @@ function MeineReiter() {
   const uzGesamt = uz.reduce((t, b) => t + parseFloat(b.betrag), 0);
   const uzGenehmigt = uz.filter((b) => ["genehmigt", "teilweise"].includes(statusVon(b)))
                         .reduce((t, b) => t + buchungsBetrag(b), 0);
+  const uzBezahlt = uz.filter((b) => b.bezahlt_am).reduce((t, b) => t + buchungsBetrag(b), 0);
   const reiter = [
     { v: "", lab: "Alle", n: basis.length },
     { v: "offenePunkte", lab: "Offene Punkte", n: basis.filter(istMeinOffen).length },
@@ -115,7 +116,8 @@ function MeineReiter() {
   const summeText = <>
     <b>CHF {chfLang(summe(liste))}</b>
     <span className="kn mu">{anzahlText(liste.length)}
-      {uz.length > 0 && <> · User-Zahlungen {chfLang(uzGesamt)}, genehmigt {chfLang(uzGenehmigt)}</>}</span>
+      {uz.length > 0 && <> · bezahlt von {meinName()} {chfLang(uzGesamt)}, genehmigt {chfLang(uzGenehmigt)}
+        {uzBezahlt > 0 && <>, zurückbezahlt {chfLang(uzBezahlt)}</>}</>}</span>
   </>;
   if (istBreit()) return <Reiterleiste f="mStatus" reiter={reiter} rechts={summeText} />;
   return <>
@@ -129,7 +131,7 @@ function listenTitel() {
   if (S.mStatus === "offenePunkte") return "Offene Punkte";
   if (S.mStatus === "erledigt") return "Erledigte Belege";
   if (S.mStatus === "offen") return "Erfasst, nicht freigegeben";
-  if (S.mZahlart === "vorkasse") return "User-Zahlungen";
+  if (S.mZahlart === "vorkasse") return "Bezahlt von " + meinName();
   return "Belege der Periode";
 }
 

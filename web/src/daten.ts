@@ -84,7 +84,8 @@ export async function ladeAlles() {
   // Fehlt die Funktion (Datenbank ohne Etappe 2), bleibt alles wie bisher.
   const pr = await sb.rpc("ist_pruefer");
   S.istPruefer = !pr.error && pr.data === true;
-  if (S.istPruefer) await Promise.all([ladeFreigabe(), ladeVerlauf(), ladeEigeneZuweisungen()]);
+  if (S.istPruefer) await Promise.all([ladeFreigabe(), ladeVerlauf(), ladeEigeneZuweisungen(),
+                                       ...(S.istAdmin ? [ladeZahlungen()] : [])]);
 
   // Auftragsnummern kommen aus FileMaker und werden nur einmal je Sitzung geholt
   if (!S.auftraege.length) S.auftraege = await ladeAuftraege();
@@ -224,6 +225,18 @@ export const personName = (mail: string) => {
   return (b && b.name) || kurzName(mail);
 };
 
+// ---------- "User-Zahlung" mit Namen ----------
+// Bei den eigenen Belegen steht statt "User-Zahlung" der eigene Name — beim
+// Erfassen also Kreditkarte / Bar / Oliver Muster. Bei fremden Belegen
+// (Übersicht, Freigabe, Export) bleibt es "User-Zahlung".
+export const meinName = () => S.ich.name || personName(S.session.user.email);
+const istMeiner = (wer?: string) => !wer || wer === S.session.user.email;
+export const zahlartText = (z: string, wer?: string) =>
+  (z || "karte") === "vorkasse" && istMeiner(wer) ? meinName() : zahlartName(z);
+// Auswahl beim Erfassen: der Name der Person, der der Beleg gehört
+export const zahlartWahl = (z: string, wer?: string) =>
+  z !== "vorkasse" ? zahlartName(z) : istMeiner(wer) ? meinName() : personName(wer);
+
 // Eine Zeile im Verlauf: Farbe, was geschah (titel), welcher Beleg (beleg,
 // betrag), wer und wann. beleg ist null, wenn er nicht mehr zu finden ist.
 export function verlaufEintrag(v: any) {
@@ -243,6 +256,9 @@ export function verlaufEintrag(v: any) {
     titel = titel[0].toUpperCase() + titel.slice(1);
     if (s === "teilweise" && wert("genehmigt_betrag") != null) titel += " · " + chfLang(wert("genehmigt_betrag"));
     farbe = statusKlasse(s);
+  } else if (d.bezahlt_am) {
+    titel = d.bezahlt_am.neu ? "Zurückbezahlt · " + langDatum(d.bezahlt_am.neu) : "Zahlung zurückgenommen";
+    farbe = d.bezahlt_am.neu ? "gen" : "erf";
   } else if (d.konto_nummer || d.auftrag_nr) {
     titel = "Umkontiert" + (d.auftrag_nr ? ` · KST ${auftragAnzeige(d.auftrag_nr.alt)} → ${auftragAnzeige(d.auftrag_nr.neu)}` : "");
   }
@@ -349,6 +365,40 @@ export const umkontieren = (id, konto, auftrag) =>
   sb.rpc("beleg_umkontieren", { p_id: id, p_konto: konto, p_auftrag: auftrag });
 export const zuruecksetzen = (id, ziel) =>
   sb.rpc("beleg_zuruecksetzen", { p_id: id, p_ziel: ziel });
+
+// ---------- User-Zahlungen zurückbezahlen (nur Admin) ----------
+// Alle User-Zahlungen ausser abgelehnten, unabhängig vom Zeitraum: die noch
+// in Prüfung, die genehmigten noch nicht bezahlten und die bezahlten der
+// letzten 12 Monate. Fehlt die Spalte bezahlt_am (ohne user-zahlungen.sql),
+// gibt es die Liste ohne "bezahlt".
+export const zuBezahlen = (b: any) => ["genehmigt", "teilweise"].includes(statusVon(b)) && !b.bezahlt_am;
+export const zahlungInPruefung = (b: any) => ["offen", "eingereicht", "besprechung"].includes(statusVon(b));
+
+export async function ladeZahlungen() {
+  const seit = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
+  const abfrage = () => sb.from("spesen_beleg").select("*").eq("zahlart", "vorkasse").neq("status", "abgelehnt");
+  let r: any = await abfrage().or(`bezahlt_am.is.null,bezahlt_am.gte.${seit}`)
+    .order("beleg_datum", { ascending: true }).order("id", { ascending: true });
+  S.zahlungenDa = !r.error;
+  if (r.error) r = await abfrage().order("beleg_datum", { ascending: true }).order("id", { ascending: true });
+  S.zahlungen = r.data || [];
+  // Angehakt bleibt nur, was noch zu bezahlen ist
+  S.zAuswahl = S.zAuswahl.filter((id) => S.zahlungen.some((b) => String(b.id) === id && zuBezahlen(b)));
+}
+
+// Als bezahlt markieren (datum) oder zurücknehmen (datum null). Gibt die
+// Anzahl der wirklich geänderten Belege zurück.
+export const belegeBezahlt = (ids: (string | number)[], datum: string | null) =>
+  sb.rpc("belege_bezahlt", { p_ids: ids.map(Number), p_datum: datum });
+
+// Nach Person zusammenfassen: [{ person, belege, summe }], nach Namen sortiert
+export function nachPerson(liste: any[]) {
+  const m = new Map<string, any[]>();
+  for (const b of liste) { if (!m.has(b.geraet)) m.set(b.geraet, []); m.get(b.geraet).push(b); }
+  return [...m.entries()]
+    .map(([person, belege]) => ({ person, belege, summe: belege.reduce((t, b) => t + buchungsBetrag(b), 0) }))
+    .sort((a, b) => personName(a.person).localeCompare(personName(b.person), "de"));
+}
 
 // ---------- Zuweisungen (nur Admin) ----------
 export async function ladeZuweisungen() {
@@ -816,6 +866,7 @@ export async function belegBearbeiten(id, woher) {
     status: statusVon(b), eingereichtAm: b.eingereicht_am || null, geraet: b.geraet,
     zahlartDb: b.zahlart || "karte", betragDb: b.betrag,
     genehmigtBetrag: b.genehmigt_betrag, entscheidGrund: b.entscheid_grund || "",
+    bezahltAm: b.bezahlt_am || null,
     entscheidVon: b.entscheid_von || "", entscheidAm: b.entscheid_am || null,
     // Prüfen: aus der Freigabeliste geöffnet und noch offen für einen Entscheid
     pruefen: woher === "freigabe" && statusVon(b) === "eingereicht",
@@ -878,6 +929,10 @@ export async function zurueckNachSpeichern(text) {
   S.meldung = text;
   S.laeuft = null;
   const woher = ["liste", "uebersicht", "freigabe"].includes(S.zurueckZu) ? S.zurueckZu : "liste";
+  // Am Rechner aus der Übersicht geöffnet: Wo stand der Beleg in der Liste links?
+  const offenId = S.neu && S.neu.id;
+  const ausUebersicht = woher === "uebersicht" && istBreit() && offenId != null;
+  const platz = ausUebersicht ? uGefiltert().findIndex((b) => String(b.id) === String(offenId)) : -1;
   S.neu = null; S.posIndex = null; S.wahlOffen = null;
   S.ansicht = woher;
   await ladeAlles();
@@ -886,6 +941,15 @@ export async function zurueckNachSpeichern(text) {
   if (woher === "freigabe" && istBreit() && freigabeGefiltert().length) {
     await belegBearbeiten(freigabeGefiltert()[0].id, "freigabe");
     S.meldung = text;
+  }
+  // Aus der Übersicht: im Arbeitsplatz bleiben — derselbe Beleg wieder
+  // offen (z. B. nach dem Zurücksetzen), ist er weg (gelöscht, aus dem
+  // Filter gefallen), der an seiner Stelle
+  if (ausUebersicht) {
+    const liste = uGefiltert();
+    const ziel = liste.find((b) => String(b.id) === String(offenId))
+              || (platz >= 0 && liste.length ? liste[Math.min(platz, liste.length - 1)] : null);
+    if (ziel) { await belegBearbeiten(ziel.id, "uebersicht"); S.meldung = text; }
   }
   render();
 }

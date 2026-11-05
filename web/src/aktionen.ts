@@ -7,7 +7,8 @@
 import { S, sb, render, laeuft } from "./zustand";
 import {
   NETZTEXT, GESPERRT_TEXT, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
-  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN, kurzName
+  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN, kurzName,
+  heute, chfLang, langDatum
 } from "./grundlagen";
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
@@ -21,7 +22,8 @@ import {
   standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
   kstZumSpeichern, eigeneKarte, eigeneKarteSetzen,
-  zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname
+  zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname,
+  ladeZahlungen, zuBezahlen, belegeBezahlt
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -387,6 +389,42 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   // ---------- Admin: Geräte ----------
+  // User-Zahlungen zurückbezahlen (Admin)
+  if (a === "tabZahlungen") {
+    wechsel("zahlungen");
+    render();
+    await ladeZahlungen();
+    return render();
+  }
+  if (a === "zAlle") {
+    S.zAuswahl = d.v === "1" ? S.zahlungen.filter(zuBezahlen).map((b) => String(b.id)) : [];
+    return render();
+  }
+  if (a === "zBezahlt") {
+    const liste = S.zahlungen.filter((b) => zuBezahlen(b) && S.zAuswahl.includes(String(b.id)));
+    if (!liste.length) return;
+    const datum = S.zDatum || heute();
+    const total = liste.reduce((t, b) => t + buchungsBetrag(b), 0);
+    if (!confirm(`${liste.length === 1 ? "1 Beleg" : liste.length + " Belege"} über CHF ${chfLang(total)} `
+                 + `als bezahlt am ${langDatum(datum)} markieren?`)) return;
+    laeuft(a, "Speichere …");
+    const { data, error } = await belegeBezahlt(liste.map((b) => b.id), datum);
+    S.laeuft = null;
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : "Hat nicht geklappt:\n" + error.message); return render(); }
+    S.meldung = `${data === 1 ? "1 Beleg" : (data ?? liste.length) + " Belege"} als bezahlt am ${langDatum(datum)} markiert.`;
+    S.zAuswahl = [];
+    await ladeZahlungen();
+    return render();
+  }
+  if (a === "zZurueck") {
+    if (!confirm("Zahlung zurücknehmen? Der Beleg steht dann wieder unter „Zu bezahlen“.")) return;
+    const { error } = await belegeBezahlt([d.id], null);
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : "Hat nicht geklappt:\n" + error.message); return; }
+    S.meldung = "Zahlung zurückgenommen.";
+    await ladeZahlungen();
+    return render();
+  }
+
   if (a === "tabGeraete") {
     wechsel("geraete");
     if (istBreit()) S.geraetEdit = leeresGeraet();
@@ -1035,6 +1073,15 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
   if (f === "beigenekarte" && S.benEdit) { S.benEdit.eigeneKarte = ziel.checked; return; }
   if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
+  // User-Zahlungen: anhaken (einzeln, je Person), Zahltag
+  if (f === "zwahl" || f === "zwahlp") {
+    const ids = f === "zwahl" ? [String(ziel.dataset.id)]
+      : S.zahlungen.filter((b) => zuBezahlen(b) && b.geraet === ziel.dataset.p).map((b) => String(b.id));
+    S.zAuswahl = S.zAuswahl.filter((id) => !ids.includes(id));
+    if (ziel.checked) S.zAuswahl.push(...ids);
+    return render();
+  }
+  if (f === "zdatum") { S.zDatum = ziel.value || heute(); return render(); }
 
   // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.
   if (f === "uvon") {

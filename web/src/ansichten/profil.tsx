@@ -4,7 +4,7 @@
 
 import { S, schluessel } from "../zustand";
 import { istBreit, chf, chfLang, auftragAnzeige, kurzZeit, initialen } from "../grundlagen";
-import { personName, freigabeGefiltert, darfFreigabeFiltern } from "../daten";
+import { personName, freigabeGefiltert, darfFreigabeFiltern, zuBezahlen } from "../daten";
 import { FreigabePlatz, FreigabeFilter } from "./erfassen";
 import { Seite } from "./rahmen";
 import {
@@ -34,6 +34,8 @@ export function Profil() {
       {S.istAdmin && <>
         <span className="kl" style={{ marginBottom: -6 }}>Verwaltung</span>
         <section className="karte huelle">
+          <Eintrag akt="tabZahlungen" ic="geld" titel="User-Zahlungen"
+                   sub={`${S.zahlungen.filter(zuBezahlen).length} zu bezahlen · zurückbezahlt abhaken`} />
           <Eintrag akt="tabBenutzer" ic="leute" titel="Benutzer" sub="Rollen, Prüfung, Kostenstellen" />
           <Eintrag akt="tabKonten" ic="liste" titel="Konten" sub={`${S.konten.length} Konten`} />
           <Eintrag akt="tabGeraete" ic="karte" titel="Geräte" sub={`${S.zahlgeraete.length} Geräte · je KST`} />

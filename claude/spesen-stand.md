@@ -1,6 +1,40 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 02.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 05.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Arbeitsplatz bleibt offen, Name statt „User-Zahlung“, User-Zahlungen zurückbezahlen (05.11.2026) — Arbeitsbranch, noch nicht live
+
+**Arbeitsplatz bleibt offen:** Am Rechner einen Beleg aus der Übersicht
+öffnen und etwas tun (zurücksetzen, umkontieren, speichern, löschen …):
+man bleibt im Arbeitsplatz (Liste links, Beleg, Angaben rechts). Derselbe
+Beleg bleibt offen; ist er weg (gelöscht, aus dem Filter gefallen), der an
+seiner Stelle. Freigabe wie bisher (nächster zum Prüfen). Meine Belege
+unverändert.
+
+**Name statt „User-Zahlung“:** Bei den eigenen Belegen heisst die
+Zahlungsart wie die Person — beim Erfassen „Kreditkarte / Bar / Oliver
+Muster“ (ändert ein Admin einen fremden Beleg: der Name des Erfassers), in
+Meine Belege (Liste, Filter, Summe „bezahlt von …“) und in der Ansicht
+eines eigenen Belegs. Übersicht, Freigabe, Kontierung und Export bleiben
+bei „User-Zahlung“.
+
+**User-Zahlungen zurückbezahlen (Admin):** Administration → **User-Zahlungen**
+(Handy: Profil → Verwaltung), mit Zahl der offenen in der Seitenleiste.
+Unabhängig vom Zeitraum. Reiter:
+- *Zu bezahlen* — genehmigte (auch teilweise), noch nicht bezahlte, je
+  Person mit Summe (= Betrag der Überweisung). Anhaken einzeln, je Person
+  oder alle, Datum „Bezahlt am“ (heute vorgewählt), „Als bezahlt markieren“.
+- *In Prüfung* — erfasst, eingereicht, zur Besprechung.
+- *Bezahlt* — je Zahltag (letzte 12 Monate), je Person; „Zurücknehmen“ je Beleg.
+Der Beleg zeigt danach überall „bezahlt“ (Marke), die Ansicht
+„Zurückbezahlt am …“; Meine Belege summiert „zurückbezahlt“. Bezahlte
+lassen sich nicht zurücksetzen, bis die Zahlung zurückgenommen ist.
+**SQL: `supabase/user-zahlungen.sql`** — erst Test, dann Live. Ohne die
+Datei zeigt die Seite nur die Listen mit Hinweis. Lokal gegen Postgres
+(schema.sql + live-gang.sql) zweimal ausgeführt und Rechte geprüft.
+Achtung beim ersten Mal: alle früher genehmigten User-Zahlungen stehen
+unter „Zu bezahlen“ — die schon bezahlten mit „Alle anhaken“ auf einmal
+abhaken. Später: Bankdatei (pain.001) statt von Hand.
 
 ## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — LIVE seit 02.11.2026
 

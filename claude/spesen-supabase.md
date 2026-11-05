@@ -373,3 +373,18 @@ gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
   Dann ist `auftrag_nr` leer (Check `spesen_zahlgeraet_zuordnung`: KST oder
   Person). Angelegt und ein-/ausgeschaltet beim Benutzer („Eigene Kreditkarte“).
 - Die App fragt die Spalte gezielt ab; fehlt sie, gibt es keine eigenen Karten.
+
+## User-Zahlungen zurückbezahlen 05.11.2026 (`user-zahlungen.sql`)
+
+- `spesen_beleg.bezahlt_am date`, `spesen_beleg.bezahlt_von text` — wann und
+  von welchem Admin eine genehmigte User-Zahlung der Person zurückbezahlt
+  wurde. Index `spesen_beleg_vorkasse_idx`.
+- Trigger `beleg_bezahlt_schutz_trigger` (vor insert/update): direkt aus der
+  App (Rolle authenticated/anon) bleiben die zwei Spalten unverändert bzw.
+  leer — auch der Erfasser kann sie nicht setzen.
+- RPC `belege_bezahlt(p_ids bigint[], p_datum date) → integer`: nur Admin.
+  Mit Datum: markiert genehmigte/teilweise User-Zahlungen, die noch nicht
+  bezahlt sind. Mit null: nimmt die Zahlung zurück. Gibt die Anzahl
+  geänderter Belege zurück. Der Verlauf protokolliert es als „geändert“
+  mit `bezahlt_am` (App zeigt „Zurückbezahlt · Datum“).
+- `beleg_zuruecksetzen` verweigert bezahlte Belege (zuerst Zahlung zurücknehmen).

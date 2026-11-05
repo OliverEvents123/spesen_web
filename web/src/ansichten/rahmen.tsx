@@ -5,7 +5,7 @@
 import { S } from "../zustand";
 import { istBreit, initialen } from "../grundlagen";
 import { Ico, Meldung, eigenerName, eigeneRolle } from "./bausteine";
-import { bereiche, freigabeIm, BEREICH_NAME } from "../daten";
+import { bereiche, freigabeIm, BEREICH_NAME, zuBezahlen } from "../daten";
 
 // Welche Hauptseite ist gerade "an"? Unterseiten zählen zu ihrer Hauptseite.
 function aktiv() {
@@ -80,6 +80,7 @@ function Leiste() {
         {S.istAdmin &&
           <div className="abschnitt">
             <div className="gr">ADMINISTRATION</div>
+            {n("zahlungen", "tabZahlungen", "User-Zahlungen", "geld", S.zahlungen.filter(zuBezahlen).length)}
             {n("benutzer", "tabBenutzer", "Benutzer", "leute")}
             {n("konten", "tabKonten", "Konten", "liste")}
             {n("geraete", "tabGeraete", "Geräte", "karte")}
