@@ -377,8 +377,19 @@ export const adminAnpassen = (id, daten) =>
 export const zuBezahlen = (b: any) => ["genehmigt", "teilweise"].includes(statusVon(b)) && !b.bezahlt_am;
 export const zahlungInPruefung = (b: any) => ["offen", "eingereicht", "besprechung"].includes(statusVon(b));
 
+// Filter der Seite: Person und Zeitraum. Bei "Bezahlt" zählt der Zahltag,
+// sonst das Belegdatum.
+export const zahlungPasst = (b: any, nachZahltag?: boolean) => {
+  const tag = nachZahltag ? b.bezahlt_am : b.beleg_datum;
+  return (!S.zPerson || b.geraet === S.zPerson)
+      && (!S.zVon || (!!tag && tag >= S.zVon)) && (!S.zBis || (!!tag && tag <= S.zBis));
+};
+
 export async function ladeZahlungen() {
-  const seit = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
+  // Bezahlte: die letzten 12 Monate — oder ab "von", wenn das früher liegt
+  const jahr = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
+  const seit = S.zVon && S.zVon < jahr ? S.zVon : jahr;
+  S.zSeit = seit;
   const abfrage = () => sb.from("spesen_beleg").select("*").eq("zahlart", "vorkasse").neq("status", "abgelehnt");
   let r: any = await abfrage().or(`bezahlt_am.is.null,bezahlt_am.gte.${seit}`)
     .order("beleg_datum", { ascending: true }).order("id", { ascending: true });

@@ -63,6 +63,9 @@ export const S: any = {
   // Benutzerverwaltung: Suchfeld
   benSuche: "",
   zahlungen: [], zahlungenDa: true, zReiter: "offen", zAuswahl: [] as string[], zDatum: "",
+  // … und ihre Filter: Person, Zeitraum (bei "Bezahlt" der Zahltag, sonst das
+  // Belegdatum). zSeit: ab welchem Zahltag die bezahlten geladen sind.
+  zPerson: "", zVon: "", zBis: "", zSeit: "",
   // Knopf, der gerade arbeitet: { akt, text } — zeigt z. B. "Speichere …"
   laeuft: null
 };

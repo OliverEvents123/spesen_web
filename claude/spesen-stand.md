@@ -26,6 +26,10 @@ Unabhängig vom Zeitraum. Reiter:
   oder alle, Datum „Bezahlt am“ (heute vorgewählt), „Als bezahlt markieren“.
 - *In Prüfung* — erfasst, eingereicht, zur Besprechung.
 - *Bezahlt* — je Zahltag (letzte 12 Monate), je Person; „Zurücknehmen“ je Beleg.
+- **Filter** (alle Reiter): Person, von/bis — bei „Bezahlt“ nach Zahltag
+  (dazu Auswahl „Zahltag“ mit Summe je Tag), sonst nach Belegdatum. Liegt
+  „von“ vor den letzten 12 Monaten, werden ältere Zahlungen nachgeladen.
+  „Alle anhaken“ und „Als bezahlt markieren“ nehmen nur, was der Filter zeigt.
 Der Beleg zeigt danach überall „bezahlt“ (Marke), die Ansicht
 „Zurückbezahlt am …“; Meine Belege summiert „zurückbezahlt“. Bezahlte
 lassen sich nicht zurücksetzen, bis die Zahlung zurückgenommen ist.

@@ -23,7 +23,7 @@ import {
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
   kstZumSpeichern, eigeneKarte, eigeneKarteSetzen,
   zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname,
-  ladeZahlungen, zuBezahlen, belegeBezahlt, adminAnpassen
+  ladeZahlungen, zuBezahlen, zahlungPasst, belegeBezahlt, adminAnpassen
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -397,11 +397,13 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     return render();
   }
   if (a === "zAlle") {
-    S.zAuswahl = d.v === "1" ? S.zahlungen.filter(zuBezahlen).map((b) => String(b.id)) : [];
+    // Nur, was der Filter gerade zeigt
+    S.zAuswahl = d.v === "1" ? S.zahlungen.filter((b) => zuBezahlen(b) && zahlungPasst(b)).map((b) => String(b.id)) : [];
     return render();
   }
   if (a === "zBezahlt") {
-    const liste = S.zahlungen.filter((b) => zuBezahlen(b) && S.zAuswahl.includes(String(b.id)));
+    // Nur angehakte, die der Filter gerade zeigt
+    const liste = S.zahlungen.filter((b) => zuBezahlen(b) && zahlungPasst(b) && S.zAuswahl.includes(String(b.id)));
     if (!liste.length) return;
     const datum = S.zDatum || heute();
     const total = liste.reduce((t, b) => t + buchungsBetrag(b), 0);
@@ -416,6 +418,7 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
     await ladeZahlungen();
     return render();
   }
+  if (a === "zFilterWeg") { S.zPerson = ""; S.zVon = ""; S.zBis = ""; return render(); }
   if (a === "zZurueck") {
     if (!confirm("Zahlung zurücknehmen? Der Beleg steht dann wieder unter „Zu bezahlen“.")) return;
     const { error } = await belegeBezahlt([d.id], null);
@@ -1112,12 +1115,22 @@ export function aenderung(ziel: HTMLInputElement) {
   // User-Zahlungen: anhaken (einzeln, je Person), Zahltag
   if (f === "zwahl" || f === "zwahlp") {
     const ids = f === "zwahl" ? [String(ziel.dataset.id)]
-      : S.zahlungen.filter((b) => zuBezahlen(b) && b.geraet === ziel.dataset.p).map((b) => String(b.id));
+      : S.zahlungen.filter((b) => zuBezahlen(b) && zahlungPasst(b) && b.geraet === ziel.dataset.p).map((b) => String(b.id));
     S.zAuswahl = S.zAuswahl.filter((id) => !ids.includes(id));
     if (ziel.checked) S.zAuswahl.push(...ids);
     return render();
   }
   if (f === "zdatum") { S.zDatum = ziel.value || heute(); return render(); }
+  // User-Zahlungen filtern: Person, Zahltag (= von und bis), Zeitraum.
+  // Liegt "von" vor den geladenen Zahlungen, die älteren nachholen.
+  if (f === "zperson") { S.zPerson = ziel.value; return render(); }
+  if (f === "zzahltag") { S.zVon = ziel.value; S.zBis = ziel.value; return render(); }
+  if (f === "zvon" || f === "zbis") {
+    if (f === "zvon") S.zVon = ziel.value; else S.zBis = ziel.value;
+    render();
+    if (f === "zvon" && S.zVon && S.zSeit && S.zVon < S.zSeit) ladeZahlungen().then(render);
+    return;
+  }
   // Adminanpassung: jedes Gerät
   if (f === "zahlgeraetAdmin" && S.neu) { S.neu.zahlgeraet = ziel.value ? Number(ziel.value) : null; return render(); }
 
