@@ -373,3 +373,31 @@ gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
   Dann ist `auftrag_nr` leer (Check `spesen_zahlgeraet_zuordnung`: KST oder
   Person). Angelegt und ein-/ausgeschaltet beim Benutzer („Eigene Kreditkarte“).
 - Die App fragt die Spalte gezielt ab; fehlt sie, gibt es keine eigenen Karten.
+
+## User-Zahlungen zurückbezahlen 05.11.2026 (`user-zahlungen.sql`)
+
+- `spesen_beleg.bezahlt_am date`, `spesen_beleg.bezahlt_von text` — wann und
+  von welchem Admin eine genehmigte User-Zahlung der Person zurückbezahlt
+  wurde. Index `spesen_beleg_vorkasse_idx`.
+- Trigger `beleg_bezahlt_schutz_trigger` (vor insert/update): direkt aus der
+  App (Rolle authenticated/anon) bleiben die zwei Spalten unverändert bzw.
+  leer — auch der Erfasser kann sie nicht setzen.
+- RPC `belege_bezahlt(p_ids bigint[], p_datum date) → integer`: nur Admin.
+  Mit Datum: markiert genehmigte/teilweise User-Zahlungen, die noch nicht
+  bezahlt sind. Mit null: nimmt die Zahlung zurück. Gibt die Anzahl
+  geänderter Belege zurück. Der Verlauf protokolliert es als „geändert“
+  mit `bezahlt_am` (App zeigt „Zurückbezahlt · Datum“).
+- `beleg_zuruecksetzen` verweigert bezahlte Belege (zuerst Zahlung zurücknehmen).
+
+## Adminanpassungen 05.11.2026 (`admin-anpassen.sql`)
+
+- RPC `beleg_admin_anpassen(p_id bigint, p_daten jsonb)`: nur Admin. Setzt
+  bei einem beliebigen Beleg `beleg_datum`, `monat`, `betrag`, `mwst`,
+  `konto_nummer`, `auftrag_nr`, `positionen` (nur bei > 1), `zahlart`,
+  `zahlgeraet_id` (nur Kreditkarte, jedes Gerät), `kommentar`. Status bleibt —
+  ausser „geprüft“ ↔ „genehmigt“ beim Wechsel auf/von User-Zahlung;
+  `genehmigt_betrag` folgt dem Betrag (teilweise: höchstens er).
+  Bezahlte User-Zahlung: Betrag und Zahlungsart gesperrt. Läuft als
+  Definer — `beleg_regeln` ordnet eingereichte Belege bei neuer KST/Konto
+  neu zu wie beim Umkontieren.
+

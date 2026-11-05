@@ -1,6 +1,84 @@
 # Spesen-App — Stand
 
-**Zuletzt aktualisiert: 02.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+**Zuletzt aktualisiert: 05.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
+
+## Arbeitsplatz bleibt offen, Name statt „User-Zahlung“, User-Zahlungen zurückbezahlen, Adminanpassungen (05.11.2026) — LIVE seit 05.11.2026
+
+App per Pull Request nach `main`. **SQL im Live-Projekt (Oli):** zuerst
+`supabase/user-zahlungen.sql`, dann `supabase/admin-anpassen.sql`. Bis dahin
+zeigt User-Zahlungen nur die Listen mit Hinweis, Adminanpassungen melden,
+dass die SQL fehlt.
+
+**Arbeitsplatz bleibt offen:** Am Rechner einen Beleg aus der Übersicht
+öffnen und etwas tun (zurücksetzen, umkontieren, speichern, löschen …):
+man bleibt im Arbeitsplatz (Liste links, Beleg, Angaben rechts). Derselbe
+Beleg bleibt offen; ist er weg (gelöscht, aus dem Filter gefallen), der an
+seiner Stelle. Freigabe wie bisher (nächster zum Prüfen). Meine Belege
+unverändert.
+
+**Name statt „User-Zahlung“:** Bei den eigenen Belegen heisst die
+Zahlungsart wie die Person — beim Erfassen „Kreditkarte / Bar / Oliver
+Muster“ (ändert ein Admin einen fremden Beleg: der Name des Erfassers), in
+Meine Belege (Liste, Filter, Summe „bezahlt von …“) und in der Ansicht
+eines eigenen Belegs. Übersicht, Freigabe, Kontierung und Export bleiben
+bei „User-Zahlung“.
+
+**User-Zahlungen zurückbezahlen (Admin):** Administration → **User-Zahlungen**
+(Handy: Profil → Verwaltung), mit Zahl der offenen in der Seitenleiste.
+Unabhängig vom Zeitraum. Reiter:
+- *Zu bezahlen* — genehmigte (auch teilweise), noch nicht bezahlte, je
+  Person mit Summe (= Betrag der Überweisung). Anhaken einzeln, je Person
+  oder alle, Datum „Bezahlt am“ (heute vorgewählt), „Als bezahlt markieren“.
+- *In Prüfung* — erfasst, eingereicht, zur Besprechung.
+- *Bezahlt* — je Zahltag (letzte 12 Monate), je Person; „Zurücknehmen“ je Beleg.
+- **Filter** (alle Reiter): Person, von/bis — bei „Bezahlt“ nach Zahltag
+  (dazu Auswahl „Zahltag“ mit Summe je Tag), sonst nach Belegdatum. Liegt
+  „von“ vor den letzten 12 Monaten, werden ältere Zahlungen nachgeladen.
+  „Alle anhaken“ und „Als bezahlt markieren“ nehmen nur, was der Filter zeigt.
+Der Beleg zeigt danach überall „bezahlt“ (Marke), die Ansicht
+„Zurückbezahlt am …“; Meine Belege summiert „zurückbezahlt“. Bezahlte
+lassen sich nicht zurücksetzen, bis die Zahlung zurückgenommen ist.
+**SQL: `supabase/user-zahlungen.sql`** — erst Test, dann Live. Ohne die
+Datei zeigt die Seite nur die Listen mit Hinweis. Lokal gegen Postgres
+(schema.sql + live-gang.sql) zweimal ausgeführt und Rechte geprüft.
+Achtung beim ersten Mal: alle früher genehmigten User-Zahlungen stehen
+unter „Zu bezahlen“ — die schon bezahlten mit „Alle anhaken“ auf einmal
+abhaken. Später: Bankdatei (pain.001) statt von Hand.
+`user-zahlungen.sql` im Test-Projekt ausgeführt (05.11.2026).
+
+**Bezahlt sichtbar beim Beleg:** Ein zurückbezahlter Beleg zeigt in der
+Ansicht oben die Marke „bezahlt“ und grün „Zurückbezahlt am … · markiert
+von …“. Die Admin-Knöpfe „Entscheid zurücknehmen“ / „Zurück auf erfasst“
+sind dann weg — stattdessen der Hinweis, zuerst unter User-Zahlungen die
+Zahlung zurückzunehmen (die Datenbank verweigert es ohnehin).
+
+**Adminanpassungen:** Admins haben bei jedem eingereichten oder
+entschiedenen Beleg „Adminanpassungen öffnen“: dasselbe Formular wie beim
+Erfassen — Betrag, MwSt (auch aufgeteilt), Konto, KST, Datum, Kommentar,
+**Bezahlt mit** und **Gerät**. Status und Entscheid bleiben; die Datei
+bleibt. Gerät: Auswahlfeld mit allen Geräten — „Passend zur KST“ zuerst,
+dann „Alle anderen Geräte“ (ausgeschaltete am Schluss), oder „kein Gerät“.
+Fall von Oli: Karte der KST 1212 für KST 1213 verwendet → Gerät richtig
+stellen. Wechsel auf/von User-Zahlung: „geprüft“ ↔ „genehmigt“ wird
+mitgezogen. Bezahlte User-Zahlung: Betrag und „Bezahlt mit“ gesperrt.
+Eingereichter Beleg mit neuer KST/Konto wird wie beim Umkontieren neu
+zugeordnet. Verlauf mit Namen des Admins. „Abbrechen“ verwirft.
+**SQL: `supabase/admin-anpassen.sql`** (RPC `beleg_admin_anpassen`) —
+setzt `user-zahlungen.sql` voraus. Lokal gegen Postgres geprüft.
+
+**Kleinere Anpassungen (05.11.2026):**
+- Konten: Reihenfolge per **Ziehen** am Griff links (Maus und Finger;
+  Tastatur: Pfeil hoch/runter auf dem Griff) statt ↑-Pfeil
+  (`web/src/ziehen.ts`, `kontenOrdnen`).
+- Benutzer: **Suchfeld** (Name, E-Mail, Rolle, KST/Konten, „gesperrt“ …).
+- Seitenleiste: „User-Zahlungen“ unter ALLE BELEGE nach „Freigabe“.
+- Benutzer: „Prüfung einrichten“ nur bei User und Projektleiter (Admin und
+  Supervisor prüfen selbst; beim Speichern wird sie für sie ausgeschaltet).
+  „Eigene Kreditkarte“ nicht bei Admin (eine schon eingeschaltete lässt
+  sich noch ausschalten).
+- Rechner: „Spesen erfassen“ heisst jetzt „Beleg erfassen“ wie am Handy.
+- Farben: „genehmigt“/„teilweise“ (User-Zahlung) blau wie „geprüft“;
+  grün ist nur noch „bezahlt“ (`statusKlasseVon`).
 
 ## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — LIVE seit 02.11.2026
 

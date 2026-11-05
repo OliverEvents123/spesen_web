@@ -12,7 +12,8 @@ import {
 } from "../grundlagen";
 import {
   kontoName, eigeneErfasste, personName, aktiveKonten, kontenImZeitraum, auftraegeImZeitraum,
-  verlaufEintrag, geraetName, imBereich, ohneKst
+  verlaufEintrag, geraetName, imBereich, ohneKst,
+  meinName, zahlartText
 } from "../daten";
 
 // ---------- Symbole ----------
@@ -37,7 +38,8 @@ const PFADE: Record<string, string> = {
   plus: "M11 5h2v14h-2zM5 11h14v2H5z",
   karte: "M2 5h20v14H2zm2 2v2h16V7zm0 5v5h16v-5zm2 2h5v1.5H6z",
   raute: "M9.5 3 8.7 8H4v2h4.4l-.7 4H3v2h4.4L6.6 21h2l.8-5h4l-.8 5h2l.8-5H20v-2h-4.4l.7-4H21V8h-4.4l.8-5h-2l-.8 5h-4l.8-5zm.6 7h4l-.7 4h-4z",
-  pfeilhoch: "M12 5l-6 6h4v8h4v-8h4z"
+  pfeilhoch: "M12 5l-6 6h4v8h4v-8h4z",
+  griff: "M9 4.5a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2m6 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2M9 10.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2m6 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2M9 16.3a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2m6 0a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2"
 };
 export const Ico = ({ n, s }: { n: string; s?: number }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
@@ -61,7 +63,7 @@ export const Hinweis = ({ children }: { children: any }) => (
   <div className="hinweis"><Ico n="info" /><span>{children}</span></div>);
 
 // ---------- Wer bin ich ----------
-export const eigenerName = () => S.ich.name || personName(S.session.user.email);
+export const eigenerName = meinName;
 export const eigeneRolle = () => S.istAdmin ? "Admin"
   : ({ projektleiter: "Projektleiter", supervisor: "Supervisor" } as any)[S.ich.rolle]
   || (S.istPruefer ? "Prüfer" : "User");
@@ -69,6 +71,10 @@ export const eigeneRolle = () => S.istAdmin ? "Admin"
 // ---------- Belegtexte ----------
 export const StatusMarke = ({ b, kurz }: { b: any; kurz?: boolean }) => {
   const s = statusVon(b);
+  // Genehmigte User-Zahlung, schon zurückbezahlt (Liste: bezahlt_am, geöffneter Beleg: bezahltAm)
+  const bezahlt = b.bezahlt_am || b.bezahltAm;
+  if (bezahlt && (s === "genehmigt" || s === "teilweise"))
+    return <span className="pill p-gen" title={`${statusName(s)} · zurückbezahlt am ${langDatum(bezahlt)}`}>bezahlt</span>;
   const t = kurz && s === "teilweise" ? "teilweise" : statusName(s);
   return <span className={`pill p-${statusKlasse(s)}`}>{t}</span>;
 };
@@ -109,12 +115,14 @@ export const belegKurz = (b: any) => {
 const kontenText = (b: any) => istAufgeteilt(b)
   ? b.positionen.map((p) => p.konto_nummer).join(" + ") : kontoText(b.konto_nummer);
 
-// "Kreditkarte" bzw. "Kreditkarte · Gerät 1"
-export const bezahltText = (b: any) =>
-  zahlartName(b.zahlart) + (b.zahlgeraet_id != null ? " · " + geraetName(b.zahlgeraet_id) : "");
+// "Kreditkarte" bzw. "Kreditkarte · Gerät 1". eigen: in den eigenen Belegen
+// steht bei User-Zahlungen der eigene Name.
+export const bezahltText = (b: any, eigen?: boolean) =>
+  (eigen ? zahlartText(b.zahlart, b.geraet) : zahlartName(b.zahlart))
+  + (b.zahlgeraet_id != null ? " · " + geraetName(b.zahlgeraet_id) : "");
 
-export function belegDetail(b: any, mitPerson?: boolean) {
-  const teile = [kurzDatum(b.beleg_datum), kontenText(b), bezahltText(b)];
+export function belegDetail(b: any, mitPerson?: boolean, eigen?: boolean) {
+  const teile = [kurzDatum(b.beleg_datum), kontenText(b), bezahltText(b, eigen)];
   if (mitPerson) teile.push(personName(b.geraet));
   return teile.join(" · ");
 }
@@ -151,7 +159,7 @@ export function BelegZeile({ b, woher, person }: { b: any; woher: string; person
     <button className="zl" data-akt="bearbeiten" data-id={b.id} data-w={woher}>
       <span className="ini nr">{belegKurz(b)}</span>
       <span className="mitte"><b>{belegKopf(b)}</b>
-        <span className="kn mu">{belegDetail(b, person)}</span><Kommentar b={b} /></span>
+        <span className="kn mu">{belegDetail(b, person, woher === "liste")}</span><Kommentar b={b} /></span>
       <span className="seite"><BetragZelle b={b} /><StatusMarke b={b} kurz /></span>
     </button>);
 }
@@ -175,7 +183,7 @@ export function BelegTabelle({ liste, woher, person }: { liste: any[]; woher: st
             <td className="buchung"><b>{belegKopf(b)}</b><br /><span className="neben kn">{belegText(b)}</span>
               {b.kommentar && <><br /><Kommentar b={b} /></>}</td>
             {person && <td className="nw">{personName(b.geraet)}</td>}
-            <td className="nw">{zahlartName(b.zahlart)}{b.zahlgeraet_id != null && <><br /><span className="kn mu">{geraetName(b.zahlgeraet_id)}</span></>}</td>
+            <td className="nw">{woher === "liste" ? zahlartText(b.zahlart, b.geraet) : zahlartName(b.zahlart)}{b.zahlgeraet_id != null && <><br /><span className="kn mu">{geraetName(b.zahlgeraet_id)}</span></>}</td>
             <td><StatusMarke b={b} /></td>
             <td className="re"><BetragZelle b={b} /></td>
             <td className="re nw">
@@ -191,7 +199,7 @@ export function belegeSuchen(liste: any[]) {
   const q = S.bSuche.trim().toLowerCase();
   if (!q) return liste;
   return liste.filter((b) => [belegKopf(b), belegText(b), chf(b.betrag), chfLang(b.betrag), personName(b.geraet),
-                              bezahltText(b), statusName(statusVon(b)), datumCH(b.beleg_datum),
+                              bezahltText(b), bezahltText(b, true), statusName(statusVon(b)), datumCH(b.beleg_datum),
                               b.kommentar || ""]
     .join(" ").toLowerCase().includes(q));
 }
@@ -339,7 +347,7 @@ export function FilterChips({ b = "u" }: { b?: Bereich }) {
   const statusNamen = b === "m" ? STATUS_FILTER_MEINE : STATUS_FILTER;
   const chips: [string, string][] = [];
   if (b === "u" && S.uGeraet) chips.push(["uGeraet", "Person: " + personName(S.uGeraet)]);
-  if (S[b + "Zahlart"]) chips.push([b + "Zahlart", ZAHLART[S[b + "Zahlart"]]]);
+  if (S[b + "Zahlart"]) chips.push([b + "Zahlart", b === "m" ? zahlartText(S.mZahlart) : ZAHLART[S[b + "Zahlart"]]]);
   if (b === "u" && S.uZahlgeraet) chips.push(["uZahlgeraet", "Gerät: " + geraetName(S.uZahlgeraet)]);
   if (S[b + "Status"])  chips.push([b + "Status", "Status: " + (statusNamen[S[b + "Status"]] || S[b + "Status"])]);
   if (S[b + "Konto"])   chips.push([b + "Konto", "Konto " + S[b + "Konto"]]);
@@ -372,7 +380,7 @@ function filterAuswahl(b: Bereich, ohneGruppen?: boolean) {
       {personen.map((g) => <option key={g} value={g}>{personName(g)}</option>)}</Auswahl>]);
   f.push(["Zahlungsart", <Auswahl feld={b + "zahlart"} wert={S[b + "Zahlart"]}>
     <option value="">Alle</option>
-    {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{n}</option>)}</Auswahl>]);
+    {Object.entries(ZAHLART).map(([w, n]) => <option key={w} value={w}>{b === "m" ? zahlartText(w) : n}</option>)}</Auswahl>]);
   if (b === "u" && S.zahlgeraete.length > 0)
     f.push(["Gerät", <Auswahl feld="uzahlgeraet" wert={S.uZahlgeraet}>
       <option value="">Alle Geräte</option>

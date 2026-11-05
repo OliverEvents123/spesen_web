@@ -5,12 +5,14 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { S, abonnieren, aktuellerStand } from "./zustand";
 import { IST_TEST } from "./konfig";
-import { klick, aenderung, eingabe } from "./aktionen";
+import { klick, aenderung, eingabe, gezogen } from "./aktionen";
+import { ziehenEinrichten } from "./ziehen";
 import { Login } from "./ansichten/login";
 import { MeineBelege, Uebersicht } from "./ansichten/uebersicht";
 import { Erfassen, KontoWahl, AuftragWahl } from "./ansichten/erfassen";
 import { Profil, Passwort, Favoriten, FavForm, Freigabe } from "./ansichten/profil";
 import { Benutzer, Konten, Geraete, Kostenstellen } from "./ansichten/verwaltung";
+import { Zahlungen } from "./ansichten/zahlungen";
 
 function Bildschirm() {
   if (!S.gestartet) return <div className="leer" style={{ paddingTop: 80 }}>Lade …</div>;
@@ -31,6 +33,7 @@ function Bildschirm() {
     case "konten":   case "kontoForm": return <Konten />;
     case "geraete":  case "geraetForm": return <Geraete />;
     case "kst":      return <Kostenstellen />;
+    case "zahlungen": return S.istAdmin ? <Zahlungen /> : <MeineBelege />;
   }
   return <MeineBelege />;
 }
@@ -53,7 +56,10 @@ export function App() {
     el.addEventListener("click", beiKlick);
     el.addEventListener("change", beiAenderung);
     el.addEventListener("input", beiEingabe);
+    // Reihenfolge per Ziehen (Konten)
+    const ziehenWeg = ziehenEinrichten(el, gezogen);
     return () => {
+      ziehenWeg();
       el.removeEventListener("click", beiKlick);
       el.removeEventListener("change", beiAenderung);
       el.removeEventListener("input", beiEingabe);

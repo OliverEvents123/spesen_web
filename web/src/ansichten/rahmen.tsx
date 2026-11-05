@@ -5,7 +5,7 @@
 import { S } from "../zustand";
 import { istBreit, initialen } from "../grundlagen";
 import { Ico, Meldung, eigenerName, eigeneRolle } from "./bausteine";
-import { bereiche, freigabeIm, BEREICH_NAME } from "../daten";
+import { bereiche, freigabeIm, BEREICH_NAME, zuBezahlen } from "../daten";
 
 // Welche Hauptseite ist gerade "an"? Unterseiten zählen zu ihrer Hauptseite.
 function aktiv() {
@@ -65,11 +65,12 @@ function Leiste() {
     <div className="gr">{BEREICH_NAME[b].toUpperCase()}</div>
     {n("uebersicht:" + b, "tabUebersicht", "Übersicht", "grid", 0, b)}
     {n("freigabe:" + b, "tabFreigabe", "Freigabe", "check", freigabeIm(b).length, b)}
+    {b === "admin" && n("zahlungen", "tabZahlungen", "User-Zahlungen", "geld", S.zahlungen.filter(zuBezahlen).length)}
   </div>;
   return (
     <aside className="leiste">
       <div className="marke"><b>TIT-PIT</b><span>Spesen</span></div>
-      <button className="k1 klein" data-akt="neu"><Ico n="plus" s={18} /> Spesen erfassen</button>
+      <button className="k1 klein" data-akt="neu"><Ico n="plus" s={18} /> Beleg erfassen</button>
       <nav className="nav" aria-label="Hauptnavigation">
         <div className="abschnitt">
           <div className="gr">MEINE SPESEN</div>

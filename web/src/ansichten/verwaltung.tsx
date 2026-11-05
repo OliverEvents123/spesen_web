@@ -127,14 +127,17 @@ function BenForm() {
       {(b.rolle === "supervisor" || hatKonto) && <Zuweisung b={b} art="konto" />}
       {(b.rolle === "supervisor" || hatPerson) && <Zuweisung b={b} art="person" />}
 
+      {/* Admin und Supervisor prüfen selbst */}
+      {b.rolle !== "admin" && b.rolle !== "supervisor" &&
       <div className="schalterzeile">
         <label htmlFor="bpruefung"><b>Prüfung einrichten</b>
           <span className="mu">Belege ohne zuständigen Projektleiter gehen nicht automatisch durch,
             sondern warten auf einen Admin oder Supervisor.</span></label>
         <input id="bpruefung" type="checkbox" className="schalter" defaultChecked={!!b.pruefung} data-feld="bpruefung" />
-      </div>
+      </div>}
 
-      {S.geraeteDa &&
+      {/* Ein Admin braucht keine eigene Karte — eine schon eingeschaltete lässt sich noch ausschalten */}
+      {S.geraeteDa && (b.rolle !== "admin" || b.eigeneKarteAlt) &&
         <div className="schalterzeile">
           <label htmlFor="beigenekarte"><b>Eigene Kreditkarte</b>
             <span className="mu">{S.geraetPersonDa
@@ -198,17 +201,33 @@ function BenZeilen({ liste }: { liste: any[] }) {
   })}</>;
 }
 
+// Suchen: Name, E-Mail, Rolle, was die Person prüft
+const benPasst = (b: any) => {
+  const q = S.benSuche.trim().toLowerCase();
+  if (!q) return true;
+  return [b.name, b.email, rolleName(b.rolle), prueftText(b.email), b.pruefung ? "Prüfung eingerichtet" : "",
+          eigeneKarte(b.email) ? "eigene Kreditkarte" : "", istGesperrt(b) ? "gesperrt" : ""]
+    .join(" ").toLowerCase().includes(q);
+};
+
 function BenListe() {
   if (S.benutzer.length === 0) return <div className="karte leer">Keine Benutzer geladen.</div>;
-  const aktive = S.benutzer.filter((b) => !istGesperrt(b));
-  const gesperrte = S.benutzer.filter(istGesperrt);
+  const alleAktiven = S.benutzer.filter((b) => !istGesperrt(b));
+  const aktive = alleAktiven.filter(benPasst);
+  const gesperrte = S.benutzer.filter(istGesperrt).filter(benPasst);
+  const suche = S.benSuche.trim();
   const breit = istBreit();
-  const kopf = (titel: string, sub: string) => (
-    <div className="kartenkopf"><span><h2>{titel}</h2><span className="sub">{sub}</span></span></div>);
+  const kopf = (titel: string, sub: string, rechts?: any) => (
+    <div className="kartenkopf"><span><h2>{titel}</h2><span className="sub">{sub}</span></span>{rechts}</div>);
+  const anzahl = (n: number) => n === 1 ? "1 Benutzer" : `${n} Benutzer`;
+  const suchfeld = <input type="search" className="bensuche" placeholder="Suchen: Name, E-Mail, Rolle, KST …"
+                          aria-label="Benutzer suchen" defaultValue={S.benSuche} data-feld="bensuche" />;
   return <>
+    {!breit && suchfeld}
     <section className={"karte" + (breit ? "" : " huelle")}>
-      {kopf("Aktive Benutzer", aktive.length === 1 ? "1 Benutzer" : `${aktive.length} Benutzer`)}
-      {aktive.length === 0 ? <div className="leer">Keine aktiven Benutzer.</div>
+      {kopf("Aktive Benutzer", suche ? `${aktive.length} von ${anzahl(alleAktiven.length)}` : anzahl(alleAktiven.length),
+            breit && suchfeld)}
+      {aktive.length === 0 ? <div className="leer">{suche ? `Kein aktiver Benutzer passt zu „${suche}“.` : "Keine aktiven Benutzer."}</div>
         : breit ? <BenTabelle liste={aktive} /> : <BenZeilen liste={aktive} />}
     </section>
     {gesperrte.length > 0 &&
@@ -309,16 +328,18 @@ function KontoForm() {
 function KontenListe() {
   if (S.konten.length === 0) return <div className="karte leer">Noch keine Konten angelegt.</div>;
   const offen = S.kontEdit && !S.kontEdit.neu && S.kontEdit.nummer;
-  const hoch = (k, i) => <button className="pf" data-akt="kontoHoch" data-nr={k.nummer} disabled={i === 0}
-                                 aria-label={`${k.nummer} nach oben`} style={{ width: 34, height: 34, fontSize: 16 }}>↑</button>;
+  // Griff zum Ziehen (ziehen.ts). data-akt ohne Aktion: ein Klick darauf öffnet das Konto nicht.
+  const griff = (k) => <button className="griff" data-zieh="konten" data-akt="ziehgriff" title="Ziehen, um die Reihenfolge zu ändern"
+                               aria-label={`Konto ${k.nummer} verschieben — ziehen oder Pfeiltasten`}><Ico n="griff" s={18} /></button>;
   if (istBreit()) return (
     <div className="karte"><div className="tabelle"><table>
       <thead><tr><th style={{ width: 50 }}></th><th>Nummer</th><th>Bezeichnung</th><th>MwSt-Standard</th><th>Status</th>
         <th className="re">Posten im Zeitraum</th><th></th></tr></thead>
       <tbody>
-        {S.konten.map((k, i) => (
-          <tr key={k.nummer} className={"klickbar" + (offen === k.nummer ? " an" : "")} data-akt="kontoBearbeiten" data-nr={k.nummer}>
-            <td>{hoch(k, i)}</td>
+        {S.konten.map((k) => (
+          <tr key={k.nummer} className={"klickbar" + (offen === k.nummer ? " an" : "")} data-akt="kontoBearbeiten" data-nr={k.nummer}
+              data-zeile={k.nummer}>
+            <td>{griff(k)}</td>
             <td className="mono fett">{k.nummer}</td>
             <td>{k.bezeichnung}{ohneKstText(k) && <><br /><span className="kn" style={{ color: "var(--akzent-text)" }}>{ohneKstText(k)}</span></>}</td>
             <td className="mono">{k.mwst} %</td>
@@ -331,9 +352,9 @@ function KontenListe() {
 
   return (
     <section className="karte huelle">
-      {S.konten.map((k, i) => (
-        <div className="zl klickbar" key={k.nummer} data-akt="kontoBearbeiten" data-nr={k.nummer}>
-          {hoch(k, i)}
+      {S.konten.map((k) => (
+        <div className="zl klickbar" key={k.nummer} data-akt="kontoBearbeiten" data-nr={k.nummer} data-zeile={k.nummer}>
+          {griff(k)}
           <span className="mono fett" style={{ width: 44 }}>{k.nummer}</span>
           <span className="mitte"><b style={k.aktiv === false ? { color: "#8a90a6" } : undefined}>{k.bezeichnung}</b>
             <span className="kn mu">MwSt {k.mwst} %{ohneKstText(k) && " · " + ohneKstText(k)}</span></span>
@@ -344,7 +365,7 @@ function KontenListe() {
 }
 
 const KontoHinweis = () => (
-  <div className="karte"><Hinweis>Der Pfeil schiebt ein Konto in der Auswahl nach oben. Inaktiv nimmt ein Konto aus
+  <div className="karte"><Hinweis>Am Griff links ziehen, um die Reihenfolge in der Auswahl zu ändern. Inaktiv nimmt ein Konto aus
     der Auswahl, lässt es aber in alten Belegen und Exporten stehen. Löschen gibt es bewusst nicht — die Belege
     hängen an der Nummer. Ein Konto ohne KST bucht immer auf „ohne KST“; die KST beim Erfassen bestimmt dort
     nur die Karte.</Hinweis></div>);

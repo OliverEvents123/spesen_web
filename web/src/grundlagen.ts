@@ -23,10 +23,16 @@ export const STATUS_FILTER: Record<string, string> = {
 export const STATUS_FILTER_MEINE: Record<string, string> = {
   offenePunkte: "offene Punkte (erfasst, eingereicht, abgelehnt)", erledigt: "erledigt", ...STATUS
 };
-// Farbe der Statusmarke
+// Farbe der Statusmarke. Genehmigt (User-Zahlung) blau wie geprüft — grün
+// ist "bezahlt", also zurückbezahlt (statusKlasseVon).
 export const statusKlasse = (s?: string) => ({
   offen: "erf", eingereicht: "ein", geprueft: "gep", besprechung: "bes",
-  genehmigt: "gen", teilweise: "gen", abgelehnt: "abl", abgeschlossen: "erf" } as any)[s || "offen"] || "erf";
+  genehmigt: "gep", teilweise: "gep", abgelehnt: "abl", abgeschlossen: "erf" } as any)[s || "offen"] || "erf";
+// Farbe eines Belegs: wie sein Status, zurückbezahlt grün
+export const statusKlasseVon = (b: any) => {
+  const s = (b && b.status) || "offen";
+  return (b.bezahlt_am || b.bezahltAm) && (s === "genehmigt" || s === "teilweise") ? "gen" : statusKlasse(s);
+};
 export const statusVon  = (b: any) => (b && b.status) || "offen";
 export const statusName = (s?: string) => STATUS[s || "offen"] || s;
 // Ändern und löschen geht nur, solange erfasst oder abgelehnt.

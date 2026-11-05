@@ -7,12 +7,13 @@
 import { S, sb, render, laeuft } from "./zustand";
 import {
   NETZTEXT, GESPERRT_TEXT, OHNE_KST, istBreit, istNetzfehler, chf, betragVon,
-  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN, kurzName
+  ordnerName, statusName, statusVon, buchungsBetrag, periode, periodeUm, kurzDatum, MAX_PERIODEN, kurzName,
+  heute, chfLang, langDatum
 } from "./grundlagen";
 import {
   leererBeleg, leerePosition, leererFavorit, leererBenutzer, leeresKonto, kontoName,
   ladeAlles, ladeKonten, ladeFavoriten, ladeFreigabe, ladeZuweisungen, ladeVerlauf,
-  ladeUebersicht, ladeBenutzer, benutzerRuf, zeitraumLaden, kontoHoch,
+  ladeUebersicht, ladeBenutzer, benutzerRuf, zeitraumLaden, kontenOrdnen,
   kontoSpeichern, favSpeichern, favLoeschen, favHoch, favAnwenden, favUebernehmen, belegBearbeiten,
   belegOeffnen, auftragObjekt, gruppiere, uGefiltert, uTitel, uDateiname, belegeFreigeben,
   eigeneErfasste, zurueckNachSpeichern, aufbereiten, entscheiden, umkontieren,
@@ -21,7 +22,8 @@ import {
   standardBereich, freigabeIm, freigabeGefiltert, meineGefiltert,
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
   kstZumSpeichern, eigeneKarte, eigeneKarteSetzen,
-  zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname
+  zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname,
+  ladeZahlungen, zuBezahlen, zahlungPasst, belegeBezahlt, adminAnpassen
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -181,6 +183,11 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   if (a === "benSichern") {
     const b  = S.benEdit;
     const pw = wert("bpw");
+    // Admin und Supervisor prüfen selbst — "Prüfung einrichten" gibt es für sie
+    // nicht. Ein Admin braucht keine eigene Kreditkarte (eine schon
+    // eingeschaltete lässt sich aber noch ausschalten).
+    if (b.rolle === "admin" || b.rolle === "supervisor") b.pruefung = false;
+    if (b.rolle === "admin" && !b.eigeneKarteAlt) b.eigeneKarte = false;
     // Für die eigene Kreditkarte: wem sie gehört und wie sie heisst
     const karteMail = b.neu ? wert("bmail").trim().toLowerCase() : b.email;
     const karteName = wert("bname").trim() || kurzName(karteMail);
@@ -316,11 +323,6 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
 
   if (a === "kontoMwst") { S.kontEdit.mwst = d.v; return render(); }
 
-  if (a === "kontoHoch") {
-    const fehler = await kontoHoch(d.nr);
-    if (fehler) alert(istNetzfehler(fehler) ? NETZTEXT : "Reihenfolge nicht gespeichert:\n" + fehler.message);
-    return render();
-  }
 
   if (a === "kontoSichern") {
     const k = S.kontEdit;
@@ -387,6 +389,45 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
   }
 
   // ---------- Admin: Geräte ----------
+  // User-Zahlungen zurückbezahlen (Admin)
+  if (a === "tabZahlungen") {
+    wechsel("zahlungen");
+    render();
+    await ladeZahlungen();
+    return render();
+  }
+  if (a === "zAlle") {
+    // Nur, was der Filter gerade zeigt
+    S.zAuswahl = d.v === "1" ? S.zahlungen.filter((b) => zuBezahlen(b) && zahlungPasst(b)).map((b) => String(b.id)) : [];
+    return render();
+  }
+  if (a === "zBezahlt") {
+    // Nur angehakte, die der Filter gerade zeigt
+    const liste = S.zahlungen.filter((b) => zuBezahlen(b) && zahlungPasst(b) && S.zAuswahl.includes(String(b.id)));
+    if (!liste.length) return;
+    const datum = S.zDatum || heute();
+    const total = liste.reduce((t, b) => t + buchungsBetrag(b), 0);
+    if (!confirm(`${liste.length === 1 ? "1 Beleg" : liste.length + " Belege"} über CHF ${chfLang(total)} `
+                 + `als bezahlt am ${langDatum(datum)} markieren?`)) return;
+    laeuft(a, "Speichere …");
+    const { data, error } = await belegeBezahlt(liste.map((b) => b.id), datum);
+    S.laeuft = null;
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : "Hat nicht geklappt:\n" + error.message); return render(); }
+    S.meldung = `${data === 1 ? "1 Beleg" : (data ?? liste.length) + " Belege"} als bezahlt am ${langDatum(datum)} markiert.`;
+    S.zAuswahl = [];
+    await ladeZahlungen();
+    return render();
+  }
+  if (a === "zFilterWeg") { S.zPerson = ""; S.zVon = ""; S.zBis = ""; return render(); }
+  if (a === "zZurueck") {
+    if (!confirm("Zahlung zurücknehmen? Der Beleg steht dann wieder unter „Zu bezahlen“.")) return;
+    const { error } = await belegeBezahlt([d.id], null);
+    if (error) { alert(istNetzfehler(error) ? NETZTEXT : "Hat nicht geklappt:\n" + error.message); return; }
+    S.meldung = "Zahlung zurückgenommen.";
+    await ladeZahlungen();
+    return render();
+  }
+
   if (a === "tabGeraete") {
     wechsel("geraete");
     if (istBreit()) S.geraetEdit = leeresGeraet();
@@ -821,6 +862,15 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
       : "Kontierung geändert.");
   }
 
+  // Adminanpassung: dasselbe Formular für einen gesperrten Beleg
+  if (a === "adminAnpassen") {
+    if (!S.istAdmin || !S.neu) return;
+    S.neu.admin = true; S.wahlOffen = null;
+    return render();
+  }
+  if (a === "adminAbbrechen") return belegBearbeiten(S.neu.id, S.zurueckZu);
+  if (a === "adminSpeichern") return adminSpeichern();
+
   if (a === "zuruecksetzen") {
     const n = S.neu;
     const ziel = d.v;
@@ -888,6 +938,55 @@ async function korrekturSpeichern(n: any) {
   return true;
 }
 
+// Die Werte aus dem Formular — für Speichern und Adminanpassung.
+// Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
+// die erste Position steht zusätzlich oben, damit alte Auswertungen
+// und die Belegliste weiter funktionieren.
+function belegWerte(n: any) {
+  const geteilt = Array.isArray(n.positionen);
+  const positionen = geteilt ? n.positionen.map((p) => ({
+    betrag:       betragVon(p.betragText),
+    mwst:         parseFloat(p.mwst),
+    konto_nummer: p.konto.nummer,
+    auftrag_nr:   kstZumSpeichern(p)
+  })) : null;
+  const betrag = geteilt
+    ? Math.round(positionen.reduce((t, p) => t + p.betrag, 0) * 100) / 100
+    : betragVon(n.betragText);
+  return { betrag, werte: {
+    beleg_datum:  n.datum,
+    betrag:       betrag,
+    mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
+    konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
+    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : kstZumSpeichern(n),
+    positionen:   positionen,
+    zahlart:      n.zahlart
+  } };
+}
+
+// Adminanpassung speichern: alle Werte, auch "Bezahlt mit" und Gerät (jedes,
+// auch einer anderen KST). Status und Entscheid bleiben (Datenbank).
+async function adminSpeichern() {
+  const n = S.neu;
+  const { betrag, werte } = belegWerte(n);
+  if (!(betrag > 0)) { alert("Bitte einen Betrag grösser als 0 eingeben."); return; }
+  laeuft("adminSpeichern", "Speichere …");
+  const { error } = await adminAnpassen(n.id, {
+    ...werte,
+    zahlgeraet_id: n.zahlart === "karte" && n.zahlgeraet != null ? n.zahlgeraet : null,
+    kommentar: String(n.kommentar || "").trim() || null
+  });
+  if (error) {
+    S.laeuft = null;
+    alert(istNetzfehler(error) ? NETZTEXT
+      : /beleg_admin_anpassen/.test(error.message || "")
+        ? "Für Adminanpassungen zuerst supabase/admin-anpassen.sql im SQL Editor ausführen."
+        : error.message);
+    return render();
+  }
+  return zurueckNachSpeichern("Adminanpassung gespeichert.");
+}
+
 async function belegSpeichern(a: string) {
   const n = S.neu;
   const geteilt = Array.isArray(n.positionen);
@@ -900,19 +999,7 @@ async function belegSpeichern(a: string) {
         ? "Beleg speichern und genehmigen?\nDanach lässt er sich nicht mehr ändern."
         : "Beleg speichern und zur Prüfung freigeben?\nDanach lässt er sich nicht mehr ändern.")) return;
 
-  // Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
-  // die erste Position steht zusätzlich oben, damit alte Auswertungen
-  // und die Belegliste weiter funktionieren.
-  const positionen = geteilt ? n.positionen.map((p) => ({
-    betrag:       betragVon(p.betragText),
-    mwst:         parseFloat(p.mwst),
-    konto_nummer: p.konto.nummer,
-    auftrag_nr:   kstZumSpeichern(p)
-  })) : null;
-
-  const betrag = geteilt
-    ? Math.round(positionen.reduce((t, p) => t + p.betrag, 0) * 100) / 100
-    : betragVon(n.betragText);
+  const { betrag, werte } = belegWerte(n);
 
   let pfad = n.altPfad;
   if (n.datei) {
@@ -931,17 +1018,7 @@ async function belegSpeichern(a: string) {
   }
 
   laeuft(a, "Speichere …");
-  const daten: any = {
-    beleg_datum:  n.datum,
-    betrag:       betrag,
-    mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
-    konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
-    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : kstZumSpeichern(n),
-    positionen:   positionen,
-    zahlart:      n.zahlart,
-    datei_pfad:   pfad,
-    monat:        n.datum.slice(0, 7)
-  };
+  const daten: any = { ...werte, datei_pfad: pfad, monat: n.datum.slice(0, 7) };
   // Kommentar nur mitschicken, wenn es einen gibt oder die Spalte schon
   // bekannt ist — eine Datenbank ohne die Spalte würde sonst ablehnen.
   const kommentar = String(n.kommentar || "").trim();
@@ -1035,6 +1112,27 @@ export function aenderung(ziel: HTMLInputElement) {
   if (f === "bpruefung" && S.benEdit)  { S.benEdit.pruefung = ziel.checked; return; }
   if (f === "beigenekarte" && S.benEdit) { S.benEdit.eigeneKarte = ziel.checked; return; }
   if (f === "gaktiv" && S.geraetEdit)  { S.geraetEdit.aktiv = ziel.checked; return; }
+  // User-Zahlungen: anhaken (einzeln, je Person), Zahltag
+  if (f === "zwahl" || f === "zwahlp") {
+    const ids = f === "zwahl" ? [String(ziel.dataset.id)]
+      : S.zahlungen.filter((b) => zuBezahlen(b) && zahlungPasst(b) && b.geraet === ziel.dataset.p).map((b) => String(b.id));
+    S.zAuswahl = S.zAuswahl.filter((id) => !ids.includes(id));
+    if (ziel.checked) S.zAuswahl.push(...ids);
+    return render();
+  }
+  if (f === "zdatum") { S.zDatum = ziel.value || heute(); return render(); }
+  // User-Zahlungen filtern: Person, Zahltag (= von und bis), Zeitraum.
+  // Liegt "von" vor den geladenen Zahlungen, die älteren nachholen.
+  if (f === "zperson") { S.zPerson = ziel.value; return render(); }
+  if (f === "zzahltag") { S.zVon = ziel.value; S.zBis = ziel.value; return render(); }
+  if (f === "zvon" || f === "zbis") {
+    if (f === "zvon") S.zVon = ziel.value; else S.zBis = ziel.value;
+    render();
+    if (f === "zvon" && S.zVon && S.zSeit && S.zVon < S.zSeit) ladeZahlungen().then(render);
+    return;
+  }
+  // Adminanpassung: jedes Gerät
+  if (f === "zahlgeraetAdmin" && S.neu) { S.neu.zahlgeraet = ziel.value ? Number(ziel.value) : null; return render(); }
 
   // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.
   if (f === "uvon") {
@@ -1099,6 +1197,7 @@ export function eingabe(ziel: HTMLInputElement) {
 
   if (f === "suche")   { S.suche = ziel.value; return render(); }
   if (f === "bsuche")  { S.bSuche = ziel.value; return render(); }
+  if (f === "bensuche") { S.benSuche = ziel.value; return render(); }
   if (f === "zoom")    { S.zoom = Number(ziel.value) || 100; return render(); }
   if (f === "kommentar" && S.neu)  { S.neu.kommentar = ziel.value; return; }
   if (f === "korrBetrag" && S.neu) { S.neu.korrBetrag = ziel.value; return render(); }
@@ -1111,4 +1210,12 @@ export function eingabe(ziel: HTMLInputElement) {
   if (f === "gname" && S.geraetEdit) { S.geraetEdit.name       = ziel.value; return; }
   if (f === "gkst"  && S.geraetEdit) { S.geraetEdit.auftrag_nr = ziel.value; return; }
   if (f === "ksort"   && S.kontEdit) { S.kontEdit.sortierung  = ziel.value; return; }
+}
+
+// ---------- Reihenfolge per Ziehen (ziehen.ts) ----------
+export async function gezogen(liste: string, reihenfolge: string[]) {
+  if (liste !== "konten") return;
+  const fehler = await kontenOrdnen(reihenfolge);
+  if (fehler) alert(istNetzfehler(fehler) ? NETZTEXT : "Reihenfolge nicht gespeichert:\n" + fehler.message);
+  render();
 }
