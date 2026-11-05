@@ -2,7 +2,12 @@
 
 **Zuletzt aktualisiert: 05.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
-## Arbeitsplatz bleibt offen, Name statt „User-Zahlung“, User-Zahlungen zurückbezahlen, Adminanpassungen (05.11.2026) — Arbeitsbranch, noch nicht live
+## Arbeitsplatz bleibt offen, Name statt „User-Zahlung“, User-Zahlungen zurückbezahlen, Adminanpassungen (05.11.2026) — LIVE seit 05.11.2026
+
+App per Pull Request nach `main`. **SQL im Live-Projekt (Oli):** zuerst
+`supabase/user-zahlungen.sql`, dann `supabase/admin-anpassen.sql`. Bis dahin
+zeigt User-Zahlungen nur die Listen mit Hinweis, Adminanpassungen melden,
+dass die SQL fehlt.
 
 **Arbeitsplatz bleibt offen:** Am Rechner einen Beleg aus der Übersicht
 öffnen und etwas tun (zurücksetzen, umkontieren, speichern, löschen …):
