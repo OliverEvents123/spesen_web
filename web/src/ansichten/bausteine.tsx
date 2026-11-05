@@ -70,9 +70,10 @@ export const eigeneRolle = () => S.istAdmin ? "Admin"
 // ---------- Belegtexte ----------
 export const StatusMarke = ({ b, kurz }: { b: any; kurz?: boolean }) => {
   const s = statusVon(b);
-  // Genehmigte User-Zahlung, schon zurückbezahlt
-  if (b.bezahlt_am && (s === "genehmigt" || s === "teilweise"))
-    return <span className="pill p-gen" title={`${statusName(s)} · zurückbezahlt am ${langDatum(b.bezahlt_am)}`}>bezahlt</span>;
+  // Genehmigte User-Zahlung, schon zurückbezahlt (Liste: bezahlt_am, geöffneter Beleg: bezahltAm)
+  const bezahlt = b.bezahlt_am || b.bezahltAm;
+  if (bezahlt && (s === "genehmigt" || s === "teilweise"))
+    return <span className="pill p-gen" title={`${statusName(s)} · zurückbezahlt am ${langDatum(bezahlt)}`}>bezahlt</span>;
   const t = kurz && s === "teilweise" ? "teilweise" : statusName(s);
   return <span className={`pill p-${statusKlasse(s)}`}>{t}</span>;
 };

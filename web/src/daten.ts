@@ -365,6 +365,9 @@ export const umkontieren = (id, konto, auftrag) =>
   sb.rpc("beleg_umkontieren", { p_id: id, p_konto: konto, p_auftrag: auftrag });
 export const zuruecksetzen = (id, ziel) =>
   sb.rpc("beleg_zuruecksetzen", { p_id: id, p_ziel: ziel });
+// Adminanpassung: alle Werte eines eingereichten/entschiedenen Belegs, Status bleibt
+export const adminAnpassen = (id, daten) =>
+  sb.rpc("beleg_admin_anpassen", { p_id: id, p_daten: daten });
 
 // ---------- User-Zahlungen zurückbezahlen (nur Admin) ----------
 // Alle User-Zahlungen ausser abgelehnten, unabhängig vom Zeitraum: die noch
@@ -866,7 +869,7 @@ export async function belegBearbeiten(id, woher) {
     status: statusVon(b), eingereichtAm: b.eingereicht_am || null, geraet: b.geraet,
     zahlartDb: b.zahlart || "karte", betragDb: b.betrag,
     genehmigtBetrag: b.genehmigt_betrag, entscheidGrund: b.entscheid_grund || "",
-    bezahltAm: b.bezahlt_am || null,
+    bezahltAm: b.bezahlt_am || null, bezahltVon: b.bezahlt_von || null,
     entscheidVon: b.entscheid_von || "", entscheidAm: b.entscheid_am || null,
     // Prüfen: aus der Freigabeliste geöffnet und noch offen für einen Entscheid
     pruefen: woher === "freigabe" && statusVon(b) === "eingereicht",

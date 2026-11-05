@@ -14,6 +14,7 @@ import {
   freigabeIm, freigabeGefiltert, darfFreigabeFiltern, imBereich, kontoName, BEREICH_NAME,
   zahlartText, zahlartWahl
 } from "../daten";
+import { Hinweiszeile, geraetZuordnung } from "./bausteine";
 import { apListe } from "../aktionen";
 import { Seite } from "./rahmen";
 import {
@@ -137,16 +138,41 @@ function GeraetWahl({ n }: { n: any }) {
     </div>);
 }
 
+// Adminanpassung: jedes Gerät wählbar — auch das einer anderen KST (z. B.
+// Projektkarte versehentlich für ein anderes Projekt verwendet). Die zur
+// KST passenden zuerst, dann alle anderen, ausgeschaltete am Schluss.
+function GeraetWahlAdmin({ n }: { n: any }) {
+  if (n.zahlart !== "karte" || !S.geraeteDa || !S.zahlgeraete.length) return null;
+  const passend = geraeteFuer(n);
+  const schon = new Set(passend.map((g) => String(g.id)));
+  const andere = S.zahlgeraete.filter((g) => !schon.has(String(g.id)))
+    .sort((a, b) => (a.aktiv === false ? 1 : 0) - (b.aktiv === false ? 1 : 0));
+  const option = (g: any) => <option key={g.id} value={String(g.id)}>
+    {g.name} · {geraetZuordnung(g)}{g.aktiv === false ? " (ausgeschaltet)" : ""}</option>;
+  return (
+    <div className="feld"><label htmlFor="ageraet">Gerät</label>
+      <select id="ageraet" data-feld="zahlgeraetAdmin" key={schluessel(n)}
+              defaultValue={n.zahlgeraet != null ? String(n.zahlgeraet) : ""}>
+        <option value="">— kein Gerät —</option>
+        {passend.length > 0 && <optgroup label="Passend zur KST">{passend.map(option)}</optgroup>}
+        {andere.length > 0 && <optgroup label="Alle anderen Geräte">{andere.map(option)}</optgroup>}
+      </select>
+      <span className="kn mu">Als Admin sind alle Geräte wählbar, auch die anderer KST.</span></div>);
+}
+
 // ---------- Erfassen / Bearbeiten ----------
+// n.admin: Adminanpassung an einem eingereichten oder entschiedenen Beleg —
+// dasselbe Formular, Status und Entscheid bleiben, die Datei bleibt.
 export function Erfassen() {
   const n = S.neu;
-  if (n.id && istGesperrt(n)) return <BelegAnsehen n={n} key={schluessel(n)} />;
+  if (n.id && istGesperrt(n) && !n.admin) return <BelegAnsehen n={n} key={schluessel(n)} />;
+  const admin = !!n.admin;
   const bearbeiten = !!n.id;
   const geteilt = Array.isArray(n.positionen);
   const betrag = geteilt ? positionenSumme(n.positionen) : betragVon(n.betragText);
   const hatBeleg = !!(n.datei || n.altPfad);
-  const angabenFertig = hatBeleg && (geteilt ? positionenFertig(n.positionen) : (betrag > 0 && n.konto && n.auftrag));
-  const fertig = angabenFertig && !geraetFehlt(n);
+  const angabenFertig = (hatBeleg || admin) && (geteilt ? positionenFertig(n.positionen) : (betrag > 0 && n.konto && n.auftrag));
+  const fertig = angabenFertig && (admin || !geraetFehlt(n));
   const fehltText = angabenFertig ? "Bitte das Gerät wählen" : "Beleg, Konto, KST und Betrag nötig";
   const breit = istBreit();
   const kt = kontoWahlText(n.konto);
@@ -159,7 +185,13 @@ export function Erfassen() {
       <span className="kn">Korrigieren und neu zur Prüfung freigeben — oder löschen.</span>
     </div>;
 
-  const favoriten = !geteilt && S.favoriten.length > 0 &&
+  const adminHinweis = admin &&
+    <Hinweiszeile farbe="blau"><b>Adminanpassung</b> — Status „{statusName(n.status)}“ und Entscheid bleiben.
+      Der Verlauf hält die Änderung mit deinem Namen fest.
+      {n.bezahltAm && <> Schon zurückbezahlt: Betrag und „Bezahlt mit“ bleiben, bis die Zahlung zurückgenommen ist.</>}
+    </Hinweiszeile>;
+
+  const favoriten = !admin && !geteilt && S.favoriten.length > 0 &&
     <div><span className="lab">Favorit übernehmen</span>
       <div className={breit ? "chips" : "favleiste"}>
         {S.favoriten.slice(0, 8).map((f) => (
@@ -201,7 +233,7 @@ export function Erfassen() {
           <button key={w} className={n.zahlart === w ? "an" : ""} data-akt="zahlart" data-v={w}
                   aria-pressed={n.zahlart === w}>{zahlartWahl(w, n.geraet)}</button>)}
       </div></div>
-    <GeraetWahl n={n} />
+    {admin ? <GeraetWahlAdmin n={n} /> : <GeraetWahl n={n} />}
     <div className="feld"><label htmlFor="datum">Belegdatum</label>
       <input id="datum" type="date" defaultValue={n.datum} data-feld="datum" /></div>
     <div className="feld"><label htmlFor="kommentar">Kommentar (freiwillig)</label>
@@ -219,7 +251,11 @@ export function Erfassen() {
         {fertig ? "Speichern und zur Prüfung freigeben" : fehltText}</Knopf>;
   const nurKnopf = <Knopf akt="speichern" className="k2" disabled={!fertig}>
     {bearbeiten ? "Nur Änderungen speichern" : "Nur speichern"}</Knopf>;
-  const knoepfe = <>{hauptKnopf}{nurKnopf}</>;
+  // Adminanpassung: speichern oder verwerfen (lädt den Beleg neu)
+  const adminSpeichern = <Knopf akt="adminSpeichern" className="k1" disabled={!fertig}>
+    {fertig ? "Anpassungen speichern" : fehltText}</Knopf>;
+  const adminAbbrechen = <button className="k2" data-akt="adminAbbrechen">Abbrechen</button>;
+  const knoepfe = admin ? <>{adminSpeichern}{adminAbbrechen}</> : <>{hauptKnopf}{nurKnopf}</>;
   // Am Rechner unten in der Fussleiste: kürzer, damit beide in eine Zeile passen
   const hauptKurz = <Knopf akt={selbst ? "speichernGenehmigen" : "speichernFrei"} className="k1" disabled={!fertig}
                            title={fertig ? undefined : fehltText}>
@@ -227,14 +263,15 @@ export function Erfassen() {
       : selbst ? "Speichern und genehmigen" : "Speichern und freigeben"}</Knopf>;
   const nurKurz = <Knopf akt="speichern" className="k2" disabled={!fertig}>Nur speichern</Knopf>;
 
-  const extra = bearbeiten && <>
+  const extra = bearbeiten && !admin && <>
     {!geteilt && n.konto && n.auftrag &&
       <button className="k2" data-akt="favMerken"><Ico n="stern" s={18} /> Als Favorit merken</button>}
     <Knopf akt="loeschen" className="kr">Diesen Beleg löschen</Knopf>
   </>;
 
-  const titel = bearbeiten ? "Beleg bearbeiten" : "Beleg erfassen";
-  const sub = geteilt ? `${n.positionen.length} Positionen`
+  const titel = admin ? "Adminanpassung" : bearbeiten ? "Beleg bearbeiten" : "Beleg erfassen";
+  const sub = admin ? `Status bleibt: ${statusName(n.status)}`
+            : geteilt ? `${n.positionen.length} Positionen`
             : (bearbeiten ? "Werte ändern und speichern" : "Angaben prüfen und speichern");
 
   // Rechner, neuer Beleg ohne Datei: zuerst nur die grosse Ablage
@@ -245,7 +282,9 @@ export function Erfassen() {
     <Seite titel={titel} pfad={bearbeiten ? herkunft() : undefined} voll
            rechts={<button className="k2 klein" data-akt="zurueck">{bearbeiten ? "Schliessen" : "Abbrechen"}</button>}>
       <Arbeitsplatz woher={bearbeiten ? S.zurueckZu : null} n={n}
-        fuss={<>{bearbeiten ? <NavKnoepfe /> : <span className="ap-nav" />}{nurKurz}{hauptKurz}</>}>
+        fuss={admin ? <><span className="ap-nav" />{adminAbbrechen}{adminSpeichern}</>
+                    : <>{bearbeiten ? <NavKnoepfe /> : <span className="ap-nav" />}{nurKurz}{hauptKurz}</>}>
+        {adminHinweis}
         {abgelehnt}
         {favoriten}
         {geteilt ? geteiltTeil : einfachTeil}
@@ -257,8 +296,9 @@ export function Erfassen() {
   return (
     <Seite titel={titel} sub={sub} fuss={knoepfe}>
       <div key={schluessel(n)} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {adminHinweis}
         {abgelehnt}
-        <BelegKarte n={n} />
+        {admin ? (hatBeleg && <section className="karte innen"><BelegVorschau n={n} /></section>) : <BelegKarte n={n} />}
         {favoriten}
         {geteilt ? geteiltTeil : einfachTeil}
         {rest}
@@ -313,6 +353,9 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
       {(stempel || n.entscheidGrund) &&
         <div className="stempel">{n.entscheidGrund && <>„{n.entscheidGrund}“<br /></>}
           <span className="kn mu">{stempel}</span></div>}
+      {n.bezahltAm &&
+        <div className="ok bezahltvermerk"><b>Zurückbezahlt am {langDatum(n.bezahltAm)}</b>
+          {n.bezahltVon && <span className="kn"> · markiert von {personName(n.bezahltVon)}</span>}</div>}
     </section>);
 
   const bild = n.altPfad
@@ -382,12 +425,22 @@ export function BelegInhalt({ n, breit, panel }: { n: any; breit?: boolean; pane
         </div>}
     </section>);
 
+  // Admin: Anpassungen am Beleg (Status bleibt) und der Rückweg. Ist die
+  // User-Zahlung schon zurückbezahlt, gibt es keinen Rückweg — zuerst die
+  // Zahlung zurücknehmen.
   const rueckweg = S.istAdmin && s !== "offen" && s !== "abgelehnt" &&
     <section className="karte innen" style={{ gap: 8 }}>
-      <b>Admin: Rückweg</b>
-      {istEntschieden(n) &&
-        <Knopf akt="zuruecksetzen" className="k2" data-v="eingereicht">Entscheid zurücknehmen — neu prüfen</Knopf>}
-      <Knopf akt="zuruecksetzen" className="k2" data-v="offen">Zurück auf „erfasst“ — Erfasser kann ändern</Knopf>
+      <b>Admin</b>
+      <Knopf akt="adminAnpassen" className="k2 fett">Adminanpassungen öffnen</Knopf>
+      <span className="kn mu">Alles ändern, auch „Bezahlt mit“ und Gerät — Status und Entscheid bleiben.</span>
+      {n.bezahltAm
+        ? <div className="hinweis"><Ico n="info" /><span>Schon zurückbezahlt — zurücksetzen geht erst, wenn die
+            Zahlung unter <button className="link" data-akt="tabZahlungen">User-Zahlungen</button> zurückgenommen ist.</span></div>
+        : <>
+          {istEntschieden(n) &&
+            <Knopf akt="zuruecksetzen" className="k2" data-v="eingereicht">Entscheid zurücknehmen — neu prüfen</Knopf>}
+          <Knopf akt="zuruecksetzen" className="k2" data-v="offen">Zurück auf „erfasst“ — Erfasser kann ändern</Knopf>
+        </>}
     </section>;
 
   const rechts = <>

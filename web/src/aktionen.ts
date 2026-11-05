@@ -23,7 +23,7 @@ import {
   ladeAuftraege, kstJahrSetzen, kstJahrLoeschen, kstRegelSetzen, kstRegelLoeschen,
   kstZumSpeichern, eigeneKarte, eigeneKarteSetzen,
   zeilePasst, meineZeilePasst, kartenBelege, kartenTitel, kartenDateiname,
-  ladeZahlungen, zuBezahlen, belegeBezahlt
+  ladeZahlungen, zuBezahlen, belegeBezahlt, adminAnpassen
 } from "./daten";
 import { SpesenExport } from "./export";
 
@@ -859,6 +859,15 @@ async function klickAusfuehren(a: string, d: DOMStringMap) {
       : "Kontierung geändert.");
   }
 
+  // Adminanpassung: dasselbe Formular für einen gesperrten Beleg
+  if (a === "adminAnpassen") {
+    if (!S.istAdmin || !S.neu) return;
+    S.neu.admin = true; S.wahlOffen = null;
+    return render();
+  }
+  if (a === "adminAbbrechen") return belegBearbeiten(S.neu.id, S.zurueckZu);
+  if (a === "adminSpeichern") return adminSpeichern();
+
   if (a === "zuruecksetzen") {
     const n = S.neu;
     const ziel = d.v;
@@ -926,6 +935,55 @@ async function korrekturSpeichern(n: any) {
   return true;
 }
 
+// Die Werte aus dem Formular — für Speichern und Adminanpassung.
+// Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
+// die erste Position steht zusätzlich oben, damit alte Auswertungen
+// und die Belegliste weiter funktionieren.
+function belegWerte(n: any) {
+  const geteilt = Array.isArray(n.positionen);
+  const positionen = geteilt ? n.positionen.map((p) => ({
+    betrag:       betragVon(p.betragText),
+    mwst:         parseFloat(p.mwst),
+    konto_nummer: p.konto.nummer,
+    auftrag_nr:   kstZumSpeichern(p)
+  })) : null;
+  const betrag = geteilt
+    ? Math.round(positionen.reduce((t, p) => t + p.betrag, 0) * 100) / 100
+    : betragVon(n.betragText);
+  return { betrag, werte: {
+    beleg_datum:  n.datum,
+    betrag:       betrag,
+    mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
+    konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
+    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : kstZumSpeichern(n),
+    positionen:   positionen,
+    zahlart:      n.zahlart
+  } };
+}
+
+// Adminanpassung speichern: alle Werte, auch "Bezahlt mit" und Gerät (jedes,
+// auch einer anderen KST). Status und Entscheid bleiben (Datenbank).
+async function adminSpeichern() {
+  const n = S.neu;
+  const { betrag, werte } = belegWerte(n);
+  if (!(betrag > 0)) { alert("Bitte einen Betrag grösser als 0 eingeben."); return; }
+  laeuft("adminSpeichern", "Speichere …");
+  const { error } = await adminAnpassen(n.id, {
+    ...werte,
+    zahlgeraet_id: n.zahlart === "karte" && n.zahlgeraet != null ? n.zahlgeraet : null,
+    kommentar: String(n.kommentar || "").trim() || null
+  });
+  if (error) {
+    S.laeuft = null;
+    alert(istNetzfehler(error) ? NETZTEXT
+      : /beleg_admin_anpassen/.test(error.message || "")
+        ? "Für Adminanpassungen zuerst supabase/admin-anpassen.sql im SQL Editor ausführen."
+        : error.message);
+    return render();
+  }
+  return zurueckNachSpeichern("Adminanpassung gespeichert.");
+}
+
 async function belegSpeichern(a: string) {
   const n = S.neu;
   const geteilt = Array.isArray(n.positionen);
@@ -938,19 +996,7 @@ async function belegSpeichern(a: string) {
         ? "Beleg speichern und genehmigen?\nDanach lässt er sich nicht mehr ändern."
         : "Beleg speichern und zur Prüfung freigeben?\nDanach lässt er sich nicht mehr ändern.")) return;
 
-  // Aufgeteilt: je Position eine Zeile. Der Belegbetrag ist ihre Summe,
-  // die erste Position steht zusätzlich oben, damit alte Auswertungen
-  // und die Belegliste weiter funktionieren.
-  const positionen = geteilt ? n.positionen.map((p) => ({
-    betrag:       betragVon(p.betragText),
-    mwst:         parseFloat(p.mwst),
-    konto_nummer: p.konto.nummer,
-    auftrag_nr:   kstZumSpeichern(p)
-  })) : null;
-
-  const betrag = geteilt
-    ? Math.round(positionen.reduce((t, p) => t + p.betrag, 0) * 100) / 100
-    : betragVon(n.betragText);
+  const { betrag, werte } = belegWerte(n);
 
   let pfad = n.altPfad;
   if (n.datei) {
@@ -969,17 +1015,7 @@ async function belegSpeichern(a: string) {
   }
 
   laeuft(a, "Speichere …");
-  const daten: any = {
-    beleg_datum:  n.datum,
-    betrag:       betrag,
-    mwst:         geteilt ? positionen[0].mwst         : parseFloat(n.mwst),
-    konto_nummer: geteilt ? positionen[0].konto_nummer : n.konto.nummer,
-    auftrag_nr:   geteilt ? positionen[0].auftrag_nr   : kstZumSpeichern(n),
-    positionen:   positionen,
-    zahlart:      n.zahlart,
-    datei_pfad:   pfad,
-    monat:        n.datum.slice(0, 7)
-  };
+  const daten: any = { ...werte, datei_pfad: pfad, monat: n.datum.slice(0, 7) };
   // Kommentar nur mitschicken, wenn es einen gibt oder die Spalte schon
   // bekannt ist — eine Datenbank ohne die Spalte würde sonst ablehnen.
   const kommentar = String(n.kommentar || "").trim();
@@ -1082,6 +1118,8 @@ export function aenderung(ziel: HTMLInputElement) {
     return render();
   }
   if (f === "zdatum") { S.zDatum = ziel.value || heute(); return render(); }
+  // Adminanpassung: jedes Gerät
+  if (f === "zahlgeraetAdmin" && S.neu) { S.neu.zahlgeraet = ziel.value ? Number(ziel.value) : null; return render(); }
 
   // Eigener Zeitraum: erst zeichnen, wenn die Daten da sind.
   if (f === "uvon") {

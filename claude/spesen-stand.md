@@ -2,7 +2,7 @@
 
 **Zuletzt aktualisiert: 05.11.2026.** Zuerst lesen, bevor weitergearbeitet wird.
 
-## Arbeitsplatz bleibt offen, Name statt „User-Zahlung“, User-Zahlungen zurückbezahlen (05.11.2026) — Arbeitsbranch, noch nicht live
+## Arbeitsplatz bleibt offen, Name statt „User-Zahlung“, User-Zahlungen zurückbezahlen, Adminanpassungen (05.11.2026) — Arbeitsbranch, noch nicht live
 
 **Arbeitsplatz bleibt offen:** Am Rechner einen Beleg aus der Übersicht
 öffnen und etwas tun (zurücksetzen, umkontieren, speichern, löschen …):
@@ -35,6 +35,27 @@ Datei zeigt die Seite nur die Listen mit Hinweis. Lokal gegen Postgres
 Achtung beim ersten Mal: alle früher genehmigten User-Zahlungen stehen
 unter „Zu bezahlen“ — die schon bezahlten mit „Alle anhaken“ auf einmal
 abhaken. Später: Bankdatei (pain.001) statt von Hand.
+`user-zahlungen.sql` im Test-Projekt ausgeführt (05.11.2026).
+
+**Bezahlt sichtbar beim Beleg:** Ein zurückbezahlter Beleg zeigt in der
+Ansicht oben die Marke „bezahlt“ und grün „Zurückbezahlt am … · markiert
+von …“. Die Admin-Knöpfe „Entscheid zurücknehmen“ / „Zurück auf erfasst“
+sind dann weg — stattdessen der Hinweis, zuerst unter User-Zahlungen die
+Zahlung zurückzunehmen (die Datenbank verweigert es ohnehin).
+
+**Adminanpassungen:** Admins haben bei jedem eingereichten oder
+entschiedenen Beleg „Adminanpassungen öffnen“: dasselbe Formular wie beim
+Erfassen — Betrag, MwSt (auch aufgeteilt), Konto, KST, Datum, Kommentar,
+**Bezahlt mit** und **Gerät**. Status und Entscheid bleiben; die Datei
+bleibt. Gerät: Auswahlfeld mit allen Geräten — „Passend zur KST“ zuerst,
+dann „Alle anderen Geräte“ (ausgeschaltete am Schluss), oder „kein Gerät“.
+Fall von Oli: Karte der KST 1212 für KST 1213 verwendet → Gerät richtig
+stellen. Wechsel auf/von User-Zahlung: „geprüft“ ↔ „genehmigt“ wird
+mitgezogen. Bezahlte User-Zahlung: Betrag und „Bezahlt mit“ gesperrt.
+Eingereichter Beleg mit neuer KST/Konto wird wie beim Umkontieren neu
+zugeordnet. Verlauf mit Namen des Admins. „Abbrechen“ verwirft.
+**SQL: `supabase/admin-anpassen.sql`** (RPC `beleg_admin_anpassen`) —
+setzt `user-zahlungen.sql` voraus. Lokal gegen Postgres geprüft.
 
 ## Mehrseitige PDF-Belege und Export für eigene Karte / PL (02.11.2026) — LIVE seit 02.11.2026
 

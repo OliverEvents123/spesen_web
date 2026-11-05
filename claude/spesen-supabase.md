@@ -388,3 +388,16 @@ gehört zu jedem Umbauschritt eine fertige `.sql`-Datei zum Kopieren.
   geänderter Belege zurück. Der Verlauf protokolliert es als „geändert“
   mit `bezahlt_am` (App zeigt „Zurückbezahlt · Datum“).
 - `beleg_zuruecksetzen` verweigert bezahlte Belege (zuerst Zahlung zurücknehmen).
+
+## Adminanpassungen 05.11.2026 (`admin-anpassen.sql`)
+
+- RPC `beleg_admin_anpassen(p_id bigint, p_daten jsonb)`: nur Admin. Setzt
+  bei einem beliebigen Beleg `beleg_datum`, `monat`, `betrag`, `mwst`,
+  `konto_nummer`, `auftrag_nr`, `positionen` (nur bei > 1), `zahlart`,
+  `zahlgeraet_id` (nur Kreditkarte, jedes Gerät), `kommentar`. Status bleibt —
+  ausser „geprüft“ ↔ „genehmigt“ beim Wechsel auf/von User-Zahlung;
+  `genehmigt_betrag` folgt dem Betrag (teilweise: höchstens er).
+  Bezahlte User-Zahlung: Betrag und Zahlungsart gesperrt. Läuft als
+  Definer — `beleg_regeln` ordnet eingereichte Belege bei neuer KST/Konto
+  neu zu wie beim Umkontieren.
+
